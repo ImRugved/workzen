@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
-import '../admin/admin_dashboard.dart';
-import '../user/user_dashboard.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({Key? key}) : super(key: key);
@@ -38,28 +37,46 @@ class _SignupScreenState extends State<SignupScreen> {
   Future<void> _signup() async {
     if (_formKey.currentState!.validate()) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      bool success = await authProvider.signup(
+      Map<String, dynamic> result = await authProvider.signup(
         _nameController.text.trim(),
         _emailController.text.trim(),
         _passwordController.text,
         _secretCodeController.text.trim(),
       );
 
-      if (success && mounted) {
-        // Navigate to appropriate dashboard based on user role
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => authProvider.isAdmin
-                ? const AdminDashboard()
-                : const UserDashboard(),
+      if (result['success'] && mounted) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Account created successfully!'),
+            backgroundColor: Colors.green,
           ),
         );
+
+        // Navigate to appropriate dashboard based on user role
+        Get.offNamed(
+          authProvider.isAdmin ? '/admin_dashboard' : '/user_dashboard',
+        );
       } else if (mounted) {
+        // Show specific error message
+        String errorMessage =
+            result['error'] ?? 'Registration failed. Please try again.';
+        Color backgroundColor = Colors.red;
+
+        // Special handling for database not found error
+        if (result['errorType'] == 'database_not_found') {
+          backgroundColor = Colors.orange;
+        } else if (result['errorType'] == 'permission_denied') {
+          backgroundColor = Colors.deepOrange;
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Registration failed. Please try again.'),
-            backgroundColor: Colors.red,
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: backgroundColor,
+            duration: const Duration(
+              seconds: 5,
+            ), // Longer duration for important errors
           ),
         );
       }
@@ -99,10 +116,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   const Text(
                     'Sign up to get started',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                   const SizedBox(height: 32),
 
@@ -130,8 +144,9 @@ class _SignupScreenState extends State<SignupScreen> {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your email';
                       }
-                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                          .hasMatch(value)) {
+                      if (!RegExp(
+                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                      ).hasMatch(value)) {
                         return 'Please enter a valid email';
                       }
                       return null;
@@ -220,7 +235,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.pop(context);
+                          Get.back();
                         },
                         child: const Text(
                           'Sign In',

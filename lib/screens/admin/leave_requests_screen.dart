@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:workzen/app_constants.dart';
 import 'package:provider/provider.dart';
-import '../../models/leave_model.dart';
-import '../../providers/leave_provider.dart';
-import '../../widgets/leave_card.dart';
+import '../../models/request_model.dart';
+import '../../providers/request_provider.dart';
+import '../../widgets/request_card.dart';
 
 class LeaveRequestsScreen extends StatefulWidget {
   const LeaveRequestsScreen({Key? key}) : super(key: key);
@@ -13,10 +13,10 @@ class LeaveRequestsScreen extends StatefulWidget {
 }
 
 class _LeaveRequestsScreenState extends State<LeaveRequestsScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _tabController;
   final List<String> _tabs = ['Pending', 'Approved', 'Rejected', 'All'];
-  Stream<List<LeaveModel>>? _leavesStream;
+  Stream<List<RequestModel>>? _requestsStream;
   bool _isInitialized = false;
 
   @override
@@ -40,9 +40,9 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen>
 
   void _initializeStream() {
     if (mounted) {
-      final leaveProvider = Provider.of<LeaveProvider>(context, listen: false);
+      final requestProvider = Provider.of<RequestProvider>(context, listen: false);
       setState(() {
-        _leavesStream = leaveProvider.getAllLeavesStream();
+        _requestsStream = requestProvider.getAllRequestsStream(type: AppConstants.requestTypeLeave);
       });
     }
   }
@@ -74,10 +74,10 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen>
           unselectedLabelColor: Colors.white70,
         ),
       ),
-      body: _leavesStream == null
+      body: _requestsStream == null
           ? const Center(child: CircularProgressIndicator())
-          : StreamBuilder<List<LeaveModel>>(
-              stream: _leavesStream,
+          : StreamBuilder<List<RequestModel>>(
+              stream: _requestsStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -112,38 +112,38 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen>
                   );
                 }
 
-                final allLeaves = snapshot.data!;
+                final allRequests = snapshot.data!;
 
-                // Filter leaves based on status
-                final pendingLeaves = allLeaves
+                // Filter requests based on status
+                final pendingRequests = allRequests
                     .where(
-                      (leave) => leave.status == AppConstants.statusPending,
+                      (request) => request.status == AppConstants.statusPending,
                     )
                     .toList();
-                final approvedLeaves = allLeaves
+                final approvedRequests = allRequests
                     .where(
-                      (leave) => leave.status == AppConstants.statusApproved,
+                      (request) => request.status == AppConstants.statusApproved,
                     )
                     .toList();
-                final rejectedLeaves = allLeaves
+                final rejectedRequests = allRequests
                     .where(
-                      (leave) => leave.status == AppConstants.statusRejected,
+                      (request) => request.status == AppConstants.statusRejected,
                     )
                     .toList();
 
                 return TabBarView(
                   controller: _tabController,
                   children: [
-                    _buildLeaveList(pendingLeaves, 'No pending leave requests'),
-                    _buildLeaveList(
-                      approvedLeaves,
+                    _buildRequestList(pendingRequests, 'No pending leave requests'),
+                    _buildRequestList(
+                      approvedRequests,
                       'No approved leave requests',
                     ),
-                    _buildLeaveList(
-                      rejectedLeaves,
+                    _buildRequestList(
+                      rejectedRequests,
                       'No rejected leave requests',
                     ),
-                    _buildLeaveList(allLeaves, 'No leave requests found'),
+                    _buildRequestList(allRequests, 'No leave requests found'),
                   ],
                 );
               },
@@ -151,8 +151,8 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen>
     );
   }
 
-  Widget _buildLeaveList(List<LeaveModel> leaves, String emptyMessage) {
-    return leaves.isEmpty
+  Widget _buildRequestList(List<RequestModel> requests, String emptyMessage) {
+    return requests.isEmpty
         ? Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -168,9 +168,9 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen>
           )
         : ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: leaves.length,
+            itemCount: requests.length,
             itemBuilder: (context, index) {
-              return LeaveCard(leave: leaves[index], isAdmin: true);
+              return RequestCard(request: requests[index], isAdmin: true);
             },
           );
   }

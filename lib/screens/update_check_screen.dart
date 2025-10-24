@@ -22,6 +22,7 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
   String _updateChannel = 'stable';
   String _lastChecked = 'Never';
   int? _currentPatchNumber;
+  ScaffoldMessengerState? _scaffoldMessenger;
 
   @override
   void initState() {
@@ -30,8 +31,16 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Store reference to ScaffoldMessenger for safe access in dispose
+    _scaffoldMessenger = ScaffoldMessenger.of(context);
+  }
+
+  @override
   void dispose() {
-    ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+    // Use stored reference instead of accessing context
+    _scaffoldMessenger?.hideCurrentMaterialBanner();
     super.dispose();
   }
 

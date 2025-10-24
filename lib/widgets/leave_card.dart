@@ -1,30 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../models/leave_model.dart';
-import '../providers/leave_provider.dart';
+import '../models/request_model.dart';
+import '../providers/request_provider.dart';
 
 class LeaveCard extends StatelessWidget {
-  final LeaveModel leave;
+  final RequestModel request;
   final bool isAdmin;
 
-  const LeaveCard({
-    Key? key,
-    required this.leave,
-    required this.isAdmin,
-  }) : super(key: key);
+  const LeaveCard({Key? key, required this.request, required this.isAdmin})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy');
-    final leaveProvider = Provider.of<LeaveProvider>(context, listen: false);
+    final requestProvider = Provider.of<RequestProvider>(context, listen: false);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -37,7 +32,7 @@ class LeaveCard extends StatelessWidget {
                 Expanded(
                   child: isAdmin
                       ? Text(
-                          leave.userName,
+                          request.userName,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -56,25 +51,35 @@ class LeaveCard extends StatelessWidget {
                 // Add some space between the text and status chip
                 const SizedBox(width: 8),
                 // The status chip doesn't need to be wrapped in Expanded
-                _getStatusChip(leave.status),
+                _getStatusChip(request.status),
               ],
             ),
             const SizedBox(height: 12),
             _buildInfoRow(
-                Icons.date_range, 'From', dateFormat.format(leave.fromDate)),
+              Icons.date_range,
+              'From',
+              dateFormat.format(request.fromDate ?? DateTime.now()),
+            ),
             _buildInfoRow(
-                Icons.date_range, 'To', dateFormat.format(leave.toDate)),
-            _buildInfoRow(Icons.access_time, 'Shift', leave.shift),
-            _buildInfoRow(Icons.subject, 'Reason', leave.reason),
-            if (leave.status != 'pending' && leave.adminRemark != null)
-              _buildInfoRow(Icons.comment, 'Admin Remark', leave.adminRemark!),
+              Icons.date_range,
+              'To',
+              dateFormat.format(request.toDate ?? DateTime.now()),
+            ),
+            _buildInfoRow(Icons.access_time, 'Shift', request.shift ?? 'N/A'),
+            _buildInfoRow(Icons.subject, 'Reason', request.reason),
+            if (request.status != 'pending' && request.adminRemark != null)
+              _buildInfoRow(
+                Icons.comment,
+                'Admin Remark',
+                request.adminRemark!,
+              ),
             const SizedBox(height: 8),
             _buildInfoRow(
               Icons.calendar_today,
               'Applied On',
-              dateFormat.format(leave.appliedOn),
+              dateFormat.format(request.appliedOn),
             ),
-            if (isAdmin && leave.status == 'pending')
+            if (isAdmin && request.status == 'pending')
               Padding(
                 padding: const EdgeInsets.only(top: 16.0),
                 child: Row(
@@ -91,7 +96,7 @@ class LeaveCard extends StatelessWidget {
                           'Approve Leave',
                           'Are you sure you want to approve this leave request?',
                           'approved',
-                          leaveProvider,
+                          requestProvider,
                         ),
                       ),
                     ),
@@ -108,7 +113,7 @@ class LeaveCard extends StatelessWidget {
                           'Reject Leave',
                           'Are you sure you want to reject this leave request?',
                           'rejected',
-                          leaveProvider,
+                          requestProvider,
                         ),
                       ),
                     ),
@@ -116,7 +121,7 @@ class LeaveCard extends StatelessWidget {
                 ),
               ),
             // Add delete button for employees with pending leave requests
-            if (!isAdmin && leave.status == 'pending')
+            if (!isAdmin && request.status == 'pending')
               Padding(
                 padding: const EdgeInsets.only(top: 16.0),
                 child: SizedBox(
@@ -127,10 +132,8 @@ class LeaveCard extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                     ),
-                    onPressed: () => _showDeleteConfirmationDialog(
-                      context,
-                      leaveProvider,
-                    ),
+                    onPressed: () =>
+                        _showDeleteConfirmationDialog(context, requestProvider),
                   ),
                 ),
               ),
@@ -161,9 +164,7 @@ class LeaveCard extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w500),
             ),
           ),
         ],
@@ -216,7 +217,7 @@ class LeaveCard extends StatelessWidget {
     String title,
     String message,
     String action,
-    LeaveProvider leaveProvider,
+    RequestProvider requestProvider,
   ) {
     final remarkController = TextEditingController();
 
@@ -258,8 +259,8 @@ class LeaveCard extends StatelessWidget {
                 Navigator.of(dialogContext).pop();
 
                 // Update the leave status
-                final success = await leaveProvider.updateLeaveStatus(
-                  leave,
+                final success = await requestProvider.updateRequestStatus(
+                  request,
                   action,
                   remarkController.text.trim(),
                 );
@@ -269,7 +270,8 @@ class LeaveCard extends StatelessWidget {
                   scaffoldMessenger.showSnackBar(
                     SnackBar(
                       content: Text(
-                          'Leave request ${action == 'approved' ? 'approved' : 'rejected'} successfully'),
+                        'Leave request ${action == 'approved' ? 'approved' : 'rejected'} successfully',
+                      ),
                       backgroundColor: Colors.green,
                     ),
                   );
@@ -283,8 +285,9 @@ class LeaveCard extends StatelessWidget {
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    action == 'approved' ? Colors.green : Colors.red,
+                backgroundColor: action == 'approved'
+                    ? Colors.green
+                    : Colors.red,
               ),
             ),
           ],
@@ -294,14 +297,17 @@ class LeaveCard extends StatelessWidget {
   }
 
   void _showDeleteConfirmationDialog(
-      BuildContext context, LeaveProvider leaveProvider) {
+    BuildContext context,
+    RequestProvider requestProvider,
+  ) {
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Confirm Deletion'),
-          content:
-              const Text('Are you sure you want to cancel this leave request?'),
+          content: const Text(
+            'Are you sure you want to cancel this leave request?',
+          ),
           actions: [
             TextButton(
               child: const Text('Cancel'),
@@ -319,7 +325,7 @@ class LeaveCard extends StatelessWidget {
                 Navigator.of(dialogContext).pop();
 
                 // Perform the delete operation
-                final success = await leaveProvider.deletePendingLeave(leave);
+                final success = await requestProvider.deletePendingRequest(request);
 
                 // Show success or error message using the stored scaffold messenger
                 if (success) {
@@ -338,9 +344,7 @@ class LeaveCard extends StatelessWidget {
                   );
                 }
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             ),
           ],
         );

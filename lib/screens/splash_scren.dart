@@ -2,7 +2,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
-import '../utils/token_updater.dart';
+
 import 'admin/admin_dashboard.dart';
 import 'auth/login_screen.dart';
 import 'user/user_dashboard.dart';
@@ -22,48 +22,65 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-
     _animationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
     );
 
-    _fadeAnimation =
-        Tween<double>(begin: 0.0, end: 1.0).animate(_animationController);
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(_animationController);
 
     _animationController.forward();
 
-    // Check auth state after animation completes
-    Future.delayed(const Duration(seconds: 2), () async {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      await authProvider.checkAuthState();
-
-      // Update FCM tokens for all users
-      try {
-        log('Updating FCM tokens for all users');
-        await TokenUpdater.updateAllUserTokens();
-      } catch (e) {
-        log('Error updating FCM tokens: $e');
-      }
-
-      if (mounted) {
-        if (authProvider.isLoggedIn) {
-          // User is logged in, navigate to appropriate dashboard
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => authProvider.isAdmin
-                  ? const AdminDashboard()
-                  : const UserDashboard(),
-            ),
-          );
-        } else {
-          // User is not logged in, navigate to login screen
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
-          );
-        }
-      }
+    // Defer auth check until after build phase is complete
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAuthAndNavigate();
     });
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    // Wait for auth state check to complete
+    await authProvider.checkAuthState();
+
+    // Ensure minimum animation time (800ms) has passed
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    // FCM token updates are now handled individually by each user's auth provider
+    // No need to update all users' tokens from splash screen
+
+    if (mounted) {
+      log('Splash screen navigation check:');
+      log('- isLoggedIn: ${authProvider.isLoggedIn}');
+      log('- isAdmin: ${authProvider.isAdmin}');
+      log('- user: ${authProvider.user?.uid}');
+      log('- userModel: ${authProvider.userModel?.name}');
+
+      if (authProvider.isLoggedIn && authProvider.userModel != null) {
+        // User is logged in and user data is loaded, navigate to appropriate dashboard
+        log('Navigating to dashboard - isAdmin: ${authProvider.isAdmin}');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => authProvider.isAdmin
+                ? const AdminDashboard()
+                : const UserDashboard(),
+          ),
+        );
+      } else {
+        // User is not logged in or user data not loaded, navigate to login screen
+        log(
+          'User not logged in or data not loaded, navigating to login screen',
+        );
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      }
+    } else {
+      log('Splash screen widget not mounted, skipping navigation');
+    }
   }
 
   @override
@@ -80,10 +97,7 @@ class _SplashScreenState extends State<SplashScreen>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Colors.indigo.shade700,
-              Colors.indigo.shade400,
-            ],
+            colors: [Colors.indigo.shade700, Colors.indigo.shade400],
           ),
         ),
         child: Center(
@@ -129,10 +143,7 @@ class _SplashScreenState extends State<SplashScreen>
                 const SizedBox(height: 10),
                 const Text(
                   'Manage your leaves easily',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                  ),
+                  style: TextStyle(fontSize: 16, color: Colors.white70),
                 ),
                 const SizedBox(height: 40),
                 // Loading indicator

@@ -396,10 +396,48 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                 }
 
                 if (snapshot.hasError) {
+                  // Handle different types of errors with user-friendly messages
+                  String errorMessage = 'Unable to load your attendance history at the moment.';
+                  
+                  if (snapshot.error.toString().contains('permission-denied') ||
+                      snapshot.error.toString().contains('PERMISSION_DENIED')) {
+                    errorMessage = 'Access denied. Please check your account permissions.';
+                  } else if (snapshot.error.toString().contains('network') ||
+                             snapshot.error.toString().contains('connection')) {
+                    errorMessage = 'Network error. Please check your internet connection.';
+                  }
+                  
                   return Center(
-                    child: Text(
-                      'Error: ${snapshot.error}',
-                      style: const TextStyle(color: Colors.red),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.orange,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          errorMessage,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: _initializeStream,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Try Again'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 }

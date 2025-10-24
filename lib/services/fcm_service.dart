@@ -1,29 +1,18 @@
 import 'dart:convert';
 import 'dart:developer';
-import 'dart:io';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/services.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../app_constants.dart';
 import '../providers/user_provider.dart';
-import 'package:googleapis/fcm/v1.dart' as fcm;
 
 class FCMService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseDatabase _database = FirebaseDatabase.instance;
   final UserProvider _userProvider = UserProvider();
-  final String serverKey =
-      'AAAA-Ow-Ixs:APA91bGXYXTpnXQZnGxHxVQYQbOyoMDmQDxDQQZYHvawzwkHGZvuJnEQJuCDZpOr-_0YnPFmGE9X-_RRK-3ZtAQJhQZB_-xvV_J_PQNJKUeUjHN-ydZHvdQVPIYEXYf4amkUQxlnlQZl'; // Your actual FCM server key
 
   // Constants
-  static const String _fcmEndpoint = 'https://fcm.googleapis.com/fcm/send';
-  static const String _fcmV1Endpoint =
-      'https://fcm.googleapis.com/v1/projects/mounarchtech-ac3b9/messages:send';
   static const List<String> _scopes = [
-    'https://www.googleapis.com/auth/firebase.messaging'
+    'https://www.googleapis.com/auth/firebase.messaging',
   ];
 
   // Send notification to a specific user by userId
@@ -34,38 +23,35 @@ class FCMService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      log('Sending notification to user: $userId');
-      log('Notification title: $title');
-      log('Notification body: $body');
-      log('Notification data: $data');
+      log('Attempting to send notification to user: $userId');
 
-      // Get user's FCM token using the new method from UserProvider
-      final token = await _userProvider.getUserFcmToken(userId);
+      // Get user's FCM token
+      String? token = await _userProvider.getUserFcmToken(userId);
 
       if (token == null || token.isEmpty) {
         log('FCM token not found for user: $userId');
         return false;
       }
 
-      log('Found FCM token for user $userId: $token');
+      log('Found FCM token for user $userId: ${token.substring(0, 20)}...');
 
-      // Send notification with the token
-      final result = await sendNotification(
+      // Send notification
+      bool success = await _sendWithServiceAccount(
         token: token,
         title: title,
         body: body,
         data: data,
       );
 
-      if (result) {
+      if (success) {
         log('Notification sent successfully to user: $userId');
       } else {
         log('Failed to send notification to user: $userId');
       }
 
-      return result;
+      return success;
     } catch (e) {
-      log('Error sending notification to user: $e');
+      log('Error in sendNotificationToUser: $e');
       return false;
     }
   }
@@ -113,89 +99,83 @@ class FCMService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      // Validate token
-      if (token.isEmpty) {
-        log('Cannot send notification: Token is empty');
+      log(
+        'Sending notification with service account to token: ${token.substring(0, 20)}...',
+      );
+
+      // Get access token
+      final String? accessToken = await getAccessToken();
+      if (accessToken == null) {
+        log('Failed to get access token');
         return false;
       }
 
-      log('Attempting to send notification using service account');
-      log('Loading service account credentials');
+      // Load service account credentials to get project ID
+      final String serviceAccountJson = await rootBundle.loadString(
+        'assets/service.json',
+      );
+      final Map<String, dynamic> serviceAccount = jsonDecode(
+        serviceAccountJson,
+      );
+      final String projectId = serviceAccount['project_id'];
 
-      // Load service account credentials
-      final serviceAccountJson =
-          await rootBundle.loadString('assets/service.json');
-      final serviceAccount =
-          ServiceAccountCredentials.fromJson(jsonDecode(serviceAccountJson));
+      // Prepare the message
+      final Map<String, dynamic> message = {
+        'message': {
+          'token': token,
+          'notification': {'title': title, 'body': body},
+          'data':
+              data?.map((key, value) => MapEntry(key, value.toString())) ?? {},
+        },
+      };
 
-      log('Service account credentials loaded successfully');
-      log('Obtaining access token');
+      log('FCM message payload: ${jsonEncode(message)}');
 
-      // Get access token
-      final client = await clientViaServiceAccount(serviceAccount,
-          ['https://www.googleapis.com/auth/firebase.messaging']);
-      final accessToken = client.credentials.accessToken.data;
-
-      log('Access token obtained: ${accessToken.substring(0, 10)}...');
-
-      // Extract project ID from service account email
-      // Service account emails are in the format: name@project-id.iam.gserviceaccount.com
-      final String projectId = serviceAccount.email.split('@')[1].split('.')[0];
-      log('Project ID extracted from service account: $projectId');
-
-      // Create FCM API client
-      final fcmApi = fcm.FirebaseCloudMessagingApi(client);
-
-      // Construct message payload with data converted to strings
-      final Map<String, String> stringData = {};
-      if (data != null) {
-        data.forEach((key, value) {
-          stringData[key] = value.toString();
-        });
-      }
-
-      final message = fcm.Message(
-        token: token,
-        notification: fcm.Notification(
-          title: title,
-          body: body,
+      // Send the notification
+      final response = await http.post(
+        Uri.parse(
+          'https://fcm.googleapis.com/v1/projects/$projectId/messages:send',
         ),
-        data: stringData,
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(message),
       );
 
-      log('Sending message to FCM API');
+      log('FCM response status: ${response.statusCode}');
+      log('FCM response body: ${response.body}');
 
-      // Send message
-      final response = await fcmApi.projects.messages.send(
-        fcm.SendMessageRequest(message: message),
-        'projects/$projectId',
-      );
+      if (response.statusCode == 200) {
+        log('Notification sent successfully');
+        return true;
+      } else {
+        log(
+          'Failed to send notification. Status: ${response.statusCode}, Body: ${response.body}',
+        );
 
-      log('FCM API response: ${response.name}');
+        // Check for invalid token errors
+        if (response.body.contains('INVALID_ARGUMENT') ||
+            response.body.contains('UNREGISTERED') ||
+            response.body.contains('NOT_FOUND')) {
+          log('Invalid or unregistered token detected, cleaning up...');
+          await cleanupInvalidToken(token);
+        }
 
-      client.close();
-      return true;
-    } catch (e) {
-      log('Error sending notification with service account: $e');
-
-      // Check if the error is due to an unregistered token
-      if (e.toString().contains('unregistered') ||
-          e.toString().contains('not-registered') ||
-          e.toString().contains('invalid-argument')) {
-        log('Token appears to be invalid or unregistered');
-        _cleanupInvalidToken(token);
+        return false;
       }
-
+    } catch (e) {
+      log('Error in _sendWithServiceAccount: $e');
       return false;
     }
   }
 
-  // Clean up invalid token
-  Future<void> _cleanupInvalidToken(String token) async {
+  // Clean up invalid FCM token
+  Future<void> cleanupInvalidToken(String token) async {
     try {
       log('Cleaning up invalid token: $token');
 
-      // Find user with this token in Firestore
+      // Find users with this token in Firestore
       final querySnapshot = await _firestore
           .collection('users')
           .where('fcmToken', isEqualTo: token)
@@ -209,15 +189,26 @@ class FCMService {
           final userId = doc.id;
           log('Removing invalid token from user: $userId');
 
-          // Remove token from Firestore
-          await _firestore.collection('users').doc(userId).update({
-            'fcmToken': '',
-          });
+          // Remove token from Firestore only
+          try {
+            await _firestore.collection('users').doc(userId).update({
+              'fcmToken': '',
+            });
+            log('Invalid token removed from Firestore for user: $userId');
+          } catch (firestoreError) {
+            log(
+              'Error removing token from Firestore for user $userId: $firestoreError',
+            );
 
-          // Remove token from Realtime Database
-          await _database.ref('userTokens/$userId').remove();
-
-          log('Invalid token removed for user: $userId');
+            // Handle specific Firestore errors
+            if (firestoreError.toString().contains('permission-denied')) {
+              log(
+                'Permission denied for Firestore token cleanup - rules may need time to propagate',
+              );
+            } else if (firestoreError.toString().contains('not-found')) {
+              log('User document not found in Firestore for token cleanup');
+            }
+          }
         }
       } else {
         log('No users found with this invalid token');
@@ -231,8 +222,9 @@ class FCMService {
   Future<String?> getAccessToken() async {
     try {
       // Load service account JSON
-      final String serviceJson =
-          await rootBundle.loadString('assets/service.json');
+      final String serviceJson = await rootBundle.loadString(
+        'assets/service.json',
+      );
       final Map<String, dynamic> serviceAccount = jsonDecode(serviceJson);
 
       // Create credentials
@@ -244,7 +236,10 @@ class FCMService {
 
       try {
         accessCredentials = await obtainAccessCredentialsViaServiceAccount(
-            credentials, _scopes, client);
+          credentials,
+          _scopes,
+          client,
+        );
         return accessCredentials.accessToken.data;
       } finally {
         client.close();

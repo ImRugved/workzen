@@ -1,13 +1,11 @@
 import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import '../app_constants.dart';
 import '../models/user_model.dart';
 
 class UserProvider extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseDatabase _database = FirebaseDatabase.instance;
   bool _isLoading = false;
   List<UserModel> _employees = [];
 
@@ -87,16 +85,13 @@ class UserProvider extends ChangeNotifier {
 
       log('Updating FCM token for user $userId: $token');
 
-      // Update in Firestore
+      // Update in Firestore only
       await FirebaseFirestore.instance
           .collection(AppConstants.usersCollection)
           .doc(userId)
           .update({'fcmToken': token});
 
-      // Update in Realtime Database
-      await _database.ref('userTokens/$userId').set(token);
-
-      log('FCM token updated successfully in both Firestore and Realtime Database');
+      log('FCM token updated successfully in Firestore');
       return true;
     } catch (e) {
       log('Error updating FCM token: $e');
@@ -109,15 +104,7 @@ class UserProvider extends ChangeNotifier {
     try {
       log('Getting FCM token for user $userId');
 
-      // First try from Realtime Database (faster)
-      final dbSnapshot = await _database.ref('userTokens/$userId').get();
-      if (dbSnapshot.exists) {
-        final token = dbSnapshot.value as String;
-        log('Found FCM token in Realtime Database: $token');
-        return token;
-      }
-
-      // If not found, try from Firestore
+      // Get from Firestore only
       final docSnapshot = await _firestore
           .collection(AppConstants.usersCollection)
           .doc(userId)
@@ -125,13 +112,7 @@ class UserProvider extends ChangeNotifier {
 
       if (docSnapshot.exists && docSnapshot.data()!.containsKey('fcmToken')) {
         final token = docSnapshot.data()!['fcmToken'] as String;
-
-        // If found in Firestore but not in Realtime DB, update Realtime DB
-        if (token.isNotEmpty) {
-          log('Found FCM token in Firestore, updating Realtime Database');
-          await _database.ref('userTokens/$userId').set(token);
-        }
-
+        log('Found FCM token in Firestore: $token');
         return token;
       }
 
@@ -155,15 +136,6 @@ class UserProvider extends ChangeNotifier {
           .doc(userId)
           .update(data);
 
-      // If FCM token is included in the update, also update it in Realtime Database
-      if (data.containsKey('fcmToken') && data['fcmToken'] != null) {
-        final token = data['fcmToken'] as String;
-        if (token.isNotEmpty) {
-          log('FCM token included in user data update, syncing to Realtime Database');
-          await _database.ref('userTokens/$userId').set(token);
-        }
-      }
-
       _isLoading = false;
       notifyListeners();
 
@@ -180,16 +152,13 @@ class UserProvider extends ChangeNotifier {
     try {
       log('Removing FCM token for user $userId');
 
-      // Remove from Firestore
+      // Remove from Firestore only
       await FirebaseFirestore.instance
           .collection(AppConstants.usersCollection)
           .doc(userId)
           .update({'fcmToken': FieldValue.delete()});
 
-      // Remove from Realtime Database
-      await _database.ref('userTokens/$userId').remove();
-
-      log('FCM token removed successfully from both Firestore and Realtime Database');
+      log('FCM token removed successfully from Firestore');
       return true;
     } catch (e) {
       log('Error removing user FCM token: $e');

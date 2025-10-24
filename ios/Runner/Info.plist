@@ -45,5 +45,38 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- Camera permission for taking profile pictures -->
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs access to camera to take profile pictures and document photos.</string>
+	
+	<!-- Photo library permission for selecting images -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to photo library to select profile pictures and documents.</string>
+	
+	<!-- Location permissions for attendance tracking -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs location access to track attendance and verify work location.</string>
+	
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs location access to track attendance and verify work location.</string>
+	
+	<!-- Notification permissions -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+		<string>background-fetch</string>
+	</array>
+	
+	<!-- Firebase Cloud Messaging -->
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
+	
+	<!-- Network usage -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

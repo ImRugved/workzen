@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
-import '../admin/admin_dashboard.dart';
-import '../user/user_dashboard.dart';
-import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -36,14 +34,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (success && mounted) {
         // Navigate to appropriate dashboard based on user role
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => authProvider.isAdmin
-                ? const AdminDashboard()
-                : const UserDashboard(),
-          ),
-        );
+        Get.offNamed(authProvider.isAdmin
+            ? '/admin_dashboard'
+            : '/user_dashboard');
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -160,12 +153,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SignupScreen(),
-                            ),
-                          );
+                          Get.toNamed('/signup_screen');
                         },
                         child: const Text(
                           'Sign Up',

@@ -4,6 +4,9 @@ class UserModel {
   final String email;
   final String fcmToken;
   final bool isAdmin;
+  final String? profileImageUrl;
+  final String? employeeId;
+  final String? department;
 
   UserModel({
     required this.id,
@@ -11,6 +14,9 @@ class UserModel {
     required this.email,
     required this.fcmToken,
     required this.isAdmin,
+    this.profileImageUrl,
+    this.employeeId,
+    this.department,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -20,6 +26,9 @@ class UserModel {
       email: json['email'] ?? '',
       fcmToken: json['fcmToken'] ?? '',
       isAdmin: json['isAdmin'] ?? false,
+      profileImageUrl: json['profileImageUrl'],
+      employeeId: json['employeeId'],
+      department: json['department'],
     );
   }
 
@@ -30,6 +39,9 @@ class UserModel {
       'email': email,
       'fcmToken': fcmToken,
       'isAdmin': isAdmin,
+      'profileImageUrl': profileImageUrl,
+      'employeeId': employeeId,
+      'department': department,
     };
   }
 }

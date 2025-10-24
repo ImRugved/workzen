@@ -1,0 +1,18 @@
+{
+  "rules": {
+    "userTokens": {
+      "$userId": {
+        ".read": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('isAdmin').val() == true)",
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('isAdmin').val() == true)"
+      }
+    },
+    "users": {
+      "$userId": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $userId"
+      }
+    },
+    ".read": false,
+    ".write": false
+  }
+}

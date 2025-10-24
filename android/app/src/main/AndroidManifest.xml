@@ -1,4 +1,35 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Internet permission for network requests -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    
+    <!-- Camera permission for taking profile pictures -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    
+    <!-- Storage permissions for accessing gallery and saving files -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    
+    <!-- Notification permissions -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    
+    <!-- Location permissions for attendance tracking -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    
+    <!-- Network state for checking connectivity -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
+    <!-- Foreground service for background tasks -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    
+    <!-- Firebase Cloud Messaging -->
+    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
+    
     <application
         android:label="workzen"
         android:name="${applicationName}"

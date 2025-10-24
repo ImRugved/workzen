@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:provider/provider.dart';
+import '../../app_constants.dart';
 import '../../models/leave_model.dart';
+import '../../models/request_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/leave_provider.dart';
+import '../../providers/request_provider.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/app_drawer.dart';
-import 'apply_leave_screen.dart';
-import 'leave_history_screen.dart';
 
 class UserDashboard extends StatefulWidget {
   const UserDashboard({Key? key}) : super(key: key);
@@ -15,7 +17,7 @@ class UserDashboard extends StatefulWidget {
 }
 
 class _UserDashboardState extends State<UserDashboard> {
-  Stream<List<LeaveModel>>? _userLeavesStream;
+  Stream<List<RequestModel>>? _userLeavesStream;
 
   @override
   void initState() {
@@ -23,18 +25,32 @@ class _UserDashboardState extends State<UserDashboard> {
     // Use WidgetsBinding to defer the data loading after the first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeStream();
+      _initializeNotifications();
     });
   }
 
   void _initializeStream() {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final leaveProvider = Provider.of<LeaveProvider>(context, listen: false);
+    final requestProvider = Provider.of<RequestProvider>(
+      context,
+      listen: false,
+    );
 
     if (authProvider.userModel != null) {
       setState(() {
-        _userLeavesStream =
-            leaveProvider.getUserLeavesStream(authProvider.userModel!.id);
+        _userLeavesStream = requestProvider.getUserRequestsStream(
+          authProvider.userModel!.id,
+          type: AppConstants.requestTypeLeave,
+        );
       });
+    }
+  }
+
+  void _initializeNotifications() async {
+    try {
+      await PushNotificationsService().initAfterLogin();
+    } catch (e) {
+      print('Error initializing notifications: $e');
     }
   }
 
@@ -80,7 +96,7 @@ class _UserDashboardState extends State<UserDashboard> {
                                 child: Text(
                                   authProvider.userModel!.name.isNotEmpty
                                       ? authProvider.userModel!.name[0]
-                                          .toUpperCase()
+                                            .toUpperCase()
                                       : '?',
                                   style: TextStyle(
                                     fontSize: 24,
@@ -123,10 +139,7 @@ class _UserDashboardState extends State<UserDashboard> {
                   // Quick Actions
                   const Text(
                     'Quick Actions',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -137,13 +150,9 @@ class _UserDashboardState extends State<UserDashboard> {
                           'Apply Leave',
                           Icons.event_available,
                           Colors.blue,
-                          () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const ApplyLeaveScreen(),
-                              ),
-                            ).then((_) => _initializeStream());
+                          () async {
+                            await Get.toNamed('/apply_leave_screen');
+                            _initializeStream();
                           },
                         ),
                       ),
@@ -154,14 +163,9 @@ class _UserDashboardState extends State<UserDashboard> {
                           'Leave History',
                           Icons.history,
                           Colors.purple,
-                          () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const LeaveHistoryScreen(),
-                              ),
-                            ).then((_) => _initializeStream());
+                          () async {
+                            await Get.toNamed('/leave_history_screen');
+                            _initializeStream();
                           },
                         ),
                       ),
@@ -181,13 +185,9 @@ class _UserDashboardState extends State<UserDashboard> {
                         ),
                       ),
                       TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const LeaveHistoryScreen(),
-                            ),
-                          ).then((_) => _initializeStream());
+                        onPressed: () async {
+                          await Get.toNamed('/leave_history_screen');
+                          _initializeStream();
                         },
                         child: const Text('View All'),
                       ),
@@ -199,20 +199,70 @@ class _UserDashboardState extends State<UserDashboard> {
                   Expanded(
                     child: _userLeavesStream == null
                         ? const Center(child: CircularProgressIndicator())
-                        : StreamBuilder<List<LeaveModel>>(
+                        : StreamBuilder<List<RequestModel>>(
                             stream: _userLeavesStream,
                             builder: (context, snapshot) {
                               if (snapshot.connectionState ==
                                   ConnectionState.waiting) {
                                 return const Center(
-                                    child: CircularProgressIndicator());
+                                  child: CircularProgressIndicator(),
+                                );
                               }
 
                               if (snapshot.hasError) {
+                                // Handle different types of errors with user-friendly messages
+                                String errorMessage =
+                                    'Unable to load your leave requests at the moment.';
+
+                                if (snapshot.error.toString().contains(
+                                      'permission-denied',
+                                    ) ||
+                                    snapshot.error.toString().contains(
+                                      'PERMISSION_DENIED',
+                                    )) {
+                                  errorMessage =
+                                      'Access denied. Please check your account permissions.';
+                                } else if (snapshot.error.toString().contains(
+                                      'network',
+                                    ) ||
+                                    snapshot.error.toString().contains(
+                                      'connection',
+                                    )) {
+                                  errorMessage =
+                                      'Network error. Please check your internet connection.';
+                                }
+
                                 return Center(
-                                  child: Text(
-                                    'Error loading leave requests: ${snapshot.error}',
-                                    style: const TextStyle(color: Colors.red),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.error_outline,
+                                        size: 48,
+                                        color: Colors.orange,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        errorMessage,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      ElevatedButton.icon(
+                                        onPressed: _initializeStream,
+                                        icon: const Icon(Icons.refresh),
+                                        label: const Text('Try Again'),
+                                        style: ElevatedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 8,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 );
                               }
@@ -240,32 +290,34 @@ class _UserDashboardState extends State<UserDashboard> {
                                 );
                               }
 
-                              final leaves = snapshot.data!;
+                              final requests = snapshot.data!;
 
                               return ListView.builder(
                                 itemCount:
-                                    leaves.length > 3 ? 3 : leaves.length,
+                                    requests.length > 3 ? 3 : requests.length,
                                 itemBuilder: (context, index) {
-                                  final leave = leaves[index];
+                                  final request = requests[index];
                                   return Card(
                                     margin: const EdgeInsets.only(bottom: 12),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(10),
                                       side: BorderSide(
-                                        color: leave.status == 'pending'
+                                        color: request.status == 'pending'
                                             ? Colors.orange.withOpacity(0.5)
-                                            : leave.status == 'approved'
-                                                ? Colors.green.withOpacity(0.5)
-                                                : Colors.red.withOpacity(0.5),
+                                            : request.status == 'approved'
+                                            ? Colors.green.withOpacity(0.5)
+                                            : Colors.red.withOpacity(0.5),
                                         width: 1,
                                       ),
                                     ),
                                     child: ListTile(
                                       contentPadding:
                                           const EdgeInsets.symmetric(
-                                              horizontal: 16, vertical: 8),
+                                            horizontal: 16,
+                                            vertical: 8,
+                                          ),
                                       title: Text(
-                                        'From: ${_formatDate(leave.fromDate)} To: ${_formatDate(leave.toDate)}',
+                                        'From: ${_formatDate(request.fromDate!)} To: ${_formatDate(request.toDate!)}',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -275,20 +327,21 @@ class _UserDashboardState extends State<UserDashboard> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           const SizedBox(height: 4),
-                                          Text('Reason: ${leave.reason}'),
+                                          Text('Reason: ${request.reason}'),
                                           const SizedBox(height: 4),
                                           Row(
                                             children: [
-                                              _buildStatusChip(leave.status),
-                                              if (leave.adminRemark != null &&
-                                                  leave.adminRemark!.isNotEmpty)
+                                              _buildStatusChip(request.status),
+                                              if (request.adminRemark != null &&
+                                                  request.adminRemark!.isNotEmpty)
                                                 Expanded(
                                                   child: Padding(
                                                     padding:
                                                         const EdgeInsets.only(
-                                                            left: 8),
+                                                          left: 8,
+                                                        ),
                                                     child: Text(
-                                                      'Remark: ${leave.adminRemark}',
+                                                      'Remark: ${request.adminRemark}',
                                                       overflow:
                                                           TextOverflow.ellipsis,
                                                     ),
@@ -299,16 +352,14 @@ class _UserDashboardState extends State<UserDashboard> {
                                         ],
                                       ),
                                       trailing: const Icon(
-                                          Icons.arrow_forward_ios,
-                                          size: 16),
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                const LeaveHistoryScreen(),
-                                          ),
-                                        ).then((_) => _initializeStream());
+                                        Icons.arrow_forward_ios,
+                                        size: 16,
+                                      ),
+                                      onTap: () async {
+                                        await Get.toNamed(
+                                          '/leave_history_screen',
+                                        );
+                                        _initializeStream();
                                       },
                                     ),
                                   );
@@ -323,8 +374,13 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  Widget _buildActionCard(BuildContext context, String title, IconData icon,
-      Color color, VoidCallback onTap) {
+  Widget _buildActionCard(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),

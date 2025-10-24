@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/leave_model.dart';
+import '../../models/request_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/leave_provider.dart';
+import '../../providers/request_provider.dart';
 import '../../widgets/leave_card.dart';
+import '../../app_constants.dart';
 
 class LeaveHistoryScreen extends StatefulWidget {
   const LeaveHistoryScreen({Key? key}) : super(key: key);
@@ -13,7 +14,7 @@ class LeaveHistoryScreen extends StatefulWidget {
 }
 
 class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
-  Stream<List<LeaveModel>>? _userLeavesStream;
+  Stream<List<RequestModel>>? _userLeavesStream;
   bool _isInitialized = false;
 
   @override
@@ -36,11 +37,15 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
     if (mounted) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       if (authProvider.userModel != null) {
-        final leaveProvider =
-            Provider.of<LeaveProvider>(context, listen: false);
+        final requestProvider = Provider.of<RequestProvider>(
+          context,
+          listen: false,
+        );
         setState(() {
-          _userLeavesStream =
-              leaveProvider.getUserLeavesStream(authProvider.userModel!.id);
+          _userLeavesStream = requestProvider.getUserRequestsStream(
+            authProvider.userModel!.id,
+            type: AppConstants.requestTypeLeave,
+          );
         });
       }
     }
@@ -61,7 +66,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       ),
       body: _userLeavesStream == null
           ? const Center(child: CircularProgressIndicator())
-          : StreamBuilder<List<LeaveModel>>(
+          : StreamBuilder<List<RequestModel>>(
               stream: _userLeavesStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -82,11 +87,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.history,
-                          size: 80,
-                          color: Colors.grey[400],
-                        ),
+                        Icon(Icons.history, size: 80, color: Colors.grey[400]),
                         const SizedBox(height: 16),
                         const Text(
                           'No leave history found',
@@ -99,17 +100,14 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                         const SizedBox(height: 8),
                         const Text(
                           'Your leave requests will appear here',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
-                          ),
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
                         ),
                       ],
                     ),
                   );
                 }
 
-                final leaves = snapshot.data!;
+                final requests = snapshot.data!;
 
                 return RefreshIndicator(
                   onRefresh: () async {
@@ -117,10 +115,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                   },
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    itemCount: leaves.length,
+                    itemCount: requests.length,
                     itemBuilder: (context, index) {
-                      final leave = leaves[index];
-                      return LeaveCard(leave: leave, isAdmin: false);
+                      final request = requests[index];
+                      return LeaveCard(request: request, isAdmin: false);
                     },
                   ),
                 );

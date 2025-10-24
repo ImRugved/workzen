@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/leave_provider.dart';
+import '../../providers/request_provider.dart';
 import '../../widgets/custom_button.dart';
 
 class ApplyLeaveScreen extends StatefulWidget {
@@ -58,10 +59,10 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
   Future<void> _submitLeave() async {
     if (_formKey.currentState!.validate()) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final leaveProvider = Provider.of<LeaveProvider>(context, listen: false);
+      final requestProvider = Provider.of<RequestProvider>(context, listen: false);
 
       if (authProvider.userModel != null) {
-        bool success = await leaveProvider.applyLeave(
+        bool success = await requestProvider.applyLeave(
           authProvider.userModel!,
           _fromDate,
           _toDate,
@@ -76,7 +77,7 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pop(context);
+          Get.back();
         } else if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -92,7 +93,7 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final leaveProvider = Provider.of<LeaveProvider>(context);
+    final requestProvider = Provider.of<RequestProvider>(context);
     final dateFormat = DateFormat('dd/MM/yyyy');
 
     return Scaffold(
@@ -249,7 +250,7 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                 // Submit Button
                 CustomButton(
                   label: 'Submit Request',
-                  isLoading: leaveProvider.isLoading,
+                  isLoading: requestProvider.isLoading,
                   onPressed: _submitLeave,
                 ),
               ],

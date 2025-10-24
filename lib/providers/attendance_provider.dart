@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../app_constants.dart';
 import '../models/attendance_model.dart';
 import '../models/leave_model.dart';
+import '../models/request_model.dart';
 import '../models/user_model.dart';
 import '../services/fcm_service.dart';
 
@@ -119,22 +120,36 @@ class AttendanceProvider with ChangeNotifier {
       final today = DateTime(now.year, now.month, now.day);
 
       QuerySnapshot leaveQuery = await _firestore
-          .collection(AppConstants.leaveCollection)
-          .where('userId', isEqualTo: userId)
+          .collection(AppConstants.userCollection)
+          .doc(userId)
+          .collection(AppConstants.userRequestsCollection)
+          .where('type', isEqualTo: AppConstants.requestTypeLeave)
           .where('status', isEqualTo: AppConstants.statusApproved)
           .get();
 
       // Check if any approved leave includes today
       for (var doc in leaveQuery.docs) {
-        final leave = LeaveModel.fromJson(doc.data() as Map<String, dynamic>);
+        final request = RequestModel.fromJson(doc.data() as Map<String, dynamic>);
         final fromDate = DateTime(
-            leave.fromDate.year, leave.fromDate.month, leave.fromDate.day);
+            request.fromDate!.year, request.fromDate!.month, request.fromDate!.day);
         final toDate =
-            DateTime(leave.toDate.year, leave.toDate.month, leave.toDate.day);
+            DateTime(request.toDate!.year, request.toDate!.month, request.toDate!.day);
 
         if ((today.isAtSameMomentAs(fromDate) || today.isAfter(fromDate)) &&
             (today.isAtSameMomentAs(toDate) || today.isBefore(toDate))) {
-          return leave;
+          // Convert RequestModel to LeaveModel for backward compatibility
+          return LeaveModel(
+            id: request.id,
+            userId: request.userId,
+            userName: request.userName,
+            fromDate: request.fromDate!,
+            toDate: request.toDate!,
+            shift: request.shift ?? '',
+            reason: request.reason,
+            status: request.status,
+            adminRemark: request.adminRemark,
+            appliedOn: request.appliedOn,
+          );
         }
       }
 
