@@ -7,6 +7,11 @@ class UserModel {
   final String? profileImageUrl;
   final String? employeeId;
   final String? department;
+  final DateTime? createdAt;
+  final DateTime? joiningDate;
+  final String? role;
+  final String userId;
+  final bool? isCasualLeave;
 
   UserModel({
     required this.id,
@@ -17,7 +22,12 @@ class UserModel {
     this.profileImageUrl,
     this.employeeId,
     this.department,
-  });
+    this.createdAt,
+    this.joiningDate,
+    this.role,
+    this.isCasualLeave,
+    String? userId,
+  }) : userId = userId ?? id;
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
@@ -27,8 +37,17 @@ class UserModel {
       fcmToken: json['fcmToken'] ?? '',
       isAdmin: json['isAdmin'] ?? false,
       profileImageUrl: json['profileImageUrl'],
-      employeeId: json['employeeId'],
+      employeeId: json['employeeId']?.toString(), // Convert to string if it's an int
       department: json['department'],
+      createdAt: json['createdAt'] != null 
+          ? DateTime.fromMillisecondsSinceEpoch(json['createdAt'].millisecondsSinceEpoch)
+          : null,
+      joiningDate: json['joiningDate'] != null 
+          ? DateTime.fromMillisecondsSinceEpoch(json['joiningDate'].millisecondsSinceEpoch)
+          : null,
+      role: json['role'],
+      isCasualLeave: json['isCasualLeave'],
+      userId: json['userId'],
     );
   }
 
@@ -42,6 +61,11 @@ class UserModel {
       'profileImageUrl': profileImageUrl,
       'employeeId': employeeId,
       'department': department,
+      'createdAt': createdAt,
+      'joiningDate': joiningDate,
+      'role': role,
+      'isCasualLeave': isCasualLeave,
+      'userId': userId,
     };
   }
 }

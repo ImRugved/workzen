@@ -86,6 +86,12 @@ class AppDrawer extends StatelessWidget {
               Icons.people,
               () => Get.toNamed('/admin_attendance_screen'),
             ),
+            _buildDrawerItem(
+              context,
+              'Employee Onboarding',
+              Icons.person_add,
+              () => Get.toNamed('/employee_onboarding_screen'),
+            ),
           ] else ...[
             _buildDrawerItem(
               context,

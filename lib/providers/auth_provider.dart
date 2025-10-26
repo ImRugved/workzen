@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import '../app_constants.dart';
 import '../models/user_model.dart';
+import 'user_provider.dart';
 
 class AuthProvider with ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -115,6 +116,13 @@ class AuthProvider with ChangeNotifier {
       // Get FCM token
       String fcmToken = _storage.read('fcmtoken') ?? '';
 
+      // Generate employee ID for admin users
+      String? employeeId;
+      if (secretCode == AppConstants.adminCode) {
+        final userProvider = UserProvider();
+        employeeId = await userProvider.generateNextEmployeeId();
+      }
+
       // Create user model
       UserModel newUser = UserModel(
         id: _user!.uid,
@@ -122,6 +130,10 @@ class AuthProvider with ChangeNotifier {
         email: email,
         fcmToken: fcmToken,
         isAdmin: secretCode == AppConstants.adminCode,
+        employeeId: employeeId,
+        role: secretCode == AppConstants.adminCode ? 'admin' : 'employee',
+        createdAt: DateTime.now(),
+        userId: _user!.uid,
       );
 
       // Save to Firestore with error handling

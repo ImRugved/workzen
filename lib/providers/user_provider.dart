@@ -165,4 +165,80 @@ class UserProvider extends ChangeNotifier {
       return false;
     }
   }
+
+  // Get all users (for onboarding)
+  Future<List<UserModel>> getAllUsers() async {
+    try {
+      final snapshot = await _firestore
+          .collection(AppConstants.usersCollection)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        // Do not override missing joiningDate; let onboarding default to current date
+        return UserModel.fromJson(data);
+      }).toList();
+    } catch (e) {
+      log('Error getting all users: $e');
+      return [];
+    }
+  }
+
+  // Generate next employee ID
+  Future<String> generateNextEmployeeId() async {
+    try {
+      final QuerySnapshot querySnapshot = await _firestore
+          .collection('users')
+          .orderBy('employeeId', descending: true)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        return '001'; // First employee
+      }
+
+      final lastEmployeeId = querySnapshot.docs.first.data() as Map<String, dynamic>;
+      final lastId = lastEmployeeId['employeeId'];
+      
+      // Handle both string and int types for employeeId
+      String? lastIdString;
+      if (lastId is int) {
+        lastIdString = lastId.toString();
+      } else if (lastId is String) {
+        lastIdString = lastId;
+      }
+      
+      if (lastIdString == null || lastIdString.isEmpty) {
+        return '001';
+      }
+
+      // Extract number and increment
+      final lastNumber = int.tryParse(lastIdString) ?? 0;
+      final nextNumber = lastNumber + 1;
+      
+      // Format as 3-digit string with leading zeros
+      return nextNumber.toString().padLeft(3, '0');
+    } catch (e) {
+      print('Error generating employee ID: $e');
+      return '001'; // Fallback to first ID
+    }
+  }
+
+  // Check if user is onboarded (has leaves subcollection)
+  Future<bool> isUserOnboarded(String userId) async {
+    try {
+      final currentYear = DateTime.now().year;
+      final leaveDoc = await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId)
+          .collection('leaves')
+          .doc('annual_$currentYear')
+          .get();
+
+      return leaveDoc.exists;
+    } catch (e) {
+      log('Error checking if user is onboarded: $e');
+      return false;
+    }
+  }
 }
