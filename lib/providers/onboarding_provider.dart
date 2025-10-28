@@ -20,7 +20,10 @@ class OnboardingProvider extends ChangeNotifier {
   int _privilegeLeaves = 12;
   int _sickLeaves = 7;
   int _casualLeaves = 5;
-  bool _enableCasualLeaves = true;
+  bool _enableCasualLeaves = false;
+
+  // Individual user leave configurations
+  Map<String, Map<String, int>> _individualUserLeaves = {};
 
   // Getters
   List<UserModel> get allUsers => _allUsers;
@@ -54,6 +57,51 @@ class OnboardingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Individual user leave management
+  Map<String, int> getIndividualUserLeaves(String userId) {
+    return _individualUserLeaves[userId] ??
+        {
+          'privilegeLeaves': _privilegeLeaves,
+          'sickLeaves': _sickLeaves,
+          'casualLeaves': _casualLeaves,
+        };
+  }
+
+  void setIndividualUserPrivilegeLeaves(String userId, int value) {
+    _individualUserLeaves[userId] ??= {
+      'privilegeLeaves': _privilegeLeaves,
+      'sickLeaves': _sickLeaves,
+      'casualLeaves': _casualLeaves,
+    };
+    _individualUserLeaves[userId]!['privilegeLeaves'] = value;
+    notifyListeners();
+  }
+
+  void setIndividualUserSickLeaves(String userId, int value) {
+    _individualUserLeaves[userId] ??= {
+      'privilegeLeaves': _privilegeLeaves,
+      'sickLeaves': _sickLeaves,
+      'casualLeaves': _casualLeaves,
+    };
+    _individualUserLeaves[userId]!['sickLeaves'] = value;
+    notifyListeners();
+  }
+
+  void setIndividualUserCasualLeaves(String userId, int value) {
+    _individualUserLeaves[userId] ??= {
+      'privilegeLeaves': _privilegeLeaves,
+      'sickLeaves': _sickLeaves,
+      'casualLeaves': _casualLeaves,
+    };
+    _individualUserLeaves[userId]!['casualLeaves'] = value;
+    notifyListeners();
+  }
+
+  void clearIndividualUserLeaves() {
+    _individualUserLeaves.clear();
+    notifyListeners();
+  }
+
   // Update joining date for a specific user
   void updateUserJoiningDate(String userId, DateTime newDate) {
     final userIndex = _allUsers.indexWhere((user) => user.userId == userId);
@@ -71,13 +119,15 @@ class OnboardingProvider extends ChangeNotifier {
         createdAt: user.createdAt,
         joiningDate: newDate,
       );
-      
+
       // Update filtered users as well
-      final filteredIndex = _filteredUsers.indexWhere((user) => user.userId == userId);
+      final filteredIndex = _filteredUsers.indexWhere(
+        (user) => user.userId == userId,
+      );
       if (filteredIndex != -1) {
         _filteredUsers[filteredIndex] = _allUsers[userIndex];
       }
-      
+
       notifyListeners();
     }
   }
@@ -102,7 +152,9 @@ class OnboardingProvider extends ChangeNotifier {
         // 1. Already onboarded
         // 2. Have admin role
         // 3. Have isAdmin flag set to true
-        if (!isOnboarded && user.role != AppConstants.adminRole && !user.isAdmin) {
+        if (!isOnboarded &&
+            user.role != AppConstants.adminRole &&
+            !user.isAdmin) {
           _allUsers.add(user);
         }
       }
@@ -150,15 +202,18 @@ class OnboardingProvider extends ChangeNotifier {
   // Clear selection
   void clearSelection() {
     _selectedUserIds.clear();
+    clearIndividualUserLeaves();
     notifyListeners();
   }
 
   // Get selected users
   List<UserModel> getSelectedUsers() {
-    return _allUsers.where((user) => _selectedUserIds.contains(user.userId)).toList();
+    return _allUsers
+        .where((user) => _selectedUserIds.contains(user.userId))
+        .toList();
   }
 
-  /// Calculate pro-rated leaves based on joining month
+  /// Calculate pro-rated leaves based on joining month (from edited joining date or createdAt)
   Map<String, int> calculateProRatedLeaves({
     required int joiningMonth,
     int? privilegeLeaves,
@@ -169,20 +224,37 @@ class OnboardingProvider extends ChangeNotifier {
     final pl = privilegeLeaves ?? _privilegeLeaves;
     final sl = sickLeaves ?? _sickLeaves;
     final cl = casualLeaves ?? _casualLeaves;
-    
+
+    final currentMonth = DateTime.now().month;
+
     // Calculate remaining months in the year from joining month to December
-    // If joining in January (1), remainingMonths = 12
-    // If joining in October (10), remainingMonths = 3 (Oct, Nov, Dec)
-    // If joining in December (12), remainingMonths = 1 (Dec only)
-    final remainingMonths = 12 - joiningMonth + 1;
-    
+    // Exclude current month if joining in the same month
+    int remainingMonths;
+    if (joiningMonth == currentMonth) {
+      // If joining in current month, exclude current month from calculation
+      // Start from next month to December
+      remainingMonths = 12 - joiningMonth;
+    } else {
+      // If joining in future or past month, include all months from joining to December
+      remainingMonths = 12 - joiningMonth + 1;
+    }
+
+    // Ensure minimum 0 months (in case joining in December and it's December)
+    remainingMonths = remainingMonths < 0 ? 0 : remainingMonths;
+
     // Calculate pro-rated leaves based on remaining months
-    // Example: If annual PL is 12 and joining in October (3 months left)
-    // Pro-rated PL = (12 / 12) * 3 = 3 leaves
+    // Example: If annual PL is 12 and joining in October (current month), remainingMonths = 2 (Nov, Dec)
+    // Pro-rated PL = (12 / 12) * 2 = 2 leaves
     return {
-      'privilegeLeaves': ((pl / 12) * remainingMonths).round(),
-      'sickLeaves': ((sl / 12) * remainingMonths).round(),
-      'casualLeaves': _enableCasualLeaves && cl > 0 ? ((cl / 12) * remainingMonths).round() : 0,
+      'privilegeLeaves': remainingMonths > 0
+          ? ((pl / 12) * remainingMonths).round()
+          : 0,
+      'sickLeaves': remainingMonths > 0
+          ? ((sl / 12) * remainingMonths).round()
+          : 0,
+      'casualLeaves': _enableCasualLeaves && cl > 0 && remainingMonths > 0
+          ? ((cl / 12) * remainingMonths).round()
+          : 0,
     };
   }
 
@@ -198,7 +270,8 @@ class OnboardingProvider extends ChangeNotifier {
 
       for (final userId in _selectedUserIds) {
         final user = _allUsers.firstWhere((u) => u.userId == userId);
-        final joiningDate = user.joiningDate ?? currentDate;
+        // Use edited joining date if available, otherwise use createdAt (signup date)
+        final joiningDate = user.joiningDate ?? user.createdAt ?? currentDate;
         final joiningMonth = joiningDate.month;
 
         // Generate employee ID if user doesn't have one
@@ -208,13 +281,21 @@ class OnboardingProvider extends ChangeNotifier {
           employeeId = await userProvider.generateNextEmployeeId();
         }
 
-        // Calculate pro-rated leaves
-        final calculatedLeaves = calculateProRatedLeaves(
-          joiningMonth: joiningMonth,
-        );
+        // Get individual user leave values or use defaults
+        final userLeaves = getIndividualUserLeaves(userId);
+        
+        // Use the individual user leaves directly instead of recalculating
+        // This ensures the values shown in the UI are the same ones saved to Firestore
+        final leavesToSave = {
+          'privilegeLeaves': userLeaves['privilegeLeaves']!,
+          'sickLeaves': userLeaves['sickLeaves']!,
+          'casualLeaves': userLeaves['casualLeaves']!,
+        };
 
         // Update user document with onboarding status
-        final userRef = _firestore.collection(AppConstants.usersCollection).doc(userId);
+        final userRef = _firestore
+            .collection(AppConstants.usersCollection)
+            .doc(userId);
         batch.update(userRef, {
           'isOnboarded': true,
           'onboardingDate': FieldValue.serverTimestamp(),
@@ -227,33 +308,37 @@ class OnboardingProvider extends ChangeNotifier {
         });
 
         // Create leaves subcollection for the user
-        final leavesRef = userRef.collection('leaves').doc('annual_${currentDate.year}');
-        
+        final leavesRef = userRef
+            .collection('leaves')
+            .doc('annual_${currentDate.year}');
+
         final leaveData = {
           'year': currentDate.year,
           'joiningMonth': joiningMonth,
           'privilegeLeaves': {
-            'allocated': calculatedLeaves['privilegeLeaves'],
+            'allocated': leavesToSave['privilegeLeaves'],
             'used': 0,
-            'balance': calculatedLeaves['privilegeLeaves'],
+            'balance': leavesToSave['privilegeLeaves'],
           },
           'sickLeaves': {
-            'allocated': calculatedLeaves['sickLeaves'],
+            'allocated': leavesToSave['sickLeaves'],
             'used': 0,
-            'balance': calculatedLeaves['sickLeaves'],
+            'balance': leavesToSave['sickLeaves'],
           },
           'casualLeaves': {
-            'allocated': calculatedLeaves['casualLeaves'],
+            'allocated': leavesToSave['casualLeaves'],
             'used': 0,
-            'balance': calculatedLeaves['casualLeaves'],
+            'balance': leavesToSave['casualLeaves'],
           },
-          'totalAllocated': calculatedLeaves['privilegeLeaves']! + 
-                           calculatedLeaves['sickLeaves']! + 
-                           calculatedLeaves['casualLeaves']!,
+          'totalAllocated':
+              leavesToSave['privilegeLeaves']! +
+              leavesToSave['sickLeaves']! +
+              leavesToSave['casualLeaves']!,
           'totalUsed': 0,
-          'totalBalance': calculatedLeaves['privilegeLeaves']! + 
-                         calculatedLeaves['sickLeaves']! + 
-                         calculatedLeaves['casualLeaves']!,
+          'totalBalance':
+              leavesToSave['privilegeLeaves']! +
+              leavesToSave['sickLeaves']! +
+              leavesToSave['casualLeaves']!,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         };
@@ -261,7 +346,7 @@ class OnboardingProvider extends ChangeNotifier {
         batch.set(leavesRef, leaveData);
 
         // Send notification
-        await _sendOnboardingNotification(user, calculatedLeaves);
+        await _sendOnboardingNotification(user, leavesToSave);
       }
 
       // Commit the batch
@@ -286,10 +371,11 @@ class OnboardingProvider extends ChangeNotifier {
   ) async {
     try {
       final title = 'Welcome to the Team! 🎉';
-      final body = 'You have been successfully onboarded. Your leave allocation: '
-                  'PL: ${calculatedLeaves['privilegeLeaves']}, '
-                  'SL: ${calculatedLeaves['sickLeaves']}'
-                  '${calculatedLeaves['casualLeaves']! > 0 ? ', CL: ${calculatedLeaves['casualLeaves']}' : ''}';
+      final body =
+          'You have been successfully onboarded. Your leave allocation: '
+          'PL: ${calculatedLeaves['privilegeLeaves']}, '
+          'SL: ${calculatedLeaves['sickLeaves']}'
+          '${calculatedLeaves['casualLeaves']! > 0 ? ', CL: ${calculatedLeaves['casualLeaves']}' : ''}';
 
       await _fcmService.sendNotificationToUser(
         userId: user.userId,
@@ -347,23 +433,23 @@ class OnboardingProvider extends ChangeNotifier {
 
       await _firestore.runTransaction((transaction) async {
         final leaveDoc = await transaction.get(leaveRef);
-        
+
         if (!leaveDoc.exists) {
           throw Exception('Leave allocation not found for user');
         }
 
         final data = leaveDoc.data()!;
         final leaveTypeData = data[leaveType] as Map<String, dynamic>;
-        
+
         if (isApproved) {
           // Deduct from balance and add to used
           final newUsed = (leaveTypeData['used'] as int) + days;
           final newBalance = (leaveTypeData['balance'] as int) - days;
-          
+
           if (newBalance < 0) {
             throw Exception('Insufficient leave balance');
           }
-          
+
           transaction.update(leaveRef, {
             '$leaveType.used': newUsed,
             '$leaveType.balance': newBalance,
@@ -407,11 +493,11 @@ class OnboardingProvider extends ChangeNotifier {
           totalAllocatedLeaves += data['totalAllocated'] as int;
           totalUsedLeaves += data['totalUsed'] as int;
           totalBalanceLeaves += data['totalBalance'] as int;
-          
+
           final plData = data['privilegeLeaves'] as Map<String, dynamic>;
           final slData = data['sickLeaves'] as Map<String, dynamic>;
           final clData = data['casualLeaves'] as Map<String, dynamic>;
-          
+
           totalPLAllocated += plData['allocated'] as int;
           totalSLAllocated += slData['allocated'] as int;
           totalCLAllocated += clData['allocated'] as int;
@@ -426,8 +512,8 @@ class OnboardingProvider extends ChangeNotifier {
         'totalPLAllocated': totalPLAllocated,
         'totalSLAllocated': totalSLAllocated,
         'totalCLAllocated': totalCLAllocated,
-        'utilizationPercentage': totalAllocatedLeaves > 0 
-            ? (totalUsedLeaves / totalAllocatedLeaves * 100).round() 
+        'utilizationPercentage': totalAllocatedLeaves > 0
+            ? (totalUsedLeaves / totalAllocatedLeaves * 100).round()
             : 0,
       };
     } catch (e) {
