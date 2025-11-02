@@ -60,13 +60,6 @@ class AppDrawer extends StatelessWidget {
                     ),
             ),
           ),
-          _buildDrawerItem(
-            context,
-            'Profile',
-            Icons.person,
-            () => Get.toNamed('/profile_screen'),
-          ),
-
           if (isAdmin) ...[
             _buildDrawerItem(
               context,

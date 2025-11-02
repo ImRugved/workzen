@@ -3,12 +3,12 @@ import '../screens/splash_scren.dart';
 import '../screens/update_check_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/signup_screen.dart';
-import '../screens/admin/admin_dashboard.dart';
+import '../screens/admin/dashboard/admin_dashboard_screen.dart';
 import '../screens/admin/admin_attendance_screen.dart';
 import '../screens/admin/leave_requests_screen.dart';
 import '../screens/admin/employee_onboarding_screen.dart';
 import '../screens/admin/employee_management_screen.dart';
-import '../screens/user/user_dashboard.dart';
+import '../screens/user/dashboard/user_dashboard_screen.dart';
 import '../screens/user/apply_leave_screen.dart';
 import '../screens/user/attendance_history_screen.dart';
 import '../screens/user/attendance_screen.dart';
@@ -51,7 +51,7 @@ class Routes {
     // Admin screens
     GetPage(
       name: '/admin_dashboard',
-      page: () => const AdminDashboard(),
+      page: () => const AdminDashboardScreen(),
       transition: Transition.rightToLeft,
       transitionDuration: const Duration(milliseconds: 300),
     ),
@@ -87,7 +87,7 @@ class Routes {
     // User screens
     GetPage(
       name: '/user_dashboard',
-      page: () => const UserDashboard(),
+      page: () => const UserDashboardScreen(),
       transition: Transition.rightToLeft,
       transitionDuration: const Duration(milliseconds: 300),
     ),

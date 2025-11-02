@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 
-import 'admin/admin_dashboard.dart';
+import 'admin/dashboard/admin_dashboard_screen.dart';
 import 'auth/login_screen.dart';
-import 'user/user_dashboard.dart';
+import 'user/dashboard/user_dashboard_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -65,8 +65,8 @@ class _SplashScreenState extends State<SplashScreen>
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => authProvider.isAdmin
-                ? const AdminDashboard()
-                : const UserDashboard(),
+                ? const AdminDashboardScreen()
+                : const UserDashboardScreen(),
           ),
         );
       } else {

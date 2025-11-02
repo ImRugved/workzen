@@ -8,14 +8,14 @@ import '../../providers/request_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_drawer.dart';
 
-class AdminDashboard extends StatefulWidget {
-  const AdminDashboard({Key? key}) : super(key: key);
+class AdminHome extends StatefulWidget {
+  const AdminHome({Key? key}) : super(key: key);
 
   @override
-  State<AdminDashboard> createState() => _AdminDashboardState();
+  State<AdminHome> createState() => _AdminHomeState();
 }
 
-class _AdminDashboardState extends State<AdminDashboard> {
+class _AdminHomeState extends State<AdminHome> {
   Stream<List<RequestModel>>? _leavesStream;
 
   @override

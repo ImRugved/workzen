@@ -9,14 +9,14 @@ import '../../providers/request_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_drawer.dart';
 
-class UserDashboard extends StatefulWidget {
-  const UserDashboard({Key? key}) : super(key: key);
+class UserHome extends StatefulWidget {
+  const UserHome({Key? key}) : super(key: key);
 
   @override
-  State<UserDashboard> createState() => _UserDashboardState();
+  State<UserHome> createState() => _UserHomeState();
 }
 
-class _UserDashboardState extends State<UserDashboard> {
+class _UserHomeState extends State<UserHome> {
   Stream<List<RequestModel>>? _userLeavesStream;
 
   @override
