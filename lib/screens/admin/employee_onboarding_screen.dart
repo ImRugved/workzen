@@ -326,7 +326,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               ),
 
               // Casual Leave Checkbox
-           //   const SizedBox(height: 16),
+              //   const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -788,36 +788,43 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                     const SizedBox(height: 30),
 
                     // Confirm button
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: provider.isLoading
-                              ? null
-                              : () => _confirmOnboarding(provider),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          child: provider.isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white,
-                                    ),
-                                  ),
-                                )
-                              : const Text(
-                                  'Confirm Onboarding',
-                                  style: TextStyle(fontSize: 16),
+                    Consumer<OnboardingProvider>(
+                      builder: (context, provider, child) {
+                        return Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: provider.isLoading
+                                  ? null
+                                  : () => _confirmOnboarding(provider),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
                                 ),
-                        ),
-                      ),
+                              ),
+                              child: provider.isLoading
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Confirm Onboarding',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -1009,10 +1016,8 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             'Privilege Leave (PL)',
             user.userId,
             'privilegeLeaves',
-            (int value) => provider.setIndividualUserPrivilegeLeaves(
-              user.userId,
-              value,
-            ),
+            (int value) =>
+                provider.setIndividualUserPrivilegeLeaves(user.userId, value),
             provider,
           ),
           const SizedBox(height: 12),
@@ -1021,10 +1026,8 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             'Sick Leave (SL)',
             user.userId,
             'sickLeaves',
-            (int value) => provider.setIndividualUserSickLeaves(
-              user.userId,
-              value,
-            ),
+            (int value) =>
+                provider.setIndividualUserSickLeaves(user.userId, value),
             provider,
           ),
           const SizedBox(height: 12),
@@ -1034,10 +1037,8 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               'Casual Leave (CL)',
               user.userId,
               'casualLeaves',
-              (int value) => provider.setIndividualUserCasualLeaves(
-                user.userId,
-                value,
-              ),
+              (int value) =>
+                  provider.setIndividualUserCasualLeaves(user.userId, value),
               provider,
             ),
             const SizedBox(height: 12),
@@ -1221,10 +1222,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             user.userId,
             'privilegeLeaves',
             (int value) {
-              provider.setIndividualUserPrivilegeLeaves(
-                user.userId,
-                value,
-              );
+              provider.setIndividualUserPrivilegeLeaves(user.userId, value);
             },
             provider,
           ),
@@ -1245,10 +1243,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               user.userId,
               'casualLeaves',
               (int value) {
-                provider.setIndividualUserCasualLeaves(
-                  user.userId,
-                  value,
-                );
+                provider.setIndividualUserCasualLeaves(user.userId, value);
               },
               provider,
             ),
@@ -1285,7 +1280,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              
+
               // Counter Row with buttons and text field
               Row(
                 children: [
@@ -1297,11 +1292,15 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                       border: Border.all(color: Colors.red.shade200),
                     ),
                     child: IconButton(
-                      onPressed: value > 0 ? () {
-                        final newValue = value - 1;
-                        onChanged(newValue);
-                        print('DEBUG: Decreased $leaveType for user $userId to $newValue');
-                      } : null,
+                      onPressed: value > 0
+                          ? () {
+                              final newValue = value - 1;
+                              onChanged(newValue);
+                              print(
+                                'DEBUG: Decreased $leaveType for user $userId to $newValue',
+                              );
+                            }
+                          : null,
                       icon: Icon(
                         Icons.remove,
                         color: value > 0 ? Colors.red.shade600 : Colors.grey,
@@ -1313,9 +1312,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(width: 12),
-                  
+
                   // Text field for direct input
                   Expanded(
                     child: Container(
@@ -1326,7 +1325,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                         border: Border.all(color: Colors.blue.shade200),
                       ),
                       child: TextFormField(
-                        key: ValueKey('${userId}_${leaveType}_$value'), // Force rebuild when value changes
+                        key: ValueKey(
+                          '${userId}_${leaveType}_$value',
+                        ), // Force rebuild when value changes
                         initialValue: value.toString(),
                         textAlign: TextAlign.center,
                         keyboardType: TextInputType.number,
@@ -1336,7 +1337,10 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                         ),
                         decoration: InputDecoration(
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 12,
+                          ),
                           hintText: '0',
                           suffix: Text(
                             'days',
@@ -1351,21 +1355,25 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                           final newValue = int.tryParse(textValue) ?? 0;
                           final clampedValue = newValue.clamp(0, 30);
                           onChanged(clampedValue);
-                          print('DEBUG: Text field submitted $leaveType for user $userId to $clampedValue');
+                          print(
+                            'DEBUG: Text field submitted $leaveType for user $userId to $clampedValue',
+                          );
                         },
                         validator: (String? textValue) {
-                          if (textValue == null || textValue.isEmpty) return null;
+                          if (textValue == null || textValue.isEmpty)
+                            return null;
                           final newValue = int.tryParse(textValue);
                           if (newValue == null) return 'Invalid number';
-                          if (newValue < 0 || newValue > 30) return 'Must be 0-30';
+                          if (newValue < 0 || newValue > 30)
+                            return 'Must be 0-30';
                           return null;
                         },
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(width: 12),
-                  
+
                   // Increase button
                   Container(
                     decoration: BoxDecoration(
@@ -1374,11 +1382,15 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                       border: Border.all(color: Colors.green.shade200),
                     ),
                     child: IconButton(
-                      onPressed: value < 30 ? () {
-                        final newValue = value + 1;
-                        onChanged(newValue);
-                        print('DEBUG: Increased $leaveType for user $userId to $newValue');
-                      } : null,
+                      onPressed: value < 30
+                          ? () {
+                              final newValue = value + 1;
+                              onChanged(newValue);
+                              print(
+                                'DEBUG: Increased $leaveType for user $userId to $newValue',
+                              );
+                            }
+                          : null,
                       icon: Icon(
                         Icons.add,
                         color: value < 30 ? Colors.green.shade600 : Colors.grey,
@@ -1392,9 +1404,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 4),
-              
+
               // Current value display
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

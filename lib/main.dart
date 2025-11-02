@@ -13,6 +13,7 @@ import 'providers/request_provider.dart';
 import 'providers/attendance_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/onboarding_provider.dart';
+import 'providers/employee_management_provider.dart';
 import 'services/fcm_service.dart';
 import 'services/notification_service.dart';
 
@@ -45,6 +46,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => AttendanceProvider()),
         ChangeNotifierProvider(create: (_) => OnboardingProvider()),
+        ChangeNotifierProvider(create: (_) => EmployeeManagementProvider()),
       ],
       child: const MyApp(),
     ),
