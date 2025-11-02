@@ -69,7 +69,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               // Reset to defaults first
               onboardingProvider.resetToDefaultLeaves();
-              // _autoSyncSliders(onboardingProvider); // Disabled to prevent value override
+              _autoSyncSliders(onboardingProvider);
               onboardingProvider.markAutoSyncComplete();
             });
           }
@@ -403,7 +403,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       final currentMonthLeaves = provider.calculateProRatedLeaves(
         joiningMonth: currentMonth,
         privilegeLeaves: 12, // Use default values
-        sickLeaves: 7,
+        sickLeaves: 6,
         casualLeaves: 5,
       );
 
@@ -465,7 +465,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               joiningMonth: joiningMonth,
               privilegeLeaves:
                   12, // Use default values for individual calculations
-              sickLeaves: 7,
+              sickLeaves: 6,
               casualLeaves: 5,
             );
 
@@ -578,7 +578,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             // Scrollable content
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Column(
                   children: [
                     // Header text
@@ -895,8 +895,6 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       provider.calculateLeaves(user.userId, notify: false);
     }
 
-    final calculatedLeaves = provider.calculatedLeaves[user.userId] ?? {};
-
     return Container(
       width: 320,
       padding: const EdgeInsets.all(16),
@@ -1078,12 +1076,13 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       });
     }
 
-    // Get calculated leaves from provider
+    // Get calculated leaves from individual user leaves (which contains the calculated values)
+    final userLeaves = provider.getIndividualUserLeaves(user.userId);
     final calculatedLeaves = provider.calculatedLeaves[user.userId];
     final remainingMonths = calculatedLeaves?['remainingMonths'] ?? 0;
-    final finalPL = calculatedLeaves?['finalPL'] ?? 0;
-    final finalSL = calculatedLeaves?['finalSL'] ?? 0;
-    final finalCL = calculatedLeaves?['finalCL'] ?? 0;
+    final finalPL = userLeaves['privilegeLeaves'] ?? 0;
+    final finalSL = userLeaves['sickLeaves'] ?? 0;
+    final finalCL = userLeaves['casualLeaves'] ?? 0;
 
     // Get default leaves for comparison
     final privilegeLeaves = provider.privilegeLeaves;
@@ -1322,12 +1321,11 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       provider.calculateLeaves(user.userId, notify: false);
     }
 
-    // Get calculated leaves from provider
-    final calculatedLeaves = provider.calculatedLeaves[user.userId];
-    final remainingMonths = calculatedLeaves?['remainingMonths'] ?? 0;
-    final finalPL = calculatedLeaves?['finalPL'] ?? 0;
-    final finalSL = calculatedLeaves?['finalSL'] ?? 0;
-    final finalCL = calculatedLeaves?['finalCL'] ?? 0;
+    // Get calculated leaves from individual user leaves (which contains the calculated values)
+    final userLeaves = provider.getIndividualUserLeaves(user.userId);
+    final finalPL = userLeaves['privilegeLeaves'] ?? 0;
+    final finalSL = userLeaves['sickLeaves'] ?? 0;
+    final finalCL = userLeaves['casualLeaves'] ?? 0;
 
     return Column(
       children: [
@@ -1397,4 +1395,40 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
   // Individual user leave configuration storage
   final Map<String, Map<String, int>> _userLeaveOverrides = {};
+
+  /// Auto-sync sliders with average calculated values from selected users
+  void _autoSyncSliders(OnboardingProvider provider) {
+    final selectedUsers = provider.getSelectedUsers();
+    if (selectedUsers.isEmpty) return;
+
+    // Calculate average from actual calculated individual user leaves
+    int totalPL = 0;
+    int totalSL = 0;
+    int totalCL = 0;
+    int validUserCount = 0;
+
+    for (final user in selectedUsers) {
+      // Use the actual calculated individual user leaves instead of recalculating
+      final userLeaves = provider.getIndividualUserLeaves(user.userId);
+      
+      totalPL += userLeaves['privilegeLeaves']!;
+      totalSL += userLeaves['sickLeaves']!;
+      totalCL += userLeaves['casualLeaves']!;
+      validUserCount++;
+    }
+
+    if (validUserCount > 0) {
+      // Calculate averages and sync sliders
+      final avgPL = (totalPL / validUserCount).round();
+      final avgSL = (totalSL / validUserCount).round();
+      final avgCL = (totalCL / validUserCount).round();
+
+      // Sync the main sliders with calculated averages
+      provider.setPrivilegeLeaves(avgPL);
+      provider.setSickLeaves(avgSL);
+      provider.setCasualLeaves(avgCL);
+
+      print('EMPLOYEE ONBOARDING - Auto-synced sliders: PL=$avgPL, SL=$avgSL, CL=$avgCL');
+    }
+  }
 }

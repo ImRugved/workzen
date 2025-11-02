@@ -44,6 +44,7 @@ class OnboardingProvider extends ChangeNotifier {
   int get sickLeaves => _sickLeaves;
   int get casualLeaves => _casualLeaves;
   bool get enableCasualLeaves => _enableCasualLeaves;
+  // Auto-sync status getter
   bool get hasAutoSynced => _hasAutoSynced;
   Map<String, Map<String, dynamic>> get calculatedLeaves => _calculatedLeaves;
 
@@ -169,12 +170,17 @@ class OnboardingProvider extends ChangeNotifier {
     final remainingMonths = calculateRemainingMonths(joiningDate);
     final userLeaves = getIndividualUserLeaves(userId);
 
+    // Use original default values for calculation (not modified by auto-sync)
+    const int originalPL = 12;
+    const int originalSL = 6;
+    const int originalCL = 5;
+
     print('EMPLOYEE ONBOARDING - User: ${user.name}');
     print('EMPLOYEE ONBOARDING - Joining Date: $joiningDate');
     print('EMPLOYEE ONBOARDING - Remaining Months: $remainingMonths');
     print('EMPLOYEE ONBOARDING - User Leaves: $userLeaves');
     print(
-      'EMPLOYEE ONBOARDING - Default PL: $_privilegeLeaves, SL: $_sickLeaves, CL: $_casualLeaves',
+      'EMPLOYEE ONBOARDING - Using original defaults for calculation: PL=$originalPL, SL=$originalSL, CL=$originalCL',
     );
 
     int finalPL;
@@ -184,32 +190,36 @@ class OnboardingProvider extends ChangeNotifier {
     // For full year (12 remaining months), use full default allocation
     if (remainingMonths >= 12) {
       print('EMPLOYEE ONBOARDING - Using full year allocation');
-      finalPL = _privilegeLeaves;
-      finalSL = _sickLeaves;
-      casualLeaves = _casualLeaves;
+      finalPL = originalPL;
+      finalSL = originalSL;
+      casualLeaves = originalCL;
     } else {
       print('EMPLOYEE ONBOARDING - Using pro-rated calculation');
-      finalPL = (_privilegeLeaves * remainingMonths / 12).round();
+      finalPL = (originalPL * remainingMonths / 12).round();
 
-      // SL calculation: 12 months = 6 SL, 6 months = 3 SL, 3 months = 1 SL, less than 3 months = 0 SL
+      // SL calculation: 12 months = 6 SL, 6-11 months = 3 SL, 4-5 months = 2 SL, 3 months or less = 1 SL
       if (remainingMonths >= 12) {
         finalSL = 6;
       } else if (remainingMonths >= 6) {
         finalSL = 3;
-      } else if (remainingMonths >= 3) {
-        finalSL = 1;
+      } else if (remainingMonths >= 4) {
+        finalSL = 2;
       } else {
-        finalSL = 0;
+        finalSL = 1; // 3 months or less = 1 SL
       }
 
-      // CL calculation based on remaining months
+      // CL calculation: 12 months = 5 CL, 9-11 months = 4 CL, 6-8 months = 2 CL, 4-5 months = 1 CL, 3 months or less = 0 CL
       casualLeaves = 0;
       if (remainingMonths >= 12) {
         casualLeaves = 5;
+      } else if (remainingMonths >= 9) {
+        casualLeaves = 4;
       } else if (remainingMonths >= 6) {
         casualLeaves = 2;
-      } else if (remainingMonths >= 3) {
+      } else if (remainingMonths >= 4) {
         casualLeaves = 1;
+      } else {
+        casualLeaves = 0; // 3 months or less = 0 CL
       }
     }
 
