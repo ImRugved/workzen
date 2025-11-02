@@ -41,16 +41,19 @@ class AttendanceProvider with ChangeNotifier {
         .where('userId', isEqualTo: userId)
         .snapshots()
         .map((snapshot) {
-      final attendanceList = snapshot.docs
-          .map((doc) =>
-              AttendanceModel.fromJson(doc.data() as Map<String, dynamic>))
-          .toList();
+          final attendanceList = snapshot.docs
+              .map(
+                (doc) => AttendanceModel.fromJson(
+                  doc.data() as Map<String, dynamic>,
+                ),
+              )
+              .toList();
 
-      // Sort in memory by date (descending)
-      attendanceList.sort((a, b) => b.date.compareTo(a.date));
+          // Sort in memory by date (descending)
+          attendanceList.sort((a, b) => b.date.compareTo(a.date));
 
-      return attendanceList;
-    });
+          return attendanceList;
+        });
 
     return _userAttendanceStream!;
   }
@@ -62,18 +65,23 @@ class AttendanceProvider with ChangeNotifier {
         .orderBy('date', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
-          .map((doc) =>
-              AttendanceModel.fromJson(doc.data() as Map<String, dynamic>))
-          .toList();
-    });
+          return snapshot.docs
+              .map(
+                (doc) => AttendanceModel.fromJson(
+                  doc.data() as Map<String, dynamic>,
+                ),
+              )
+              .toList();
+        });
 
     return _allAttendanceStream!;
   }
 
   // Get today's attendance for a user
-  Future<AttendanceModel?> getTodayAttendance(String userId,
-      {bool notify = true}) async {
+  Future<AttendanceModel?> getTodayAttendance(
+    String userId, {
+    bool notify = true,
+  }) async {
     if (notify) {
       _isLoading = true;
       notifyListeners();
@@ -102,7 +110,8 @@ class AttendanceProvider with ChangeNotifier {
       }
 
       return AttendanceModel.fromJson(
-          attendanceQuery.docs.first.data() as Map<String, dynamic>);
+        attendanceQuery.docs.first.data() as Map<String, dynamic>,
+      );
     } catch (e) {
       print("Error fetching today's attendance: $e");
       if (notify) {
@@ -129,11 +138,19 @@ class AttendanceProvider with ChangeNotifier {
 
       // Check if any approved leave includes today
       for (var doc in leaveQuery.docs) {
-        final request = RequestModel.fromJson(doc.data() as Map<String, dynamic>);
+        final request = RequestModel.fromJson(
+          doc.data() as Map<String, dynamic>,
+        );
         final fromDate = DateTime(
-            request.fromDate!.year, request.fromDate!.month, request.fromDate!.day);
-        final toDate =
-            DateTime(request.toDate!.year, request.toDate!.month, request.toDate!.day);
+          request.fromDate!.year,
+          request.fromDate!.month,
+          request.fromDate!.day,
+        );
+        final toDate = DateTime(
+          request.toDate!.year,
+          request.toDate!.month,
+          request.toDate!.day,
+        );
 
         if ((today.isAtSameMomentAs(fromDate) || today.isAfter(fromDate)) &&
             (today.isAtSameMomentAs(toDate) || today.isBefore(toDate))) {
@@ -194,10 +211,10 @@ class AttendanceProvider with ChangeNotifier {
             .collection(AppConstants.attendanceCollection)
             .doc(todayAttendance.id)
             .update({
-          'punchInTime': now,
-          'status': AppConstants
-              .statusPending, // Set status to pending until punch out
-        });
+              'punchInTime': now,
+              'status': AppConstants
+                  .statusPending, // Set status to pending until punch out
+            });
 
         todayAttendance = todayAttendance.copyWith(
           punchInTime: now,
@@ -315,13 +332,13 @@ class AttendanceProvider with ChangeNotifier {
             .get();
       }
 
-      log("Found ${adminSnapshot.docs.length} admin users to notify");
+      //  log("Found ${adminSnapshot.docs.length} admin users to notify");
 
       for (var doc in adminSnapshot.docs) {
         final adminId = doc.id;
         if (adminId != user.id) {
           // Don't notify the user themselves
-          log("Sending notification to admin: $adminId");
+          //  log("Sending notification to admin: $adminId");
 
           // Send notification
           await _fcmService.sendNotificationToUser(
@@ -338,7 +355,7 @@ class AttendanceProvider with ChangeNotifier {
         }
       }
     } catch (e) {
-      log('Error notifying admins: $e');
+      // log('Error notifying admins: $e');
     }
   }
 
@@ -403,11 +420,13 @@ class AttendanceProvider with ChangeNotifier {
   bool hasAttendanceForDate(String userId, DateTime date) {
     if (_allAttendance.isEmpty) return false;
 
-    return _allAttendance.any((attendance) =>
-        attendance.userId == userId &&
-        attendance.date.year == date.year &&
-        attendance.date.month == date.month &&
-        attendance.date.day == date.day);
+    return _allAttendance.any(
+      (attendance) =>
+          attendance.userId == userId &&
+          attendance.date.year == date.year &&
+          attendance.date.month == date.month &&
+          attendance.date.day == date.day,
+    );
   }
 
   // Mark an employee as absent for a specific date

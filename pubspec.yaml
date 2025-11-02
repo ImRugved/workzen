@@ -59,6 +59,8 @@ dependencies:
   # Image handling dependencies
   image_picker: ^1.0.7
   cached_network_image: ^3.3.1
+  flutter_screenutil: ^5.9.3
+  google_fonts: ^6.3.2
 
 dev_dependencies:
   flutter_test:

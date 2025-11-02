@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:workzen/models/user_model.dart';
 import 'package:workzen/providers/onboarding_provider.dart';
@@ -61,10 +62,15 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       drawer: const AppDrawer(),
       body: Consumer<OnboardingProvider>(
         builder: (context, onboardingProvider, child) {
-          // Auto-sync sliders only when users are selected
-          if (onboardingProvider.selectedUserIds.isNotEmpty) {
+          // Disabled auto-sync to prevent overriding default values
+          // Reset to default values first, then auto-sync sliders only ONCE when users are first selected
+          if (onboardingProvider.selectedUserIds.isNotEmpty &&
+              !onboardingProvider.hasAutoSynced) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              _autoSyncSliders(onboardingProvider);
+              // Reset to defaults first
+              onboardingProvider.resetToDefaultLeaves();
+              // _autoSyncSliders(onboardingProvider); // Disabled to prevent value override
+              onboardingProvider.markAutoSyncComplete();
             });
           }
 
@@ -308,9 +314,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                       '• January joining = Full year allocation',
                       style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
-                    const Text(
-                      '• October joining = 3 months allocation (Oct, Nov, Dec)',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    Text(
+                      _getCurrentMonthExample(),
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                     const SizedBox(height: 8),
                     _buildLeavePreview(provider),
@@ -319,127 +325,41 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                 ),
               ),
 
-              // Show individual user cards for multiple users
-              if (selectedUsers.length > 1) ...[
-                Row(
-                  children: [
-                    const Text(
-                      'Individual Leave Configurations:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.swipe_left,
-                      size: 16,
-                      color: Colors.grey.shade600,
-                    ),
-                    const Text(
-                      'Swipe to see all users',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  height: 480,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    itemCount: selectedUsers.length,
-                    itemBuilder: (context, index) {
-                      final user = selectedUsers[index];
-                      return _buildIndividualUserCard(user, provider);
-                    },
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
-
-              // Privilege Leave Slider
-              _buildLeaveSlider(
-                'Privilege Leave (PL)',
-                provider.privilegeLeaves,
-                0,
-                12,
-                provider.setPrivilegeLeaves,
-              ),
+              // Casual Leave Checkbox
               const SizedBox(height: 16),
-
-              // Sick Leave Slider
-              _buildLeaveSlider(
-                'Sick Leave (SL)',
-                provider.sickLeaves,
-                0,
-                7,
-                provider.setSickLeaves,
-              ),
-              const SizedBox(height: 16),
-
-              // Casual Leave with Checkbox
-              Row(
-                children: [
-                  Consumer<OnboardingProvider>(
-                    builder: (context, provider, child) {
-                      return Checkbox(
-                        value: provider.enableCasualLeaves,
-                        onChanged: (bool? value) {
-                          if (value != null) {
-                            provider.setEnableCasualLeaves(value);
-                          }
-                        },
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildLeaveSlider(
-                      'Casual Leave (CL)',
-                      provider.casualLeaves,
-                      0,
-                      5,
-                      provider.setCasualLeaves,
-                      enabled: provider.enableCasualLeaves,
-                    ),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Consumer<OnboardingProvider>(
+                  builder: (context, provider, child) {
+                    return Row(
+                      children: [
+                        Checkbox(
+                          value: provider.enableCasualLeaves,
+                          onChanged: (bool? value) {
+                            if (value != null) {
+                              provider.setEnableCasualLeaves(value);
+                            }
+                          },
+                          activeColor: Colors.blue,
+                        ),
+                        const Text(
+                          'Enable Casual Leave',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ],
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLeaveSlider(
-    String title,
-    int value,
-    int min,
-    int max,
-    Function(int) onChanged, {
-    bool enabled = true,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$title: $value',
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: enabled ? Colors.black : Colors.grey,
-          ),
-        ),
-        Slider(
-          value: value.toDouble(),
-          min: min.toDouble(),
-          max: max.toDouble(),
-          divisions: max - min,
-          label: value.toString(),
-          onChanged: enabled
-              ? (double newValue) => onChanged(newValue.round())
-              : null,
         ),
       ],
     );
@@ -472,79 +392,6 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               ),
       ),
     );
-  }
-
-  Future<void> _onboardSelectedUsers(OnboardingProvider provider) async {
-    final selectedUsers = provider.getSelectedUsers();
-
-    // Show confirmation dialog
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Onboarding'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you sure you want to onboard ${selectedUsers.length} user(s)?',
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Leave Configuration:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Text('• Privilege Leave: ${provider.privilegeLeaves}'),
-            Text('• Sick Leave: ${provider.sickLeaves}'),
-            if (provider.enableCasualLeaves)
-              Text('• Casual Leave: ${provider.casualLeaves}')
-            else
-              const Text('• Casual Leave: Disabled'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      final success = await provider.onboardUsers();
-
-      if (mounted) {
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Successfully onboarded ${selectedUsers.length} user(s)',
-              ),
-              backgroundColor: Colors.green,
-            ),
-          );
-
-          // Reload users
-          final userProvider = Provider.of<UserProvider>(
-            context,
-            listen: false,
-          );
-          provider.loadUsers(userProvider);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to onboard users. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    }
   }
 
   Widget _buildLeavePreview(OnboardingProvider provider) {
@@ -669,6 +516,29 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
   }
 
   void _showOnboardingBottomSheet(OnboardingProvider provider) {
+    // Calculate leaves for all selected users
+    provider.calculateLeavesForSelectedUsers();
+
+    // Debug prints for selected employees' joining dates and calculated leaves
+    final selectedUsers = provider.getSelectedUsers();
+    for (final user in selectedUsers) {
+      final joiningDate = user.joiningDate != null
+          ? DateFormat('dd/MM/yyyy').format(user.joiningDate!)
+          : "Not set";
+
+      // Get calculated leaves for this user
+      final userLeaves = provider.getIndividualUserLeaves(user.userId);
+      final privilegeLeaves = userLeaves['privilegeLeaves'];
+      final sickLeaves = userLeaves['sickLeaves'];
+      final casualLeaves = userLeaves['casualLeaves'];
+
+      print('EMPLOYEE ONBOARDING - User: ${user.name}');
+      print('EMPLOYEE ONBOARDING - Joining Date: ${user.createdAt}');
+      print(
+        'EMPLOYEE ONBOARDING - Calculated Leaves: PL=$privilegeLeaves, SL=$sickLeaves, CL=$casualLeaves',
+      );
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -699,12 +569,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             // Title
             Padding(
               padding: const EdgeInsets.all(10),
-              child: Text(
+              child: const Text(
                 'Confirm Onboarding',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ),
 
@@ -714,77 +581,206 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   children: [
-                    // Selected users info
+                    // Header text
                     Text(
-                      'Are you sure you want to onboard ${provider.selectedUserIds.length} user(s)?',
-                      style: const TextStyle(fontSize: 16),
+                      'Selected Users for Onboarding',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
 
                     const SizedBox(height: 16),
 
-                    // Selected users list
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.blue.shade200),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Selected Users:',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                                color: Colors.blue.shade800,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            ...provider
-                                .getSelectedUsers()
-                                .map(
-                                  (user) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.person,
-                                          size: 16,
-                                          color: Colors.blue.shade600,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            '${user.name} (${user.email})',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
                     // Leave Configuration Section
                     Consumer<OnboardingProvider>(
                       builder: (context, provider, child) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: _buildLeaveConfigurationSection(provider),
+                        return _buildLeaveConfigurationSection(provider);
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Selected users list with checkboxes and edit buttons
+                    Consumer<OnboardingProvider>(
+                      builder: (context, provider, child) {
+                        final selectedUsers = provider.getSelectedUsers();
+
+                        return Column(
+                          children: selectedUsers.map((user) {
+                            final joiningDate =
+                                user.joiningDate ?? DateTime.now();
+                            // Calculate leaves for this user without notifying during build
+                            provider.calculateLeaves(
+                              user.userId,
+                              notify: false,
+                            );
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.blue.shade200),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // User Header
+                                  Row(
+                                    children: [
+                                      // Checkbox
+                                      Icon(
+                                        Icons.check_circle,
+                                        color: Colors.green,
+                                        size: 24,
+                                      ),
+                                      const SizedBox(width: 12),
+
+                                      // User avatar
+                                      CircleAvatar(
+                                        radius: 20,
+                                        backgroundColor: Colors.blue.shade100,
+                                        backgroundImage:
+                                            user.profileImageUrl != null
+                                            ? NetworkImage(
+                                                user.profileImageUrl!,
+                                              )
+                                            : null,
+                                        child: user.profileImageUrl == null
+                                            ? Text(
+                                                user.name.isNotEmpty
+                                                    ? user.name[0].toUpperCase()
+                                                    : 'U',
+                                                style: TextStyle(
+                                                  color: Colors.blue.shade800,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 12),
+
+                                      // User info
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              user.name,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                            Text(
+                                              user.email,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                            Text(
+                                              'Joining: ${_getDisplayJoiningDate(user)}',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.blue[700],
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  const SizedBox(height: 16),
+
+                                  // Leave Information Section
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Colors.grey.shade300,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'Leave Allocation (${provider.calculatedLeaves[user.userId]?['remainingMonths'] ?? 0} months)',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 14,
+                                                color: Colors.blue.shade800,
+                                              ),
+                                            ),
+                                            TextButton(
+                                              onPressed: () {
+                                                final isCurrentlyEditing =
+                                                    provider.editingUserId ==
+                                                    user.userId;
+                                                if (isCurrentlyEditing) {
+                                                  // Stop editing
+                                                  provider.setEditingUserId(
+                                                    null,
+                                                  );
+                                                } else {
+                                                  // Start editing
+                                                  provider.setEditingUserId(
+                                                    user.userId,
+                                                  );
+                                                }
+                                              },
+                                              style: TextButton.styleFrom(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 5,
+                                                      vertical: 4,
+                                                    ),
+                                                minimumSize: Size.zero,
+                                                tapTargetSize:
+                                                    MaterialTapTargetSize
+                                                        .shrinkWrap,
+                                              ),
+                                              child: Text(
+                                                provider.editingUserId ==
+                                                        user.userId
+                                                    ? 'Done'
+                                                    : 'Edit',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                  color:
+                                                      provider.editingUserId ==
+                                                          user.userId
+                                                      ? Colors.green.shade700
+                                                      : Colors.blue.shade700,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+
+                                        // Individual user leave preview with edit functionality
+                                        _buildUserLeavePreview(user, provider),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
                         );
                       },
                     ),
@@ -835,12 +831,35 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
   Future<void> _confirmOnboarding(OnboardingProvider provider) async {
     final selectedUsers = provider.getSelectedUsers();
+
+    // Apply custom leave overrides to the provider before onboarding
+    for (final user in selectedUsers) {
+      final overrides = _userLeaveOverrides[user.userId];
+      if (overrides != null) {
+        provider.setIndividualUserPrivilegeLeaves(
+          user.userId,
+          overrides['privilegeLeaves']!,
+        );
+        provider.setIndividualUserSickLeaves(
+          user.userId,
+          overrides['sickLeaves']!,
+        );
+        provider.setIndividualUserCasualLeaves(
+          user.userId,
+          overrides['casualLeaves']!,
+        );
+      }
+    }
+
     final success = await provider.onboardUsers();
 
     if (mounted) {
       Navigator.pop(context); // Close bottom sheet
 
       if (success) {
+        // Clear the overrides after successful onboarding
+        _userLeaveOverrides.clear();
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -864,86 +883,23 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
     }
   }
 
-  /// Calculate suggested leave values based on selected users' joining dates
-  Map<String, int> _calculateSuggestedLeaves(OnboardingProvider provider) {
-    final selectedUsers = provider.getSelectedUsers();
+  Widget _buildCompleteUserSection(
+    UserModel user,
+    OnboardingProvider provider,
+  ) {
+    // Only calculate leaves if this user doesn't have individual leaves set yet
+    // This prevents overriding manual slider changes during edit mode
+    final hasIndividualLeaves = provider.hasIndividualUserLeaves(user.userId);
 
-    if (selectedUsers.isEmpty) {
-      // Use current month as default with default leave values
-      final currentMonth = DateTime.now().month;
-      return provider.calculateProRatedLeaves(
-        joiningMonth: currentMonth,
-        privilegeLeaves: 12, // Use default values
-        sickLeaves: 7,
-        casualLeaves: 5,
-      );
+    if (!hasIndividualLeaves) {
+      provider.calculateLeaves(user.userId, notify: false);
     }
 
-    // Calculate average leaves for selected users using default values
-    int totalPL = 0, totalSL = 0, totalCL = 0;
-    int validUsers = 0;
-
-    for (final user in selectedUsers) {
-      final joiningDate = user.joiningDate ?? user.createdAt;
-      if (joiningDate != null) {
-        final joiningMonth = joiningDate.month;
-        final calculatedLeaves = provider.calculateProRatedLeaves(
-          joiningMonth: joiningMonth,
-          privilegeLeaves: 12, // Use default values for calculation
-          sickLeaves: 7,
-          casualLeaves: 5,
-        );
-
-        totalPL += calculatedLeaves['privilegeLeaves'] ?? 0;
-        totalSL += calculatedLeaves['sickLeaves'] ?? 0;
-        totalCL += calculatedLeaves['casualLeaves'] ?? 0;
-        validUsers++;
-      }
-    }
-
-    if (validUsers == 0) {
-      // Fallback to current month with default values
-      final currentMonth = DateTime.now().month;
-      return provider.calculateProRatedLeaves(
-        joiningMonth: currentMonth,
-        privilegeLeaves: 12, // Use default values
-        sickLeaves: 7,
-        casualLeaves: 5,
-      );
-    }
-
-    // Return average values (rounded)
-    return {
-      'privilegeLeaves': (totalPL / validUsers).round(),
-      'sickLeaves': (totalSL / validUsers).round(),
-      'casualLeaves': (totalCL / validUsers).round(),
-    };
-  }
-
-  /// Automatically sync sliders with calculated leave values
-  void _autoSyncSliders(OnboardingProvider provider) {
-    final suggestedLeaves = _calculateSuggestedLeaves(provider);
-
-    provider.setPrivilegeLeaves(suggestedLeaves['privilegeLeaves'] ?? 12);
-    provider.setSickLeaves(suggestedLeaves['sickLeaves'] ?? 7);
-    provider.setCasualLeaves(suggestedLeaves['casualLeaves'] ?? 5);
-  }
-
-  /// Build individual user card with sliders for leave customization
-  Widget _buildIndividualUserCard(UserModel user, OnboardingProvider provider) {
-    final joiningDate = user.joiningDate ?? user.createdAt ?? DateTime.now();
-    final userLeaves = provider.getIndividualUserLeaves(user.userId);
-    final calculatedLeaves = provider.calculateProRatedLeaves(
-      joiningMonth: joiningDate.month,
-      privilegeLeaves: userLeaves['privilegeLeaves']!,
-      sickLeaves: userLeaves['sickLeaves']!,
-      casualLeaves: userLeaves['casualLeaves']!,
-    );
+    final calculatedLeaves = provider.calculatedLeaves[user.userId] ?? {};
 
     return Container(
       width: 320,
-
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -960,11 +916,11 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // User header
+          // User Info Section
           Row(
             children: [
               CircleAvatar(
-                radius: 20,
+                radius: 24,
                 backgroundImage:
                     (user.profileImageUrl != null &&
                         user.profileImageUrl!.isNotEmpty)
@@ -975,6 +931,10 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                         user.profileImageUrl!.isEmpty)
                     ? Text(
                         user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       )
                     : null,
               ),
@@ -987,13 +947,13 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                       user.name,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: 18,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       user.email,
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
@@ -1001,96 +961,101 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
-          // Joining date
+          // Joining Date
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               'Joining: ${_getDisplayJoiningDate(user)}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             ),
+          ),
+          const SizedBox(height: 16),
+
+          // Pro-rated Calculation Section
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pro-rated Leave Calculation:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                _buildUserLeavePreview(user, provider),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Individual Configuration Section
+          const Text(
+            'Individual Configuration:',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 12),
 
           // Individual sliders
           _buildIndividualLeaveSlider(
             'Privilege Leave (PL)',
-            userLeaves['privilegeLeaves']!,
-            0,
-            20,
-            (value) =>
-                provider.setIndividualUserPrivilegeLeaves(user.userId, value),
+            provider.getIndividualUserLeaves(user.userId)['privilegeLeaves']!,
+            (double value) => provider.setIndividualUserPrivilegeLeaves(
+              user.userId,
+              value.toInt(),
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
 
           _buildIndividualLeaveSlider(
             'Sick Leave (SL)',
-            userLeaves['sickLeaves']!,
-            0,
-            15,
-            (value) => provider.setIndividualUserSickLeaves(user.userId, value),
+            provider.getIndividualUserLeaves(user.userId)['sickLeaves']!,
+            (double value) => provider.setIndividualUserSickLeaves(
+              user.userId,
+              value.toInt(),
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
 
           if (provider.enableCasualLeaves) ...[
             _buildIndividualLeaveSlider(
               'Casual Leave (CL)',
-              userLeaves['casualLeaves']!,
-              0,
-              10,
-              (value) =>
-                  provider.setIndividualUserCasualLeaves(user.userId, value),
+              provider.getIndividualUserLeaves(user.userId)['casualLeaves']!,
+              (double value) => provider.setIndividualUserCasualLeaves(
+                user.userId,
+                value.toInt(),
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
           ],
 
-          // Calculated leaves preview
+          // Final Calculated leaves preview
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: Colors.green.shade50,
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green.shade200),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Pro-rated Leaves (Based on Joining Month):',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  'Final Leave Allocation:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'PL: ${calculatedLeaves['privilegeLeaves']}',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    Text(
-                      'SL: ${calculatedLeaves['sickLeaves']}',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    if (provider.enableCasualLeaves)
-                      Text(
-                        'CL: ${calculatedLeaves['casualLeaves']}',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Total: ${(calculatedLeaves['privilegeLeaves'] ?? 0) + (calculatedLeaves['sickLeaves'] ?? 0) + (calculatedLeaves['casualLeaves'] ?? 0)}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
-                  ),
-                ),
+                const SizedBox(height: 8),
+                _buildFinalUserLeaveAllocation(user, provider),
               ],
             ),
           ),
@@ -1099,59 +1064,337 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
     );
   }
 
-  /// Build individual leave slider for a specific user
-  Widget _buildIndividualLeaveSlider(
-    String title,
-    int currentValue,
-    int min,
-    int max,
-    Function(int) onChanged,
-  ) {
+  Widget _buildUserLeavePreview(UserModel user, OnboardingProvider provider) {
+    // Check if this specific user is in edit mode
+    final isEditingThisUser = provider.editingUserId == user.userId;
+
+    // Only calculate leaves if:
+    // 1. User is NOT in edit mode (to prevent overriding manual changes)
+    // 2. AND user doesn't have individual leaves set yet
+    if (!isEditingThisUser && !provider.hasIndividualUserLeaves(user.userId)) {
+      // Use addPostFrameCallback to avoid calling during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        provider.calculateLeaves(user.userId, notify: false);
+      });
+    }
+
+    // Get calculated leaves from provider
+    final calculatedLeaves = provider.calculatedLeaves[user.userId];
+    final remainingMonths = calculatedLeaves?['remainingMonths'] ?? 0;
+    final finalPL = calculatedLeaves?['finalPL'] ?? 0;
+    final finalSL = calculatedLeaves?['finalSL'] ?? 0;
+    final finalCL = calculatedLeaves?['finalCL'] ?? 0;
+
+    // Get default leaves for comparison
+    final privilegeLeaves = provider.privilegeLeaves;
+    final sickLeaves = provider.sickLeaves;
+    final casualLeaves = provider.casualLeaves;
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade100,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '$currentValue',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+            const Text('Remaining months:', style: TextStyle(fontSize: 12)),
+            Row(
+              children: [
+                Text(
+                  '$remainingMonths months',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // Show either the editable sliders or the regular text display
+        if (isEditingThisUser)
+          _buildEditableLeaves(user, provider)
+        else
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: _buildLeaveTextDisplay(
+              user,
+              provider,
+              privilegeLeaves,
+              sickLeaves,
+              casualLeaves,
+              finalPL,
+              finalSL,
+              finalCL,
+            ),
+          ),
+      ],
+    );
+  }
+
+  // Display regular text view of leaves
+  Widget _buildLeaveTextDisplay(
+    UserModel user,
+    OnboardingProvider provider,
+    int privilegeLeaves,
+    int sickLeaves,
+    int casualLeaves,
+    int finalPL,
+    int finalSL,
+    int finalCL,
+  ) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('PL:', style: TextStyle(fontSize: 12)),
+            Text(
+              '$finalPL days',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('SL:', style: TextStyle(fontSize: 12)),
+            Text(
+              '$finalSL days',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        if (provider.enableCasualLeaves)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('CL:', style: TextStyle(fontSize: 12)),
+              Text(
+                '$finalCL days',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  // Replace the _buildEditableLeaves method with this fixed version:
+
+  // Replace the _buildEditableLeaves method with this fixed version:
+
+  Widget _buildEditableLeaves(UserModel user, OnboardingProvider provider) {
+    // IMPORTANT: Don't call calculateLeaves here - it will override slider changes
+    // The values are already initialized when user is selected or edit button is clicked
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.shade200, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Edit Leave Allocation:',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildIndividualLeaveSlider(
+            'Privilege Leave (PL)',
+            provider.getIndividualUserLeaves(user.userId)['privilegeLeaves']!,
+            (double value) {
+              provider.setIndividualUserPrivilegeLeaves(
+                user.userId,
+                value.toInt(),
+              );
+            },
+          ),
+          const SizedBox(height: 4),
+          _buildIndividualLeaveSlider(
+            'Sick Leave (SL)',
+            provider.getIndividualUserLeaves(user.userId)['sickLeaves']!,
+            (double value) {
+              provider.setIndividualUserSickLeaves(user.userId, value.toInt());
+            },
+          ),
+          if (provider.enableCasualLeaves) ...[
+            const SizedBox(height: 4),
+            _buildIndividualLeaveSlider(
+              'Casual Leave (CL)',
+              provider.getIndividualUserLeaves(user.userId)['casualLeaves']!,
+              (double value) {
+                provider.setIndividualUserCasualLeaves(
+                  user.userId,
+                  value.toInt(),
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // Individual leave slider for editing
+  Widget _buildIndividualLeaveSlider(
+    String label,
+    int value,
+    Function(double) onChanged,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$value days',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: Colors.blue.shade400,
+              inactiveTrackColor: Colors.blue.shade100,
+              thumbColor: Colors.blue.shade600,
+              overlayColor: Colors.blue.shade100.withOpacity(0.3),
+              trackHeight: 4,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+            ),
+            child: Slider(
+              value: value.toDouble(),
+              min: 0,
+              max: 30,
+              divisions: 30,
+              label: '$value days',
+              onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinalUserLeaveAllocation(
+    UserModel user,
+    OnboardingProvider provider,
+  ) {
+    // Only calculate leaves if this user doesn't have individual leaves set yet
+    // This prevents overriding manual slider changes during edit mode
+    final hasIndividualLeaves = provider.hasIndividualUserLeaves(user.userId);
+
+    if (!hasIndividualLeaves) {
+      // Ensure leaves are calculated without triggering notifyListeners during build
+      provider.calculateLeaves(user.userId, notify: false);
+    }
+
+    // Get calculated leaves from provider
+    final calculatedLeaves = provider.calculatedLeaves[user.userId];
+    final remainingMonths = calculatedLeaves?['remainingMonths'] ?? 0;
+    final finalPL = calculatedLeaves?['finalPL'] ?? 0;
+    final finalSL = calculatedLeaves?['finalSL'] ?? 0;
+    final finalCL = calculatedLeaves?['finalCL'] ?? 0;
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Privilege Leave:', style: TextStyle(fontSize: 12)),
+            Text(
+              '$finalPL days',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.green,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 4),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            activeTrackColor: Colors.blue,
-            inactiveTrackColor: Colors.grey.shade300,
-            thumbColor: Colors.blue,
-            overlayColor: Colors.blue.withOpacity(0.2),
-            trackHeight: 4,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-          ),
-          child: Slider(
-            value: currentValue.toDouble(),
-            min: min.toDouble(),
-            max: max.toDouble(),
-            divisions: max - min,
-            onChanged: (value) => onChanged(value.round()),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Sick Leave:', style: TextStyle(fontSize: 12)),
+            Text(
+              '$finalSL days',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.green,
+              ),
+            ),
+          ],
         ),
+        if (provider.enableCasualLeaves)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Casual Leave:', style: TextStyle(fontSize: 12)),
+              Text(
+                '$finalCL days',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }
+
+  String _getCurrentMonthExample() {
+    final now = DateTime.now();
+    final currentMonth = DateFormat('MMMM').format(now);
+    final remainingMonths = 12 - now.month + 1;
+
+    if (now.month == 1) {
+      return '• January joining = Full year allocation';
+    }
+
+    final monthsFromCurrent = List.generate(remainingMonths, (index) {
+      final month = DateTime(now.year, now.month + index);
+      return DateFormat('MMM').format(month);
+    }).join(', ');
+
+    return '• $currentMonth joining = $remainingMonths months allocation ($monthsFromCurrent)';
+  }
+
+  // Individual user leave configuration storage
+  final Map<String, Map<String, int>> _userLeaveOverrides = {};
 }

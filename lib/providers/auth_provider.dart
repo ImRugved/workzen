@@ -82,7 +82,7 @@ class AuthProvider with ChangeNotifier {
       );
       _user = result.user;
       await _fetchUserData();
-      
+
       // Always get fresh FCM token after successful login
       await _getFreshFcmTokenAndUpdate();
 
@@ -144,7 +144,7 @@ class AuthProvider with ChangeNotifier {
             .set(newUser.toJson());
         print('User data saved to Firestore successfully');
       } catch (firestoreError) {
-        log("Firestore error during signup: $firestoreError");
+        // log("Firestore error during signup: $firestoreError");
 
         // Handle specific Firestore errors
         if (firestoreError.toString().contains('permission-denied')) {
@@ -170,18 +170,18 @@ class AuthProvider with ChangeNotifier {
         }
 
         // For other Firestore errors, still try to continue
-        log('Continuing signup despite Firestore error');
+        //log('Continuing signup despite Firestore error');
       }
 
       // FCM token already saved to Firestore above
-      log('FCM token saved for new user: ${_user!.uid}');
+      // log('FCM token saved for new user: ${_user!.uid}');
 
       _userModel = newUser;
       _isLoading = false;
       notifyListeners();
       return {'success': true, 'message': 'Account created successfully!'};
     } catch (e) {
-      log("Signup error: $e");
+      // log("Signup error: $e");
       _isLoading = false;
       notifyListeners();
 
@@ -208,21 +208,21 @@ class AuthProvider with ChangeNotifier {
   Future<void> logout() async {
     try {
       if (_user != null) {
-        log('Logging out user: ${_user!.uid}');
-        
+        // log('Logging out user: ${_user!.uid}');
+
         // Only clear from local storage to force fresh token on next login
         await _storage.remove('fcmtoken');
-        
+
         // Delete the FCM token from Firebase Messaging to ensure fresh token on next login
         try {
           await FirebaseMessaging.instance.deleteToken();
-          log('FCM token deleted from Firebase Messaging');
+          //  log('FCM token deleted from Firebase Messaging');
         } catch (e) {
-          log('Error deleting FCM token from Firebase Messaging: $e');
+          ////   log('Error deleting FCM token from Firebase Messaging: $e');
         }
-        
+
         // Keep the FCM token in Firestore and Realtime Database for the user
-        log('FCM token preserved in databases for user: ${_user!.uid}');
+        //  log('FCM token preserved in databases for user: ${_user!.uid}');
       }
 
       await _auth.signOut();
@@ -240,7 +240,7 @@ class AuthProvider with ChangeNotifier {
       try {
         // Try to get fresh FCM token from Firebase Messaging
         String? fcmToken = await FirebaseMessaging.instance.getToken();
-        
+
         if (fcmToken != null && fcmToken.isNotEmpty) {
           log('Fresh FCM token obtained: $fcmToken');
           // Store in local storage for future use
@@ -274,10 +274,10 @@ class AuthProvider with ChangeNotifier {
     if (_user != null) {
       try {
         log('Getting fresh FCM token for user login: ${_user!.uid}');
-        
+
         // Force get a fresh FCM token from Firebase Messaging
         String? fcmToken = await FirebaseMessaging.instance.getToken();
-        
+
         if (fcmToken != null && fcmToken.isNotEmpty) {
           log('Fresh FCM token obtained for login: $fcmToken');
           // Store in local storage
@@ -295,7 +295,9 @@ class AuthProvider with ChangeNotifier {
             await _storage.write('fcmtoken', fcmToken);
             await updateFcmToken(fcmToken);
           } else {
-            log('Still no FCM token available after deletion - notifications may not work');
+            log(
+              'Still no FCM token available after deletion - notifications may not work',
+            );
           }
         }
       } catch (e) {
@@ -324,10 +326,12 @@ class AuthProvider with ChangeNotifier {
         log('FCM token updated successfully in Firestore');
       } catch (firestoreError) {
         log('Error updating FCM token in Firestore: $firestoreError');
-        
+
         // Handle specific Firestore errors
         if (firestoreError.toString().contains('permission-denied')) {
-          log('Permission denied for Firestore token update - rules may need time to propagate');
+          log(
+            'Permission denied for Firestore token update - rules may need time to propagate',
+          );
         } else if (firestoreError.toString().contains('not-found')) {
           log('User document not found in Firestore for token update');
         }

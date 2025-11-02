@@ -15,15 +15,22 @@ class OnboardingProvider extends ChangeNotifier {
   List<String> _selectedUserIds = [];
   bool _isLoading = true;
   String _searchQuery = '';
+  String? _editingUserId; // Track which user is being edited
 
   // Leave configuration
   int _privilegeLeaves = 12;
-  int _sickLeaves = 7;
+  int _sickLeaves = 6;
   int _casualLeaves = 5;
   bool _enableCasualLeaves = false;
 
   // Individual user leave configurations
   Map<String, Map<String, int>> _individualUserLeaves = {};
+
+  // Leave calculation results
+  Map<String, Map<String, dynamic>> _calculatedLeaves = {};
+
+  // Auto-sync flag to prevent continuous slider resets
+  bool _hasAutoSynced = false;
 
   // Getters
   List<UserModel> get allUsers => _allUsers;
@@ -31,10 +38,14 @@ class OnboardingProvider extends ChangeNotifier {
   List<String> get selectedUserIds => _selectedUserIds;
   bool get isLoading => _isLoading;
   String get searchQuery => _searchQuery;
+  String? get editingUserId => _editingUserId;
+
   int get privilegeLeaves => _privilegeLeaves;
   int get sickLeaves => _sickLeaves;
   int get casualLeaves => _casualLeaves;
   bool get enableCasualLeaves => _enableCasualLeaves;
+  bool get hasAutoSynced => _hasAutoSynced;
+  Map<String, Map<String, dynamic>> get calculatedLeaves => _calculatedLeaves;
 
   // Setters
   void setPrivilegeLeaves(int value) {
@@ -57,6 +68,25 @@ class OnboardingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Reset to default leave values
+  void resetToDefaultLeaves() {
+    print(
+      'EMPLOYEE ONBOARDING - Resetting to default values: PL=12, SL=6, CL=5',
+    );
+    _privilegeLeaves = 12;
+    _sickLeaves = 6;
+    _casualLeaves = 5;
+    print(
+      'EMPLOYEE ONBOARDING - After reset: PL=$_privilegeLeaves, SL=$_sickLeaves, CL=$_casualLeaves',
+    );
+    notifyListeners();
+  }
+
+  // Mark auto-sync as complete to prevent continuous resets
+  void markAutoSyncComplete() {
+    _hasAutoSynced = true;
+  }
+
   // Individual user leave management
   Map<String, int> getIndividualUserLeaves(String userId) {
     return _individualUserLeaves[userId] ??
@@ -65,6 +95,11 @@ class OnboardingProvider extends ChangeNotifier {
           'sickLeaves': _sickLeaves,
           'casualLeaves': _casualLeaves,
         };
+  }
+
+  // Check if user has individual leaves set (not just default values)
+  bool hasIndividualUserLeaves(String userId) {
+    return _individualUserLeaves.containsKey(userId);
   }
 
   void setIndividualUserPrivilegeLeaves(String userId, int value) {
@@ -99,7 +134,123 @@ class OnboardingProvider extends ChangeNotifier {
 
   void clearIndividualUserLeaves() {
     _individualUserLeaves.clear();
+    _calculatedLeaves.clear();
     notifyListeners();
+  }
+
+  // Calculate remaining months from joining date to December
+  double calculateRemainingMonths(DateTime joiningDate) {
+    final joiningMonth = joiningDate.month;
+    final joiningDay = joiningDate.day;
+
+    // For January (month 1), always return 12 months
+    if (joiningMonth == 1 && joiningDay <= 15) {
+      return 12.0;
+    }
+
+    // Calculate remaining months in the year from joining month to December
+    double remainingMonths = 12 - joiningMonth + 1; // Include joining month
+
+    // If joining date is after 15th, count only half month for the joining month
+    if (joiningDay >= 15) {
+      remainingMonths -= 0.5;
+    }
+
+    // Ensure minimum 1 month (even if joining in December, they get December allocation)
+    remainingMonths = remainingMonths < 1 ? 1 : remainingMonths;
+
+    return remainingMonths;
+  }
+
+  // Calculate leaves for a user based on joining date
+  void calculateLeaves(String userId, {bool notify = true}) {
+    final user = _allUsers.firstWhere((u) => u.userId == userId);
+    final joiningDate = user.joiningDate ?? user.createdAt ?? DateTime.now();
+    final remainingMonths = calculateRemainingMonths(joiningDate);
+    final userLeaves = getIndividualUserLeaves(userId);
+
+    print('EMPLOYEE ONBOARDING - User: ${user.name}');
+    print('EMPLOYEE ONBOARDING - Joining Date: $joiningDate');
+    print('EMPLOYEE ONBOARDING - Remaining Months: $remainingMonths');
+    print('EMPLOYEE ONBOARDING - User Leaves: $userLeaves');
+    print(
+      'EMPLOYEE ONBOARDING - Default PL: $_privilegeLeaves, SL: $_sickLeaves, CL: $_casualLeaves',
+    );
+
+    int finalPL;
+    int finalSL;
+    int casualLeaves;
+
+    // For full year (12 remaining months), use full default allocation
+    if (remainingMonths >= 12) {
+      print('EMPLOYEE ONBOARDING - Using full year allocation');
+      finalPL = _privilegeLeaves;
+      finalSL = _sickLeaves;
+      casualLeaves = _casualLeaves;
+    } else {
+      print('EMPLOYEE ONBOARDING - Using pro-rated calculation');
+      finalPL = (_privilegeLeaves * remainingMonths / 12).round();
+
+      // SL calculation: 12 months = 6 SL, 6 months = 3 SL, 3 months = 1 SL, less than 3 months = 0 SL
+      if (remainingMonths >= 12) {
+        finalSL = 6;
+      } else if (remainingMonths >= 6) {
+        finalSL = 3;
+      } else if (remainingMonths >= 3) {
+        finalSL = 1;
+      } else {
+        finalSL = 0;
+      }
+
+      // CL calculation based on remaining months
+      casualLeaves = 0;
+      if (remainingMonths >= 12) {
+        casualLeaves = 5;
+      } else if (remainingMonths >= 6) {
+        casualLeaves = 2;
+      } else if (remainingMonths >= 3) {
+        casualLeaves = 1;
+      }
+    }
+
+    final finalCL = _enableCasualLeaves ? casualLeaves : 0;
+
+    print(
+      'EMPLOYEE ONBOARDING - Calculated Leaves: PL=$finalPL, SL=$finalSL, CL=$finalCL',
+    );
+
+    _calculatedLeaves[userId] = {
+      'finalPL': finalPL,
+      'finalSL': finalSL,
+      'finalCL': finalCL,
+      'remainingMonths': remainingMonths,
+    };
+
+    // Update individual user leaves with calculated values so UI sliders show correct amounts
+    _individualUserLeaves[userId] = {
+      'privilegeLeaves': finalPL,
+      'sickLeaves': finalSL,
+      'casualLeaves': finalCL,
+    };
+
+    print(
+      'EMPLOYEE ONBOARDING - Updated individual user leaves: $_individualUserLeaves[userId]',
+    );
+    print(
+      'EMPLOYEE ONBOARDING - Calculated leaves stored: $_calculatedLeaves[userId]',
+    );
+
+    // Only notify listeners if explicitly requested
+    if (notify) {
+      notifyListeners();
+    }
+  }
+
+  // Calculate leaves for all selected users
+  void calculateLeavesForSelectedUsers() {
+    for (final userId in _selectedUserIds) {
+      calculateLeaves(userId);
+    }
   }
 
   // Update joining date for a specific user
@@ -126,6 +277,11 @@ class OnboardingProvider extends ChangeNotifier {
       );
       if (filteredIndex != -1) {
         _filteredUsers[filteredIndex] = _allUsers[userIndex];
+      }
+
+      // Recalculate leaves for this user
+      if (_selectedUserIds.contains(userId)) {
+        calculateLeaves(userId);
       }
 
       notifyListeners();
@@ -183,19 +339,34 @@ class OnboardingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setEditingUserId(String? userId) {
+    _editingUserId = userId;
+
+    // When starting to edit a user, ensure their leaves are calculated if not already set
+    if (userId != null && !hasIndividualUserLeaves(userId)) {
+      calculateLeaves(userId, notify: false);
+    }
+
+    notifyListeners();
+  }
+
   // Toggle user selection
   void toggleUserSelection(String userId) {
     if (_selectedUserIds.contains(userId)) {
       _selectedUserIds.remove(userId);
+      _calculatedLeaves.remove(userId);
     } else {
       _selectedUserIds.add(userId);
+      calculateLeaves(userId);
     }
+    _hasAutoSynced = false; // Reset flag when selection changes
     notifyListeners();
   }
 
   // Select all users
   void selectAllUsers() {
     _selectedUserIds = _filteredUsers.map((user) => user.userId).toList();
+    _hasAutoSynced = false; // Reset flag when selection changes
     notifyListeners();
   }
 
@@ -203,6 +374,7 @@ class OnboardingProvider extends ChangeNotifier {
   void clearSelection() {
     _selectedUserIds.clear();
     clearIndividualUserLeaves();
+    _hasAutoSynced = false; // Reset flag when selection changes
     notifyListeners();
   }
 
@@ -283,7 +455,7 @@ class OnboardingProvider extends ChangeNotifier {
 
         // Get individual user leave values or use defaults
         final userLeaves = getIndividualUserLeaves(userId);
-        
+
         // Use the individual user leaves directly instead of recalculating
         // This ensures the values shown in the UI are the same ones saved to Firestore
         final leavesToSave = {
