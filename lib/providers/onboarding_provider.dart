@@ -26,6 +26,9 @@ class OnboardingProvider extends ChangeNotifier {
   // Individual user leave configurations
   Map<String, Map<String, int>> _individualUserLeaves = {};
 
+  // Track which users have manually modified leaves (to prevent auto-calculation override)
+  Set<String> _manuallyModifiedUsers = {};
+
   // Leave calculation results
   Map<String, Map<String, dynamic>> _calculatedLeaves = {};
 
@@ -100,7 +103,7 @@ class OnboardingProvider extends ChangeNotifier {
 
   // Check if user has individual leaves set (not just default values)
   bool hasIndividualUserLeaves(String userId) {
-    return _individualUserLeaves.containsKey(userId);
+    return _manuallyModifiedUsers.contains(userId);
   }
 
   void setIndividualUserPrivilegeLeaves(String userId, int value) {
@@ -110,6 +113,11 @@ class OnboardingProvider extends ChangeNotifier {
       'casualLeaves': _casualLeaves,
     };
     _individualUserLeaves[userId]!['privilegeLeaves'] = value;
+    
+    // Mark this user as manually modified
+    _manuallyModifiedUsers.add(userId);
+    
+    print('DEBUG: Increased privilegeLeaves for user $userId to $value');
     notifyListeners();
   }
 
@@ -120,6 +128,11 @@ class OnboardingProvider extends ChangeNotifier {
       'casualLeaves': _casualLeaves,
     };
     _individualUserLeaves[userId]!['sickLeaves'] = value;
+    
+    // Mark this user as manually modified
+    _manuallyModifiedUsers.add(userId);
+    
+    print('DEBUG: Increased sickLeaves for user $userId to $value');
     notifyListeners();
   }
 
@@ -130,12 +143,18 @@ class OnboardingProvider extends ChangeNotifier {
       'casualLeaves': _casualLeaves,
     };
     _individualUserLeaves[userId]!['casualLeaves'] = value;
+    
+    // Mark this user as manually modified
+    _manuallyModifiedUsers.add(userId);
+    
+    print('DEBUG: Increased casualLeaves for user $userId to $value');
     notifyListeners();
   }
 
   void clearIndividualUserLeaves() {
     _individualUserLeaves.clear();
     _calculatedLeaves.clear();
+    _manuallyModifiedUsers.clear(); // Clear manual modification tracking
     notifyListeners();
   }
 
@@ -165,6 +184,12 @@ class OnboardingProvider extends ChangeNotifier {
 
   // Calculate leaves for a user based on joining date
   void calculateLeaves(String userId, {bool notify = true}) {
+    // Don't override manually modified users
+    if (_manuallyModifiedUsers.contains(userId)) {
+      print('EMPLOYEE ONBOARDING - Skipping calculation for manually modified user: $userId');
+      return;
+    }
+    
     final user = _allUsers.firstWhere((u) => u.userId == userId);
     final joiningDate = user.joiningDate ?? user.createdAt ?? DateTime.now();
     final remainingMonths = calculateRemainingMonths(joiningDate);

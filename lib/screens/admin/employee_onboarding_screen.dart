@@ -318,15 +318,15 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                       _getCurrentMonthExample(),
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
-                    const SizedBox(height: 8),
-                    _buildLeavePreview(provider),
-                    const SizedBox(height: 12),
+                    // const SizedBox(height: 8),
+                    // //    _buildLeavePreview(provider),
+                    // const SizedBox(height: 12),
                   ],
                 ),
               ),
 
               // Casual Leave Checkbox
-              const SizedBox(height: 16),
+           //   const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -1004,35 +1004,41 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Individual sliders
-          _buildIndividualLeaveSlider(
+          // Individual counters
+          _buildIndividualLeaveCounter(
             'Privilege Leave (PL)',
-            provider.getIndividualUserLeaves(user.userId)['privilegeLeaves']!,
-            (double value) => provider.setIndividualUserPrivilegeLeaves(
+            user.userId,
+            'privilegeLeaves',
+            (int value) => provider.setIndividualUserPrivilegeLeaves(
               user.userId,
-              value.toInt(),
+              value,
             ),
+            provider,
           ),
           const SizedBox(height: 12),
 
-          _buildIndividualLeaveSlider(
+          _buildIndividualLeaveCounter(
             'Sick Leave (SL)',
-            provider.getIndividualUserLeaves(user.userId)['sickLeaves']!,
-            (double value) => provider.setIndividualUserSickLeaves(
+            user.userId,
+            'sickLeaves',
+            (int value) => provider.setIndividualUserSickLeaves(
               user.userId,
-              value.toInt(),
+              value,
             ),
+            provider,
           ),
           const SizedBox(height: 12),
 
           if (provider.enableCasualLeaves) ...[
-            _buildIndividualLeaveSlider(
+            _buildIndividualLeaveCounter(
               'Casual Leave (CL)',
-              provider.getIndividualUserLeaves(user.userId)['casualLeaves']!,
-              (double value) => provider.setIndividualUserCasualLeaves(
+              user.userId,
+              'casualLeaves',
+              (int value) => provider.setIndividualUserCasualLeaves(
                 user.userId,
-                value.toInt(),
+                value,
               ),
+              provider,
             ),
             const SizedBox(height: 12),
           ],
@@ -1210,35 +1216,41 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          _buildIndividualLeaveSlider(
+          _buildIndividualLeaveCounter(
             'Privilege Leave (PL)',
-            provider.getIndividualUserLeaves(user.userId)['privilegeLeaves']!,
-            (double value) {
+            user.userId,
+            'privilegeLeaves',
+            (int value) {
               provider.setIndividualUserPrivilegeLeaves(
                 user.userId,
-                value.toInt(),
+                value,
               );
             },
+            provider,
           ),
           const SizedBox(height: 4),
-          _buildIndividualLeaveSlider(
+          _buildIndividualLeaveCounter(
             'Sick Leave (SL)',
-            provider.getIndividualUserLeaves(user.userId)['sickLeaves']!,
-            (double value) {
-              provider.setIndividualUserSickLeaves(user.userId, value.toInt());
+            user.userId,
+            'sickLeaves',
+            (int value) {
+              provider.setIndividualUserSickLeaves(user.userId, value);
             },
+            provider,
           ),
           if (provider.enableCasualLeaves) ...[
             const SizedBox(height: 4),
-            _buildIndividualLeaveSlider(
+            _buildIndividualLeaveCounter(
               'Casual Leave (CL)',
-              provider.getIndividualUserLeaves(user.userId)['casualLeaves']!,
-              (double value) {
+              user.userId,
+              'casualLeaves',
+              (int value) {
                 provider.setIndividualUserCasualLeaves(
                   user.userId,
-                  value.toInt(),
+                  value,
                 );
               },
+              provider,
             ),
           ],
         ],
@@ -1246,20 +1258,25 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
     );
   }
 
-  // Individual leave slider for editing
-  Widget _buildIndividualLeaveSlider(
+  // Individual leave counter with buttons and text field for editing
+  Widget _buildIndividualLeaveCounter(
     String label,
-    int value,
-    Function(double) onChanged,
+    String userId,
+    String leaveType,
+    Function(int) onChanged,
+    OnboardingProvider provider,
   ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Consumer<OnboardingProvider>(
+      builder: (context, provider, child) {
+        final userLeaves = provider.getIndividualUserLeaves(userId);
+        final value = userLeaves[leaveType] ?? 0;
+
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Label
               Text(
                 label,
                 style: const TextStyle(
@@ -1267,44 +1284,137 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                   fontWeight: FontWeight.w500,
                 ),
               ),
+              const SizedBox(height: 8),
+              
+              // Counter Row with buttons and text field
+              Row(
+                children: [
+                  // Decrease button
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: IconButton(
+                      onPressed: value > 0 ? () {
+                        final newValue = value - 1;
+                        onChanged(newValue);
+                        print('DEBUG: Decreased $leaveType for user $userId to $newValue');
+                      } : null,
+                      icon: Icon(
+                        Icons.remove,
+                        color: value > 0 ? Colors.red.shade600 : Colors.grey,
+                        size: 20,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 12),
+                  
+                  // Text field for direct input
+                  Expanded(
+                    child: Container(
+                      height: 45,
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: TextFormField(
+                        key: ValueKey('${userId}_${leaveType}_$value'), // Force rebuild when value changes
+                        initialValue: value.toString(),
+                        textAlign: TextAlign.center,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                          hintText: '0',
+                          suffix: Text(
+                            'days',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        onFieldSubmitted: (String textValue) {
+                          final newValue = int.tryParse(textValue) ?? 0;
+                          final clampedValue = newValue.clamp(0, 30);
+                          onChanged(clampedValue);
+                          print('DEBUG: Text field submitted $leaveType for user $userId to $clampedValue');
+                        },
+                        validator: (String? textValue) {
+                          if (textValue == null || textValue.isEmpty) return null;
+                          final newValue = int.tryParse(textValue);
+                          if (newValue == null) return 'Invalid number';
+                          if (newValue < 0 || newValue > 30) return 'Must be 0-30';
+                          return null;
+                        },
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 12),
+                  
+                  // Increase button
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: IconButton(
+                      onPressed: value < 30 ? () {
+                        final newValue = value + 1;
+                        onChanged(newValue);
+                        print('DEBUG: Increased $leaveType for user $userId to $newValue');
+                      } : null,
+                      icon: Icon(
+                        Icons.add,
+                        color: value < 30 ? Colors.green.shade600 : Colors.grey,
+                        size: 20,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 4),
+              
+              // Current value display
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.blue.shade100,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '$value days',
-                  style: const TextStyle(
+                  'Current: $value days',
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blue,
+                    color: Colors.blue.shade700,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: Colors.blue.shade400,
-              inactiveTrackColor: Colors.blue.shade100,
-              thumbColor: Colors.blue.shade600,
-              overlayColor: Colors.blue.shade100.withOpacity(0.3),
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-            ),
-            child: Slider(
-              value: value.toDouble(),
-              min: 0,
-              max: 30,
-              divisions: 30,
-              label: '$value days',
-              onChanged: onChanged,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1410,7 +1520,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
     for (final user in selectedUsers) {
       // Use the actual calculated individual user leaves instead of recalculating
       final userLeaves = provider.getIndividualUserLeaves(user.userId);
-      
+
       totalPL += userLeaves['privilegeLeaves']!;
       totalSL += userLeaves['sickLeaves']!;
       totalCL += userLeaves['casualLeaves']!;
@@ -1428,7 +1538,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       provider.setSickLeaves(avgSL);
       provider.setCasualLeaves(avgCL);
 
-      print('EMPLOYEE ONBOARDING - Auto-synced sliders: PL=$avgPL, SL=$avgSL, CL=$avgCL');
+      print(
+        'EMPLOYEE ONBOARDING - Auto-synced sliders: PL=$avgPL, SL=$avgSL, CL=$avgCL',
+      );
     }
   }
 }
