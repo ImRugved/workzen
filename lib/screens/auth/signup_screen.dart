@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../constants/const_textstyle.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({Key? key}) : super(key: key);
@@ -95,7 +97,7 @@ class _SignupScreenState extends State<SignupScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
+            padding: EdgeInsets.all(24.w),
             child: Form(
               key: _formKey,
               child: Column(
@@ -103,22 +105,23 @@ class _SignupScreenState extends State<SignupScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Logo or App Name
-                  const Text(
+                  Text(
                     'Create Account',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.indigo,
-                    ),
+                    style: getTextTheme().headlineSmall?.copyWith(
+                          color: Colors.indigo,
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
+                  SizedBox(height: 8.h),
+                  Text(
                     'Sign up to get started',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                    style: getTextTheme().bodyLarge?.copyWith(
+                          color: Colors.grey,
+                        ),
                   ),
-                  const SizedBox(height: 32),
+                  SizedBox(height: 32.h),
 
                   // Name Field
                   CustomTextField(
@@ -132,7 +135,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16.h),
 
                   // Email Field
                   CustomTextField(
@@ -152,7 +155,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16.h),
 
                   // Password Field
                   CustomTextField(
@@ -179,7 +182,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16.h),
 
                   // Confirm Password Field
                   CustomTextField(
@@ -206,7 +209,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16.h),
 
                   // Secret Code Field (for admin)
                   CustomTextField(
@@ -215,7 +218,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     prefixIcon: Icons.key_outlined,
                     helperText: 'Leave empty for regular user',
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24.h),
 
                   // Signup Button
                   CustomButton(
@@ -223,27 +226,27 @@ class _SignupScreenState extends State<SignupScreen> {
                     isLoading: authProvider.isLoading,
                     onPressed: _signup,
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16.h),
 
                   // Login Link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
+                      Text(
                         "Already have an account? ",
-                        style: TextStyle(color: Colors.grey),
+                        style: getTextTheme()
+                            .bodyMedium
+                            ?.copyWith(color: Colors.grey),
                       ),
                       TextButton(
                         onPressed: () {
                           Get.back();
                         },
-                        child: const Text(
-                          'Sign In',
-                          style: TextStyle(
-                            color: Colors.indigo,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        child: Text('Sign In',
+                            style: getTextTheme().labelLarge?.copyWith(
+                                  color: Colors.indigo,
+                                  fontWeight: FontWeight.bold,
+                                )),
                       ),
                     ],
                   ),

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/request_model.dart';
 import '../providers/request_provider.dart';
+import '../constants/const_textstyle.dart';
 
 class LeaveCard extends StatelessWidget {
   final RequestModel request;
@@ -17,11 +19,11 @@ class LeaveCard extends StatelessWidget {
     final requestProvider = Provider.of<RequestProvider>(context, listen: false);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: EdgeInsets.only(bottom: 16.h),
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(16.w),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -33,28 +35,26 @@ class LeaveCard extends StatelessWidget {
                   child: isAdmin
                       ? Text(
                           request.userName,
-                          style: const TextStyle(
-                            fontSize: 18,
+                          style: getTextTheme().titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
                           // Allow text to overflow with ellipsis if too long
                           overflow: TextOverflow.ellipsis,
                         )
-                      : const Text(
+                      : Text(
                           'Leave Request',
-                          style: TextStyle(
-                            fontSize: 18,
+                          style: getTextTheme().titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                 ),
                 // Add some space between the text and status chip
-                const SizedBox(width: 8),
+                SizedBox(width: 8.w),
                 // The status chip doesn't need to be wrapped in Expanded
                 _getStatusChip(request.status),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12.h),
             _buildInfoRow(
               Icons.date_range,
               'From',
@@ -73,7 +73,7 @@ class LeaveCard extends StatelessWidget {
                 'Admin Remark',
                 request.adminRemark!,
               ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8.h),
             _buildInfoRow(
               Icons.calendar_today,
               'Applied On',
@@ -81,13 +81,13 @@ class LeaveCard extends StatelessWidget {
             ),
             if (isAdmin && request.status == 'pending')
               Padding(
-                padding: const EdgeInsets.only(top: 16.0),
+                padding: EdgeInsets.only(top: 16.0.h),
                 child: Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        icon: const Icon(Icons.check, color: Colors.white),
-                        label: const Text('Approve'),
+                        icon: Icon(Icons.check, color: Colors.white, size: 18.r),
+                        label: Text('Approve', style: getTextTheme().labelLarge?.copyWith(color: Colors.white)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                         ),
@@ -100,11 +100,11 @@ class LeaveCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12.w),
                     Expanded(
                       child: ElevatedButton.icon(
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        label: const Text('Reject'),
+                        icon: Icon(Icons.close, color: Colors.white, size: 18.r),
+                        label: Text('Reject', style: getTextTheme().labelLarge?.copyWith(color: Colors.white)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red,
                         ),
@@ -123,12 +123,12 @@ class LeaveCard extends StatelessWidget {
             // Add delete button for employees with pending leave requests
             if (!isAdmin && request.status == 'pending')
               Padding(
-                padding: const EdgeInsets.only(top: 16.0),
+                padding: EdgeInsets.only(top: 16.0.h),
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.delete, color: Colors.white),
-                    label: const Text('Cancel Request'),
+                    icon: Icon(Icons.delete, color: Colors.white, size: 18.r),
+                    label: Text('Cancel Request', style: getTextTheme().labelLarge?.copyWith(color: Colors.white)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                     ),
@@ -145,17 +145,17 @@ class LeaveCard extends StatelessWidget {
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
+      padding: EdgeInsets.only(bottom: 8.0.h),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.grey),
-          const SizedBox(width: 8),
+          Icon(icon, size: 18.r, color: Colors.grey),
+          SizedBox(width: 8.w),
           SizedBox(
-            width: 80,
+            width: 80.w,
             child: Text(
               '$label:',
-              style: const TextStyle(
+              style: getTextTheme().bodySmall?.copyWith(
                 color: Colors.grey,
                 fontWeight: FontWeight.w500,
               ),
@@ -164,7 +164,9 @@ class LeaveCard extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontWeight: FontWeight.w500),
+              style: getTextTheme().bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -195,18 +197,17 @@ class LeaveCard extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
       decoration: BoxDecoration(
         color: color.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20.r),
         border: Border.all(color: color),
       ),
       child: Text(
         label,
-        style: TextStyle(
+        style: getTextTheme().labelSmall?.copyWith(
           color: color,
           fontWeight: FontWeight.bold,
-          fontSize: 12,
         ),
       ),
     );
@@ -225,18 +226,19 @@ class LeaveCard extends StatelessWidget {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: Text(title),
+          title: Text(title, style: getTextTheme().titleMedium),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(message),
-              const SizedBox(height: 16),
+              Text(message, style: getTextTheme().bodyMedium),
+              SizedBox(height: 16.h),
               TextField(
                 controller: remarkController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Add Remark (Optional)',
-                  border: OutlineInputBorder(),
+                  labelStyle: getTextTheme().bodyMedium,
+                  border: const OutlineInputBorder(),
                 ),
                 maxLines: 3,
               ),
@@ -244,13 +246,13 @@ class LeaveCard extends StatelessWidget {
           ),
           actions: [
             TextButton(
-              child: const Text('Cancel'),
+              child: Text('Cancel', style: getTextTheme().labelLarge),
               onPressed: () {
                 Navigator.of(dialogContext).pop();
               },
             ),
             ElevatedButton(
-              child: Text(action == 'approved' ? 'Approve' : 'Reject'),
+              child: Text(action == 'approved' ? 'Approve' : 'Reject', style: getTextTheme().labelLarge?.copyWith(color: Colors.white)),
               onPressed: () async {
                 // Store the scaffold messenger before popping the dialog
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
@@ -304,13 +306,14 @@ class LeaveCard extends StatelessWidget {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Confirm Deletion'),
-          content: const Text(
+          title: Text('Confirm Deletion', style: getTextTheme().titleMedium),
+          content: Text(
             'Are you sure you want to cancel this leave request?',
+            style: getTextTheme().bodyMedium,
           ),
           actions: [
             TextButton(
-              child: const Text('Cancel'),
+              child: Text('Cancel', style: getTextTheme().labelLarge),
               onPressed: () {
                 Navigator.of(dialogContext).pop();
               },

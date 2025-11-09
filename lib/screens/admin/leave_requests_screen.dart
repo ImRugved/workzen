@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:workzen/app_constants.dart';
 import 'package:provider/provider.dart';
 import '../../models/request_model.dart';
 import '../../providers/request_provider.dart';
 import '../../widgets/request_card.dart';
+import '../../constants/const_textstyle.dart';
 
 class LeaveRequestsScreen extends StatefulWidget {
   const LeaveRequestsScreen({Key? key}) : super(key: key);
@@ -57,18 +59,32 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Leave Requests'),
+        title: Text(
+          'Leave Requests',
+          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+        ),
         actions: [
           // Add refresh button
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh, size: 24.r),
             onPressed: _initializeStream,
             tooltip: 'Refresh',
           ),
         ],
         bottom: TabBar(
           controller: _tabController,
-          tabs: _tabs.map((String name) => Tab(text: name)).toList(),
+          tabs: _tabs
+              .map(
+                (String name) => Tab(
+                  child: Text(
+                    name,
+                    style: getTextTheme().labelLarge?.copyWith(
+                          color: Colors.white,
+                        ),
+                  ),
+                ),
+              )
+              .toList(),
           labelColor: Colors.white,
           indicatorColor: Colors.white,
           unselectedLabelColor: Colors.white70,
@@ -87,7 +103,9 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen>
                   return Center(
                     child: Text(
                       'Error loading leave requests: ${snapshot.error}',
-                      style: const TextStyle(color: Colors.red),
+                      style: getTextTheme().bodyMedium?.copyWith(
+                        color: Colors.red,
+                      ),
                     ),
                   );
                 }
@@ -99,13 +117,15 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen>
                       children: [
                         Icon(
                           Icons.event_busy,
-                          size: 80,
+                          size: 80.r,
                           color: Colors.grey[400],
                         ),
-                        const SizedBox(height: 16),
-                        const Text(
+                        SizedBox(height: 16.h),
+                        Text(
                           'No leave requests found',
-                          style: TextStyle(fontSize: 18, color: Colors.grey),
+                          style: getTextTheme().titleMedium?.copyWith(
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
                     ),
@@ -157,17 +177,19 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.event_busy, size: 80, color: Colors.grey[400]),
-                const SizedBox(height: 16),
+                Icon(Icons.event_busy, size: 80.r, color: Colors.grey[400]),
+                SizedBox(height: 16.h),
                 Text(
                   emptyMessage,
-                  style: const TextStyle(fontSize: 18, color: Colors.grey),
+                  style: getTextTheme().titleMedium?.copyWith(
+                    color: Colors.grey,
+                  ),
                 ),
               ],
             ),
           )
         : ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16.w),
             itemCount: requests.length,
             itemBuilder: (context, index) {
               return RequestCard(request: requests[index], isAdmin: true);

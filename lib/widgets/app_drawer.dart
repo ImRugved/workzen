@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/auth_provider.dart';
+import '../constants/const_textstyle.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({Key? key}) : super(key: key);
@@ -19,20 +21,26 @@ class AppDrawer extends StatelessWidget {
             decoration: const BoxDecoration(color: Colors.indigo),
             accountName: Text(
               authProvider.userModel?.name ?? "User",
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: getTextTheme().titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
-            accountEmail: Text(authProvider.userModel?.email ?? ""),
+            accountEmail: Text(
+              authProvider.userModel?.email ?? "",
+              style: getTextTheme().bodyMedium?.copyWith(color: Colors.white70),
+            ),
             currentAccountPicture: CircleAvatar(
               backgroundColor: Colors.white,
-              radius: 30,
+              radius: 30.r,
               child:
                   authProvider.userModel?.profileImageUrl != null &&
                       authProvider.userModel!.profileImageUrl!.isNotEmpty
                   ? ClipOval(
                       child: CachedNetworkImage(
                         imageUrl: authProvider.userModel!.profileImageUrl!,
-                        width: 60,
-                        height: 60,
+                        width: 60.w,
+                        height: 60.w,
                         fit: BoxFit.cover,
                         placeholder: (context, url) =>
                             const CircularProgressIndicator(),
@@ -40,11 +48,10 @@ class AppDrawer extends StatelessWidget {
                           authProvider.userModel?.name.isNotEmpty == true
                               ? authProvider.userModel!.name[0].toUpperCase()
                               : "U",
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.indigo,
-                          ),
+                          style: getTextTheme().headlineSmall?.copyWith(
+                                color: Colors.indigo,
+                                fontWeight: FontWeight.bold,
+                              ),
                         ),
                       ),
                     )
@@ -52,11 +59,10 @@ class AppDrawer extends StatelessWidget {
                       authProvider.userModel?.name.isNotEmpty == true
                           ? authProvider.userModel!.name[0].toUpperCase()
                           : "U",
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.indigo,
-                      ),
+                      style: getTextTheme().headlineSmall?.copyWith(
+                            color: Colors.indigo,
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
             ),
           ),
@@ -174,8 +180,11 @@ class AppDrawer extends StatelessWidget {
     VoidCallback onTap,
   ) {
     return ListTile(
-      leading: Icon(icon, color: Colors.indigo),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      leading: Icon(icon, color: Colors.indigo, size: 22.r),
+      title: Text(
+        title,
+        style: getTextTheme().bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+      ),
       onTap: onTap,
     );
   }

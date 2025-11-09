@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../user_home.dart';
 import 'demo_page.dart';
 import '../../profile_screen.dart';
@@ -21,11 +21,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     const ProfileScreen(),
   ];
 
-  static const List<String> _titles = [
-    'User Dashboard',
-    'Demo Page',
-    'Profile',
-  ];
+  // Titles reserved for potential future use
 
   @override
   void initState() {
@@ -110,20 +106,20 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             backgroundColor: Colors.white,
             elevation: 0,
             onTap: _onItemTapped,
-            items: const [
+            items: [
               BottomNavigationBarItem(
-                icon: Icon(Icons.dashboard_outlined),
-                activeIcon: Icon(Icons.dashboard),
-                label: 'User Dashboard',
+                icon: Icon(Icons.dashboard_outlined, size: 22.r),
+                activeIcon: Icon(Icons.dashboard, size: 22.r),
+                label: 'Dashboard',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.science_outlined),
-                activeIcon: Icon(Icons.science),
+                icon: Icon(Icons.science_outlined, size: 22.r),
+                activeIcon: Icon(Icons.science, size: 22.r),
                 label: 'Demo Page',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline),
-                activeIcon: Icon(Icons.person),
+                icon: Icon(Icons.person_outline, size: 22.r),
+                activeIcon: Icon(Icons.person, size: 22.r),
                 label: 'Profile',
               ),
             ],

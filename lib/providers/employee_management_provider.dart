@@ -91,6 +91,12 @@ class EmployeeManagementProvider with ChangeNotifier {
     String? employeeIdValue,
     String? department,
     DateTime? joiningDate,
+    String? address,
+    String? mobileNumber,
+    String? alternateNumber,
+    String? bloodGroup,
+    String? aadharNumber,
+    String? panCardNumber,
   }) async {
     try {
       _setLoading(true);
@@ -108,6 +114,29 @@ class EmployeeManagementProvider with ChangeNotifier {
 
       if (joiningDate != null) {
         updateData['joiningDate'] = joiningDate.toIso8601String();
+      }
+
+      // Personal and Contact info - only update if provided (user manages these)
+      // Admin cannot edit these fields, so they should always be null from admin screen
+      if (address != null && address.isNotEmpty) {
+        updateData['address'] = address;
+      }
+      if (mobileNumber != null && mobileNumber.isNotEmpty) {
+        updateData['mobileNumber'] = mobileNumber;
+      }
+      if (alternateNumber != null && alternateNumber.isNotEmpty) {
+        updateData['alternateNumber'] = alternateNumber;
+      }
+      if (bloodGroup != null && bloodGroup.isNotEmpty) {
+        updateData['bloodGroup'] = bloodGroup;
+      }
+
+      // Admin-only fields - always update even if empty
+      if (aadharNumber != null) {
+        updateData['aadharNumber'] = aadharNumber;
+      }
+      if (panCardNumber != null) {
+        updateData['panCardNumber'] = panCardNumber;
       }
 
       if (updateData.isNotEmpty) {
@@ -231,6 +260,9 @@ class EmployeeManagementProvider with ChangeNotifier {
       _employees.where((emp) => emp.isOnboarded).length;
   int get pendingEmployees =>
       _employees.where((emp) => !emp.isOnboarded).length;
+  // Assuming separated employees have a field 'isSeparated' or similar
+  // For now, we'll return 0 - you can add this field later
+  int get separatedEmployees => 0;
 
   @override
   void dispose() {

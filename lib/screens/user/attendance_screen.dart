@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/attendance_model.dart';
 import '../../models/leave_model.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../constants/const_textstyle.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({Key? key}) : super(key: key);
@@ -203,10 +205,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Attendance'),
+        title: Text(
+          'Attendance',
+          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh, size: 24.r),
             onPressed: _loadData,
             tooltip: 'Refresh',
           ),
@@ -215,7 +220,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
+              padding: EdgeInsets.all(16.w),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -223,25 +228,23 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   Card(
                     elevation: 4,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(12.r),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: EdgeInsets.all(16.w),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             today,
-                            style: const TextStyle(
-                              fontSize: 18,
+                            style: getTextTheme().titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: 8.h),
                           Text(
                             'Current Time: $time',
-                            style: TextStyle(
-                              fontSize: 16,
+                            style: getTextTheme().bodyMedium?.copyWith(
                               color: Colors.grey[700],
                             ),
                           ),
@@ -249,27 +252,26 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24.h),
 
                   // Status card
                   Card(
                     elevation: 4,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(12.r),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: EdgeInsets.all(16.w),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Today\'s Status',
-                            style: TextStyle(
-                              fontSize: 18,
+                            style: getTextTheme().titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16.h),
                           if (_todayLeave != null)
                             _buildStatusRow(
                               'On Leave',
@@ -304,7 +306,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  SizedBox(height: 32.h),
 
                   // Punch buttons
                   if (_todayLeave == null) // Only show buttons if not on leave
@@ -316,18 +318,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                     !_isLoading)
                                 ? _punchIn
                                 : null,
-                            icon: const Icon(Icons.login),
-                            label: const Text('Punch In'),
+                            icon: Icon(Icons.login, size: 20.r),
+                            label: Text('Punch In', style: getTextTheme().labelLarge),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              padding: EdgeInsets.symmetric(vertical: 16.h),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(10.r),
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        SizedBox(width: 16.w),
                         Expanded(
                           child: ElevatedButton.icon(
                             onPressed: (_todayAttendance?.punchInTime != null &&
@@ -335,13 +337,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                     !_isLoading)
                                 ? _punchOut
                                 : null,
-                            icon: const Icon(Icons.logout),
-                            label: const Text('Punch Out'),
+                            icon: Icon(Icons.logout, size: 20.r),
+                            label: Text('Punch Out', style: getTextTheme().labelLarge),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.orange,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              padding: EdgeInsets.symmetric(vertical: 16.h),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(10.r),
                               ),
                             ),
                           ),
@@ -351,25 +353,24 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   else
                     // Show leave message if on leave
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: EdgeInsets.all(16.w),
                       decoration: BoxDecoration(
                         color: Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(10.r),
                         border: Border.all(color: Colors.blue.withOpacity(0.3)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.info,
                             color: Colors.blue,
-                            size: 24,
+                            size: 24.r,
                           ),
-                          const SizedBox(width: 16),
+                          SizedBox(width: 16.w),
                           Expanded(
                             child: Text(
                               'You are on approved leave from ${DateFormat('dd MMM').format(_todayLeave!.fromDate)} to ${DateFormat('dd MMM').format(_todayLeave!.toDate)}',
-                              style: const TextStyle(
-                                fontSize: 16,
+                              style: getTextTheme().bodyMedium?.copyWith(
                                 color: Colors.blue,
                               ),
                             ),
@@ -388,7 +389,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(12.w),
           decoration: BoxDecoration(
             color: color.withOpacity(0.1),
             shape: BoxShape.circle,
@@ -396,27 +397,25 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           child: Icon(
             icon,
             color: color,
-            size: 24,
+            size: 24.r,
           ),
         ),
-        const SizedBox(width: 16),
+        SizedBox(width: 16.w),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: TextStyle(
-                  fontSize: 16,
+                style: getTextTheme().titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: color,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4.h),
               Text(
                 subtitle,
-                style: TextStyle(
-                  fontSize: 14,
+                style: getTextTheme().bodySmall?.copyWith(
                   color: Colors.grey[700],
                 ),
               ),

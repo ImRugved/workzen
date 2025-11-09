@@ -131,6 +131,7 @@ class AuthProvider with ChangeNotifier {
         fcmToken: fcmToken,
         isAdmin: secretCode == AppConstants.adminCode,
         employeeId: employeeId,
+        department: secretCode == AppConstants.adminCode ? 'HR' : null,
         role: secretCode == AppConstants.adminCode ? 'admin' : 'employee',
         createdAt: DateTime.now(),
         userId: _user!.uid,

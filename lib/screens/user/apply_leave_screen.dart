@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../widgets/custom_button.dart';
+import '../../constants/const_textstyle.dart';
 
 class ApplyLeaveScreen extends StatefulWidget {
   const ApplyLeaveScreen({Key? key}) : super(key: key);
@@ -98,10 +100,13 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Apply for Leave'),
+        title: Text(
+          'Apply for Leave',
+          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+        ),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(16.w),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -109,93 +114,88 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // From Date
-                const Text(
+                Text(
                   'From Date',
-                  style: TextStyle(
+                  style: getTextTheme().titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8.h),
                 InkWell(
                   onTap: () => _selectDate(context, true),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 12.h,
                     ),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(8.r),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           dateFormat.format(_fromDate),
-                          style: TextStyle(
-                            fontSize: 16,
+                          style: getTextTheme().bodyMedium?.copyWith(
                             color: Colors.grey.shade700,
                           ),
                         ),
-                        const Icon(Icons.calendar_today),
+                        Icon(Icons.calendar_today, size: 18.r),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16.h),
 
                 // To Date
-                const Text(
+                Text(
                   'To Date',
-                  style: TextStyle(
+                  style: getTextTheme().titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8.h),
                 InkWell(
                   onTap: () => _selectDate(context, false),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 12.h,
                     ),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(8.r),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           dateFormat.format(_toDate),
-                          style: TextStyle(
-                            fontSize: 16,
+                          style: getTextTheme().bodyMedium?.copyWith(
                             color: Colors.grey.shade700,
                           ),
                         ),
-                        const Icon(Icons.calendar_today),
+                        Icon(Icons.calendar_today, size: 18.r),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16.h),
 
                 // Shift
-                const Text(
+                Text(
                   'Shift',
-                  style: TextStyle(
+                  style: getTextTheme().titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8.h),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: EdgeInsets.symmetric(horizontal: 16.w),
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(8.r),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
@@ -204,7 +204,7 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                       items: _shiftOptions.map((String shift) {
                         return DropdownMenuItem<String>(
                           value: shift,
-                          child: Text(shift),
+                          child: Text(shift, style: getTextTheme().bodyMedium),
                         );
                       }).toList(),
                       onChanged: (String? newValue) {
@@ -217,26 +217,25 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16.h),
 
                 // Reason
-                const Text(
+                Text(
                   'Reason',
-                  style: TextStyle(
+                  style: getTextTheme().titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8.h),
                 TextFormField(
                   controller: _reasonController,
                   maxLines: 3,
                   decoration: InputDecoration(
                     hintText: 'Enter reason for leave',
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(8.r),
                     ),
-                    contentPadding: const EdgeInsets.all(16),
+                    contentPadding: EdgeInsets.all(16.w),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -245,7 +244,7 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24.h),
 
                 // Submit Button
                 CustomButton(

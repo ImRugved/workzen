@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shorebird_code_push/shorebird_code_push.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../constants/const_textstyle.dart';
 
 class UpdateCheckScreen extends StatefulWidget {
   const UpdateCheckScreen({super.key});
@@ -251,11 +253,14 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: theme.colorScheme.primary,
-        title: const Text('Software Update'),
+        title: Text(
+          'Software Update',
+          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+        ),
         foregroundColor: Colors.white,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(16.w),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -263,33 +268,33 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16.r),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(20.0),
+                padding: EdgeInsets.all(20.w),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: EdgeInsets.all(12.w),
                           decoration: BoxDecoration(
                             color: _isUpdateAvailable
                                 ? Colors.blue.withOpacity(0.2)
                                 : Colors.green.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(12.r),
                           ),
                           child: Icon(
                             _isUpdateAvailable
                                 ? Icons.system_update_alt
                                 : Icons.check_circle_outline,
-                            size: 28,
+                            size: 28.r,
                             color:
                                 _isUpdateAvailable ? Colors.blue : Colors.green,
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        SizedBox(width: 16.w),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -305,7 +310,7 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
                                       : Colors.green,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              SizedBox(height: 4.h),
                               Text(
                                 _isUpdateAvailable
                                     ? 'A new version is ready to install'
@@ -318,16 +323,16 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
                       ],
                     ),
                     if (_isUpdateAvailable && _isDownloadingUpdate) ...[
-                      const SizedBox(height: 20),
-                      const Text('Downloading update...'),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 20.h),
+                      Text('Downloading update...', style: getTextTheme().bodyMedium),
+                      SizedBox(height: 8.h),
                       LinearProgressIndicator(
                         value: _downloadProgress,
                         backgroundColor: Colors.grey[200],
                         valueColor: AlwaysStoppedAnimation<Color>(
                             theme.colorScheme.primary),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4.h),
                       Text('${(_downloadProgress * 100).toInt()}%',
                           style: theme.textTheme.bodySmall),
                     ],
@@ -336,7 +341,7 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
               ),
             ),
 
-            const SizedBox(height: 24),
+            SizedBox(height: 24.h),
 
             // Version information
             Text(
@@ -346,14 +351,14 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8.h),
             Card(
               elevation: 1,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16.r),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: EdgeInsets.all(16.w),
                 child: Column(
                   children: [
                     _buildInfoRow('Current version', _currentVersion),
@@ -383,34 +388,33 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.colorScheme.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: EdgeInsets.symmetric(vertical: 16.h),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(12.r),
                   ),
                 ),
                 child: _isCheckingForUpdates
-                    ? const Row(
+                    ? Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
+                            width: 20.w,
+                            height: 20.w,
+                            child: const CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           ),
-                          SizedBox(width: 12),
-                          Text('Checking for updates...'),
+                          SizedBox(width: 12.w),
+                          Text('Checking for updates...', style: getTextTheme().labelLarge?.copyWith(color: Colors.white)),
                         ],
                       )
                     : _isUpdateAvailable
-                        ? const Text('INSTALL UPDATE')
-                        : const Text('CHECK FOR UPDATES'),
+                        ? Text('INSTALL UPDATE', style: getTextTheme().labelLarge?.copyWith(color: Colors.white))
+                        : Text('CHECK FOR UPDATES', style: getTextTheme().labelLarge?.copyWith(color: Colors.white)),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16.h),
           ],
         ),
       ),
@@ -419,12 +423,12 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: EdgeInsets.symmetric(vertical: 8.0.h),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
+          Text(label, style: getTextTheme().bodyMedium?.copyWith(color: Colors.grey)),
+          Text(value, style: getTextTheme().bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
         ],
       ),
     );

@@ -6,12 +6,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:open_file/open_file.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../models/attendance_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../app_constants.dart';
+import '../../constants/const_textstyle.dart';
 
 class AdminAttendanceScreen extends StatefulWidget {
   const AdminAttendanceScreen({Key? key}) : super(key: key);
@@ -56,8 +58,10 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
   }
 
   void _initializeStream() {
-    final attendanceProvider =
-        Provider.of<AttendanceProvider>(context, listen: false);
+    final attendanceProvider = Provider.of<AttendanceProvider>(
+      context,
+      listen: false,
+    );
     _attendanceStream = attendanceProvider.getAllAttendanceStream();
   }
 
@@ -90,15 +94,18 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
   }
 
   List<AttendanceModel> _filterAttendance(
-      List<AttendanceModel> attendanceList) {
+    List<AttendanceModel> attendanceList,
+  ) {
     return attendanceList.where((attendance) {
       // Filter by date
-      final isSameDate = attendance.date.year == _selectedDate.year &&
+      final isSameDate =
+          attendance.date.year == _selectedDate.year &&
           attendance.date.month == _selectedDate.month &&
           attendance.date.day == _selectedDate.day;
 
       // Filter by employee if selected
-      final isSelectedEmployee = _selectedEmployeeId == null ||
+      final isSelectedEmployee =
+          _selectedEmployeeId == null ||
           attendance.userId == _selectedEmployeeId;
 
       return isSameDate && isSelectedEmployee;
@@ -122,24 +129,28 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
             return [
               pw.Header(
                 level: 0,
-                child: pw.Text('Attendance Report',
-                    style: pw.TextStyle(
-                        fontSize: 20, fontWeight: pw.FontWeight.bold)),
+                child: pw.Text(
+                  'Attendance Report',
+                  style: pw.TextStyle(
+                    fontSize: 20,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
               ),
               pw.SizedBox(height: 10),
               pw.Text(
                 'Date: ${DateFormat('dd MMM yyyy').format(_selectedDate)}',
-                style:
-                    pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
               ),
               pw.SizedBox(height: 20),
 
               // Create table
               pw.Table.fromTextArray(
                 border: null,
-                headerDecoration: pw.BoxDecoration(
-                  color: PdfColors.blue300,
-                ),
+                headerDecoration: pw.BoxDecoration(color: PdfColors.blue300),
                 headerHeight: 30,
                 cellHeight: 30,
                 cellAlignments: {
@@ -153,22 +164,21 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                   color: PdfColors.white,
                   fontWeight: pw.FontWeight.bold,
                 ),
-                cellStyle: const pw.TextStyle(
-                  fontSize: 10,
-                ),
+                cellStyle: const pw.TextStyle(fontSize: 10),
                 headers: [
                   'Employee Name',
                   'Status',
                   'Punch In',
                   'Punch Out',
-                  'Duration'
+                  'Duration',
                 ],
                 data: attendanceList.map((attendance) {
                   String duration = '';
                   if (attendance.punchInTime != null &&
                       attendance.punchOutTime != null) {
-                    final difference = attendance.punchOutTime!
-                        .difference(attendance.punchInTime!);
+                    final difference = attendance.punchOutTime!.difference(
+                      attendance.punchInTime!,
+                    );
                     final hours = difference.inHours;
                     final minutes = difference.inMinutes.remainder(60);
                     duration = '$hours hrs $minutes mins';
@@ -191,28 +201,35 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
               pw.SizedBox(height: 20),
               pw.Text(
                 'Summary:',
-                style:
-                    pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
               ),
               pw.SizedBox(height: 10),
 
               // Add summary statistics
               pw.Bullet(text: 'Total Employees: ${attendanceList.length}'),
               pw.Bullet(
-                  text:
-                      'Present: ${attendanceList.where((a) => a.status == AppConstants.statusPresent && a.punchInTime != null && a.punchOutTime != null).length}'),
+                text:
+                    'Present: ${attendanceList.where((a) => a.status == AppConstants.statusPresent && a.punchInTime != null && a.punchOutTime != null).length}',
+              ),
               pw.Bullet(
-                  text:
-                      'In Progress: ${attendanceList.where((a) => a.status == AppConstants.statusPending && a.punchInTime != null && a.punchOutTime == null).length}'),
+                text:
+                    'In Progress: ${attendanceList.where((a) => a.status == AppConstants.statusPending && a.punchInTime != null && a.punchOutTime == null).length}',
+              ),
               pw.Bullet(
-                  text:
-                      'Absent: ${attendanceList.where((a) => a.status == AppConstants.statusAbsent).length}'),
+                text:
+                    'Absent: ${attendanceList.where((a) => a.status == AppConstants.statusAbsent).length}',
+              ),
               pw.Bullet(
-                  text:
-                      'Half-day: ${attendanceList.where((a) => a.status == AppConstants.statusHalfDay).length}'),
+                text:
+                    'Half-day: ${attendanceList.where((a) => a.status == AppConstants.statusHalfDay).length}',
+              ),
               pw.Bullet(
-                  text:
-                      'On Leave: ${attendanceList.where((a) => a.status == AppConstants.statusOnLeave).length}'),
+                text:
+                    'On Leave: ${attendanceList.where((a) => a.status == AppConstants.statusOnLeave).length}',
+              ),
             ];
           },
         ),
@@ -221,7 +238,8 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       // Save the PDF
       final output = await getTemporaryDirectory();
       final file = File(
-          '${output.path}/attendance_report_${DateFormat('dd_MM_yyyy').format(_selectedDate)}.pdf');
+        '${output.path}/attendance_report_${DateFormat('dd_MM_yyyy').format(_selectedDate)}.pdf',
+      );
       await file.writeAsBytes(await pdf.save());
 
       // Open the PDF
@@ -251,10 +269,13 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Employee Attendance'),
+        title: Text(
+          'Employee Attendance',
+          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh, size: 24.r),
             onPressed: _initializeStream,
             tooltip: 'Refresh',
           ),
@@ -264,7 +285,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
         children: [
           // Filter section
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16.w),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
@@ -279,38 +300,39 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Filter Attendance',
-                  style: TextStyle(
-                    fontSize: 16,
+                  style: getTextTheme().titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16.h),
                 Row(
                   children: [
                     Expanded(
                       child: InkWell(
                         onTap: () => _selectDate(context),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12.w,
+                            vertical: 10.h,
+                          ),
                           decoration: BoxDecoration(
                             border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(8.r),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
                                 DateFormat('dd MMM yyyy').format(_selectedDate),
-                                style: TextStyle(
+                                style: getTextTheme().bodyMedium?.copyWith(
                                   color: Colors.grey[700],
                                 ),
                               ),
                               Icon(
                                 Icons.calendar_today,
-                                size: 16,
+                                size: 16.r,
                                 color: Colors.grey[700],
                               ),
                             ],
@@ -318,32 +340,41 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    SizedBox(width: 16.w),
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        padding: EdgeInsets.symmetric(horizontal: 12.w),
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(8.r),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String?>(
                             value: _selectedEmployeeId,
                             isExpanded: true,
-                            hint: const Text('All Employees'),
+                            hint: Text(
+                              'All Employees',
+                              style: getTextTheme().bodyMedium,
+                            ),
                             icon: Icon(
                               Icons.arrow_drop_down,
                               color: Colors.grey[700],
                             ),
                             items: [
-                              const DropdownMenuItem<String?>(
+                              DropdownMenuItem<String?>(
                                 value: null,
-                                child: Text('All Employees'),
+                                child: Text(
+                                  'All Employees',
+                                  style: getTextTheme().bodyMedium,
+                                ),
                               ),
                               ..._employees.map((employee) {
                                 return DropdownMenuItem<String?>(
                                   value: employee.id,
-                                  child: Text(employee.name),
+                                  child: Text(
+                                    employee.name,
+                                    style: getTextTheme().bodyMedium,
+                                  ),
                                 );
                               }).toList(),
                             ],
@@ -373,39 +404,44 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
 
                 if (snapshot.hasError) {
                   // Handle different types of errors with user-friendly messages
-                  String errorMessage = 'Unable to load attendance records at the moment.';
-                  
+                  String errorMessage =
+                      'Unable to load attendance records at the moment.';
+
                   if (snapshot.error.toString().contains('permission-denied') ||
                       snapshot.error.toString().contains('PERMISSION_DENIED')) {
-                    errorMessage = 'Access denied. Please check your admin permissions.';
+                    errorMessage =
+                        'Access denied. Please check your admin permissions.';
                   } else if (snapshot.error.toString().contains('network') ||
-                             snapshot.error.toString().contains('connection')) {
-                    errorMessage = 'Network error. Please check your internet connection.';
+                      snapshot.error.toString().contains('connection')) {
+                    errorMessage =
+                        'Network error. Please check your internet connection.';
                   }
-                  
+
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.error_outline,
-                          size: 64,
+                          size: 64.r,
                           color: Colors.orange,
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16.h),
                         Text(
                           errorMessage,
-                          style: const TextStyle(
-                            fontSize: 16,
+                          style: getTextTheme().bodyLarge?.copyWith(
                             color: Colors.grey,
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16.h),
                         ElevatedButton.icon(
                           onPressed: _initializeStream,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Try Again'),
+                          icon: Icon(Icons.refresh, size: 20.r),
+                          label: Text(
+                            'Try Again',
+                            style: getTextTheme().labelLarge,
+                          ),
                         ),
                       ],
                     ),
@@ -413,8 +449,11 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                 }
 
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(
-                    child: Text('No attendance records found'),
+                  return Center(
+                    child: Text(
+                      'No attendance records found',
+                      style: getTextTheme().bodyMedium,
+                    ),
                   );
                 }
 
@@ -425,15 +464,21 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text('No attendance records for this date'),
-                        const SizedBox(height: 16),
+                        Text(
+                          'No attendance records for this date',
+                          style: getTextTheme().bodyMedium,
+                        ),
+                        SizedBox(height: 16.h),
                         ElevatedButton.icon(
                           onPressed: () {
                             // Mark all employees as absent for this date
                             _markAbsentEmployees();
                           },
-                          icon: const Icon(Icons.person_off),
-                          label: const Text('Mark All Absent'),
+                          icon: Icon(Icons.person_off, size: 20.r),
+                          label: Text(
+                            'Mark All Absent',
+                            style: getTextTheme().labelLarge,
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red,
                           ),
@@ -446,7 +491,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                 return Stack(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: EdgeInsets.all(16.w),
                       child: Column(
                         children: [
                           // Table header
@@ -457,53 +502,59 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                                 minWidth:
                                     MediaQuery.of(context).size.width - 32,
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 12, horizontal: 16),
+                              padding: EdgeInsets.symmetric(
+                                vertical: 12.h,
+                                horizontal: 16.w,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.blue,
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(8.r),
                               ),
                               child: Row(
                                 children: [
                                   SizedBox(
-                                    width: 150,
+                                    width: 150.w,
                                     child: Text(
                                       'Employee',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
+                                      style: getTextTheme().bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
                                     ),
                                   ),
                                   SizedBox(
-                                    width: 120,
+                                    width: 120.w,
                                     child: Text(
                                       'Status',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
+                                      style: getTextTheme().bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
                                     ),
                                   ),
-                                  const SizedBox(width: 20),
+                                  SizedBox(width: 20.w),
                                   SizedBox(
-                                    width: 120,
+                                    width: 120.w,
                                     child: Text(
                                       'Punch In',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
+                                      style: getTextTheme().bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
                                     ),
                                   ),
                                   SizedBox(
-                                    width: 120,
+                                    width: 120.w,
                                     child: Text(
                                       'Punch Out',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
+                                      style: getTextTheme().bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
                                     ),
                                   ),
                                 ],
@@ -518,7 +569,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                               itemBuilder: (context, index) {
                                 final attendance = filteredAttendance[index];
                                 return Card(
-                                  margin: const EdgeInsets.only(top: 8),
+                                  margin: EdgeInsets.only(top: 8.h),
                                   elevation: 1,
                                   child: SingleChildScrollView(
                                     scrollDirection: Axis.horizontal,
@@ -526,49 +577,55 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                                       constraints: BoxConstraints(
                                         minWidth:
                                             MediaQuery.of(context).size.width -
-                                                32,
+                                            32,
                                       ),
-                                      padding: const EdgeInsets.all(12.0),
+                                      padding: EdgeInsets.all(12.w),
                                       child: Row(
                                         children: [
                                           SizedBox(
-                                            width: 150,
+                                            width: 150.w,
                                             child: Text(
                                               attendance.userName,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w500,
-                                              ),
+                                              style: getTextTheme().bodyMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
                                             ),
                                           ),
                                           SizedBox(
-                                            width: 120,
+                                            width: 120.w,
                                             child: _buildStatusChip(
-                                                attendance.status,
-                                                hasPunchIn:
-                                                    attendance.punchInTime !=
-                                                        null,
-                                                hasPunchOut:
-                                                    attendance.punchOutTime !=
-                                                        null),
+                                              attendance.status,
+                                              hasPunchIn:
+                                                  attendance.punchInTime !=
+                                                  null,
+                                              hasPunchOut:
+                                                  attendance.punchOutTime !=
+                                                  null,
+                                            ),
                                           ),
-                                          const SizedBox(width: 20),
+                                          SizedBox(width: 20.w),
                                           SizedBox(
-                                            width: 120,
+                                            width: 120.w,
                                             child: Text(
                                               attendance.punchInTime != null
-                                                  ? DateFormat('hh:mm a')
-                                                      .format(attendance
-                                                          .punchInTime!)
+                                                  ? DateFormat(
+                                                      'hh:mm a',
+                                                    ).format(
+                                                      attendance.punchInTime!,
+                                                    )
                                                   : '-',
                                             ),
                                           ),
                                           SizedBox(
-                                            width: 120,
+                                            width: 120.w,
                                             child: Text(
                                               attendance.punchOutTime != null
-                                                  ? DateFormat('hh:mm a')
-                                                      .format(attendance
-                                                          .punchOutTime!)
+                                                  ? DateFormat(
+                                                      'hh:mm a',
+                                                    ).format(
+                                                      attendance.punchOutTime!,
+                                                    )
                                                   : '-',
                                             ),
                                           ),
@@ -586,9 +643,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                     if (_isLoading)
                       Container(
                         color: Colors.black.withOpacity(0.3),
-                        child: const Center(
-                          child: CircularProgressIndicator(),
-                        ),
+                        child: const Center(child: CircularProgressIndicator()),
                       ),
                   ],
                 );
@@ -599,15 +654,17 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          final attendanceProvider =
-              Provider.of<AttendanceProvider>(context, listen: false);
+          final attendanceProvider = Provider.of<AttendanceProvider>(
+            context,
+            listen: false,
+          );
           attendanceProvider.getAllAttendance().then((attendanceList) {
             final filteredAttendance = _filterAttendance(attendanceList);
             _generatePdf(filteredAttendance);
           });
         },
-        icon: const Icon(Icons.download),
-        label: const Text('Export PDF'),
+        icon: Icon(Icons.download, size: 20.r),
+        label: Text('Export PDF', style: getTextTheme().labelLarge),
         backgroundColor: Colors.blue,
       ),
     );
@@ -619,14 +676,18 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     });
 
     try {
-      final attendanceProvider =
-          Provider.of<AttendanceProvider>(context, listen: false);
+      final attendanceProvider = Provider.of<AttendanceProvider>(
+        context,
+        listen: false,
+      );
 
       // Get all employees who don't have attendance records for today
       final employeesWithoutAttendance = _employees.where((employee) {
         // Check if employee already has an attendance record for today
         return !attendanceProvider.hasAttendanceForDate(
-            employee.id, _selectedDate);
+          employee.id,
+          _selectedDate,
+        );
       }).toList();
 
       if (employeesWithoutAttendance.isNotEmpty) {
@@ -638,7 +699,8 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                'Marked ${employeesWithoutAttendance.length} employees as absent'),
+              'Marked ${employeesWithoutAttendance.length} employees as absent',
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -649,7 +711,8 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-                'All employees already have attendance records for this date'),
+              'All employees already have attendance records for this date',
+            ),
             backgroundColor: Colors.orange,
           ),
         );
@@ -668,18 +731,20 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     }
   }
 
-  Widget _buildStatusChip(String status,
-      {bool hasPunchIn = false, bool hasPunchOut = false}) {
+  Widget _buildStatusChip(
+    String status, {
+    bool hasPunchIn = false,
+    bool hasPunchOut = false,
+  }) {
     // For pending status (punched in but not punched out), show a special indicator
     if (status.toLowerCase() == AppConstants.statusPending &&
         hasPunchIn &&
         !hasPunchOut) {
       return Text(
         'IN PROGRESS',
-        style: TextStyle(
+        style: getTextTheme().labelSmall?.copyWith(
           color: Colors.amber,
           fontWeight: FontWeight.bold,
-          fontSize: 12,
         ),
       );
     }
@@ -689,10 +754,9 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
         (!hasPunchIn || !hasPunchOut)) {
       return Text(
         'INCOMPLETE',
-        style: TextStyle(
+        style: getTextTheme().labelSmall?.copyWith(
           color: Colors.grey,
           fontWeight: FontWeight.bold,
-          fontSize: 12,
         ),
       );
     }
@@ -720,10 +784,9 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
 
     return Text(
       displayText,
-      style: TextStyle(
+      style: getTextTheme().labelSmall?.copyWith(
         color: textColor,
         fontWeight: FontWeight.bold,
-        fontSize: 12,
       ),
     );
   }

@@ -1,7 +1,9 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../constants/const_textstyle.dart';
 
 import 'admin/dashboard/admin_dashboard_screen.dart';
 import 'auth/login_screen.dart';
@@ -109,7 +111,7 @@ class _SplashScreenState extends State<SplashScreen>
               children: [
                 // App Logo
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(20.w),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
@@ -121,35 +123,32 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ],
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.calendar_today_rounded,
-                    size: 80,
+                    size: 80.r,
                     color: Colors.indigo,
                   ),
                 ),
-                const SizedBox(height: 30),
+                SizedBox(height: 30.h),
                 // App Name
                 Center(
                   child: Text(
                     'Attendance Management',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                    style: getTextTheme()
+                        .headlineSmall
+                        ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ),
 
-                const SizedBox(height: 10),
-                const Text(
+                SizedBox(height: 10.h),
+                Text(
                   'Manage your leaves easily',
-                  style: TextStyle(fontSize: 16, color: Colors.white70),
+                  style:
+                      getTextTheme().bodyLarge?.copyWith(color: Colors.white70),
                 ),
-                const SizedBox(height: 40),
+                SizedBox(height: 40.h),
                 // Loading indicator
-                const CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
+                const CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
               ],
             ),
           ),

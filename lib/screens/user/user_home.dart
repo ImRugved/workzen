@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import '../../app_constants.dart';
-import '../../models/leave_model.dart';
 import '../../models/request_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_drawer.dart';
+import '../../constants/const_textstyle.dart';
 
 class UserHome extends StatefulWidget {
   const UserHome({Key? key}) : super(key: key);
@@ -60,10 +61,13 @@ class _UserHomeState extends State<UserHome> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('User Dashboard'),
+        title: Text(
+          'User Dashboard',
+          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh, size: 24.r),
             onPressed: _initializeStream,
             tooltip: 'Refresh',
           ),
@@ -73,7 +77,7 @@ class _UserHomeState extends State<UserHome> {
       body: authProvider.userModel == null
           ? const Center(child: CircularProgressIndicator())
           : Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: EdgeInsets.all(16.w),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -81,47 +85,43 @@ class _UserHomeState extends State<UserHome> {
                   Card(
                     elevation: 4,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
+                      borderRadius: BorderRadius.circular(15.r),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: EdgeInsets.all(16.w),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
                               CircleAvatar(
-                                radius: 30,
+                                radius: 30.r,
                                 backgroundColor: Colors.blue.shade100,
                                 child: Text(
                                   authProvider.userModel!.name.isNotEmpty
                                       ? authProvider.userModel!.name[0]
                                             .toUpperCase()
                                       : '?',
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
+                                  style: getTextTheme().displayMedium?.copyWith(
                                     color: Colors.blue.shade800,
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 16),
+                              SizedBox(width: 16.w),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       'Welcome, ${authProvider.userModel!.name}',
-                                      style: const TextStyle(
-                                        fontSize: 22,
+                                      style: getTextTheme().titleLarge?.copyWith(
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
+                                    SizedBox(height: 4.h),
                                     Text(
                                       authProvider.userModel!.email,
-                                      style: TextStyle(
-                                        fontSize: 16,
+                                      style: getTextTheme().bodyMedium?.copyWith(
                                         color: Colors.grey[600],
                                       ),
                                     ),
@@ -134,14 +134,16 @@ class _UserHomeState extends State<UserHome> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24.h),
 
                   // Quick Actions
-                  const Text(
+                  Text(
                     'Quick Actions',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: getTextTheme().titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16.h),
                   Row(
                     children: [
                       Expanded(
@@ -156,7 +158,7 @@ class _UserHomeState extends State<UserHome> {
                           },
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      SizedBox(width: 16.w),
                       Expanded(
                         child: _buildActionCard(
                           context,
@@ -171,16 +173,15 @@ class _UserHomeState extends State<UserHome> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24.h),
 
                   // Recent Leave Requests
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Recent Leave Requests',
-                        style: TextStyle(
-                          fontSize: 20,
+                        style: getTextTheme().titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -189,11 +190,14 @@ class _UserHomeState extends State<UserHome> {
                           await Get.toNamed('/leave_history_screen');
                           _initializeStream();
                         },
-                        child: const Text('View All'),
+                        child: Text(
+                          'View All',
+                          style: getTextTheme().labelMedium,
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8.h),
 
                   // Leave requests list with StreamBuilder
                   Expanded(
@@ -236,29 +240,30 @@ class _UserHomeState extends State<UserHome> {
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Icon(
+                                      Icon(
                                         Icons.error_outline,
-                                        size: 48,
+                                        size: 48.r,
                                         color: Colors.orange,
                                       ),
-                                      const SizedBox(height: 12),
+                                      SizedBox(height: 12.h),
                                       Text(
                                         errorMessage,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey,
-                                        ),
+                                        style: getTextTheme().bodyMedium
+                                            ?.copyWith(color: Colors.grey),
                                         textAlign: TextAlign.center,
                                       ),
-                                      const SizedBox(height: 12),
+                                      SizedBox(height: 12.h),
                                       ElevatedButton.icon(
                                         onPressed: _initializeStream,
-                                        icon: const Icon(Icons.refresh),
-                                        label: const Text('Try Again'),
+                                        icon: Icon(Icons.refresh, size: 20.r),
+                                        label: Text(
+                                          'Try Again',
+                                          style: getTextTheme().labelLarge,
+                                        ),
                                         style: ElevatedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 8,
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 16.w,
+                                            vertical: 8.h,
                                           ),
                                         ),
                                       ),
@@ -274,16 +279,14 @@ class _UserHomeState extends State<UserHome> {
                                     children: [
                                       Icon(
                                         Icons.event_busy,
-                                        size: 64,
+                                        size: 64.r,
                                         color: Colors.grey[400],
                                       ),
-                                      const SizedBox(height: 16),
-                                      const Text(
+                                      SizedBox(height: 16.h),
+                                      Text(
                                         'No leave requests yet',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          color: Colors.grey,
-                                        ),
+                                        style: getTextTheme().titleMedium
+                                            ?.copyWith(color: Colors.grey),
                                       ),
                                     ],
                                   ),
@@ -298,9 +301,9 @@ class _UserHomeState extends State<UserHome> {
                                 itemBuilder: (context, index) {
                                   final request = requests[index];
                                   return Card(
-                                    margin: const EdgeInsets.only(bottom: 12),
+                                    margin: EdgeInsets.only(bottom: 12.h),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
+                                      borderRadius: BorderRadius.circular(10.r),
                                       side: BorderSide(
                                         color: request.status == 'pending'
                                             ? Colors.orange.withOpacity(0.5)
@@ -311,24 +314,28 @@ class _UserHomeState extends State<UserHome> {
                                       ),
                                     ),
                                     child: ListTile(
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 8,
-                                          ),
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 16.w,
+                                        vertical: 8.h,
+                                      ),
                                       title: Text(
                                         'From: ${_formatDate(request.fromDate!)} To: ${_formatDate(request.toDate!)}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                        style: getTextTheme()
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                       ),
                                       subtitle: Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          const SizedBox(height: 4),
-                                          Text('Reason: ${request.reason}'),
-                                          const SizedBox(height: 4),
+                                          SizedBox(height: 4.h),
+                                          Text(
+                                            'Reason: ${request.reason}',
+                                            style: getTextTheme().bodyMedium,
+                                          ),
+                                          SizedBox(height: 4.h),
                                           Row(
                                             children: [
                                               _buildStatusChip(request.status),
@@ -336,14 +343,15 @@ class _UserHomeState extends State<UserHome> {
                                                   request.adminRemark!.isNotEmpty)
                                                 Expanded(
                                                   child: Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                          left: 8,
-                                                        ),
+                                                    padding: EdgeInsets.only(
+                                                      left: 8.w,
+                                                    ),
                                                     child: Text(
                                                       'Remark: ${request.adminRemark}',
                                                       overflow:
                                                           TextOverflow.ellipsis,
+                                                      style: getTextTheme()
+                                                          .bodySmall,
                                                     ),
                                                   ),
                                                 ),
@@ -351,10 +359,8 @@ class _UserHomeState extends State<UserHome> {
                                           ),
                                         ],
                                       ),
-                                      trailing: const Icon(
-                                        Icons.arrow_forward_ios,
-                                        size: 16,
-                                      ),
+                                      trailing:
+                                          Icon(Icons.arrow_forward_ios, size: 16.r),
                                       onTap: () async {
                                         await Get.toNamed(
                                           '/leave_history_screen',
@@ -383,23 +389,22 @@ class _UserHomeState extends State<UserHome> {
   ) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(10.r),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16.w),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(10.r),
           border: Border.all(color: color.withOpacity(0.3)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 40, color: color),
-            const SizedBox(height: 12),
+            Icon(icon, size: 40.r, color: color),
+            SizedBox(height: 12.h),
             Text(
               title,
-              style: TextStyle(
-                fontSize: 16,
+              style: getTextTheme().titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: color.withOpacity(0.8),
               ),
@@ -436,14 +441,13 @@ class _UserHomeState extends State<UserHome> {
     return Chip(
       label: Text(
         statusText,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
+        style: getTextTheme().labelSmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
       ),
       backgroundColor: chipColor,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 0.h),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }

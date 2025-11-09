@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import '../../models/request_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../widgets/leave_card.dart';
 import '../../app_constants.dart';
+import '../../constants/const_textstyle.dart';
 
 class LeaveHistoryScreen extends StatefulWidget {
   const LeaveHistoryScreen({Key? key}) : super(key: key);
@@ -55,10 +57,13 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Leave History'),
+        title: Text(
+          'Leave History',
+          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh, size: 24.r),
             onPressed: _initializeStream,
             tooltip: 'Refresh',
           ),
@@ -77,7 +82,9 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                   return Center(
                     child: Text(
                       'Error loading leave history: ${snapshot.error}',
-                      style: const TextStyle(color: Colors.red),
+                      style: getTextTheme().bodyMedium?.copyWith(
+                        color: Colors.red,
+                      ),
                     ),
                   );
                 }
@@ -87,20 +94,20 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.history, size: 80, color: Colors.grey[400]),
-                        const SizedBox(height: 16),
-                        const Text(
+                        Icon(Icons.history, size: 80.r, color: Colors.grey[400]),
+                        SizedBox(height: 16.h),
+                        Text(
                           'No leave history found',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                          style: getTextTheme().titleLarge?.copyWith(
                             color: Colors.grey,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
+                        SizedBox(height: 8.h),
+                        Text(
                           'Your leave requests will appear here',
-                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                          style: getTextTheme().bodyMedium?.copyWith(
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
                     ),
@@ -114,7 +121,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     _initializeStream();
                   },
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.all(16.w),
                     itemCount: requests.length,
                     itemBuilder: (context, index) {
                       final request = requests[index];

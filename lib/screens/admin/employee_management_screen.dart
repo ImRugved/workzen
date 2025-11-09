@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
+import 'package:get/get.dart';
 import '../../providers/employee_management_provider.dart';
 import '../../models/employee_model.dart';
 import '../../widgets/app_drawer.dart';
+import '../../constants/const_textstyle.dart';
+import 'employee_details_screen.dart';
 
 class EmployeeManagementScreen extends StatefulWidget {
   const EmployeeManagementScreen({Key? key}) : super(key: key);
@@ -39,12 +43,15 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Employee Management'),
+        title: Text(
+          'Employee Management',
+          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+        ),
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh, size: 24.r),
             onPressed: () {
               Provider.of<EmployeeManagementProvider>(
                 context,
@@ -77,7 +84,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
 
   Widget _buildSearchAndFilterSection(EmployeeManagementProvider provider) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.all(10.w),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -96,11 +103,11 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Search by name, email, or emp ID...',
-              hintStyle: TextStyle(fontSize: 14),
-              prefixIcon: const Icon(Icons.search),
+              hintStyle: getTextTheme().bodySmall,
+              prefixIcon: Icon(Icons.search, size: 20.r),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear),
+                      icon: Icon(Icons.clear, size: 20.r),
                       onPressed: () {
                         _searchController.clear();
                         provider.searchEmployees('');
@@ -108,7 +115,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                     )
                   : null,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(10.r),
               ),
             ),
             onChanged: (value) {
@@ -116,7 +123,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             },
           ),
 
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
 
           // Filter Dropdown
           Row(
@@ -156,7 +163,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                   },
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12.w),
               ElevatedButton(
                 onPressed: () {
                   _searchController.clear();
@@ -165,7 +172,22 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                   });
                   provider.clearFilters();
                 },
-                child: const Text('Clear'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.indigo,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.w,
+                    vertical: 12.h,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
+                ),
+                child: Text(
+                  'Clear',
+                  style: getTextTheme().labelMedium?.copyWith(
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ],
           ),
@@ -176,8 +198,8 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
 
   Widget _buildStatisticsSection(EmployeeManagementProvider provider) {
     return Container(
-      height: 130,
-      padding: const EdgeInsets.all(5),
+      height: 95.h,
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
       child: Row(
         children: [
           Expanded(
@@ -188,7 +210,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
               Icons.people,
             ),
           ),
-          const SizedBox(width: 5),
+          SizedBox(width: 8.w),
           Expanded(
             child: _buildStatCard(
               'Onboarded',
@@ -197,7 +219,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
               Icons.check_circle,
             ),
           ),
-          const SizedBox(width: 5),
+          SizedBox(width: 8.w),
           Expanded(
             child: _buildStatCard(
               'Pending',
@@ -219,26 +241,30 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   ) {
     return Card(
       elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
       child: Padding(
-        padding: const EdgeInsets.all(5),
+        padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 4.h),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 4),
+            Icon(icon, color: color, size: 20.r),
+            SizedBox(height: 3.h),
             Text(
               value,
-              style: TextStyle(
-                fontSize: 18,
+              style: getTextTheme().titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: color,
               ),
             ),
+            SizedBox(height: 1.h),
             Text(
               title,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(fontSize: 9.sp, color: Colors.grey.shade600),
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -248,7 +274,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
 
   Widget _buildEmployeeList(EmployeeManagementProvider provider) {
     if (provider.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator(color: Colors.indigo));
     }
 
     if (provider.errorMessage != null) {
@@ -256,17 +282,33 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error, size: 64, color: Colors.red.shade300),
-            const SizedBox(height: 16),
-            Text(
-              provider.errorMessage!,
-              style: const TextStyle(fontSize: 16),
-              textAlign: TextAlign.center,
+            Icon(Icons.error_outline, size: 80.r, color: Colors.red.shade300),
+            SizedBox(height: 16.h),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 32.w),
+              child: Text(
+                provider.errorMessage!,
+                style: getTextTheme().bodyLarge?.copyWith(
+                  color: Colors.grey.shade700,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
+            SizedBox(height: 24.h),
+            ElevatedButton.icon(
               onPressed: () => provider.refreshEmployees(),
-              child: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+              ),
+              icon: Icon(Icons.refresh, size: 20.r),
+              label: Text(
+                'Retry',
+                style: getTextTheme().labelLarge?.copyWith(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -274,15 +316,17 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
     }
 
     if (provider.employees.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.people_outline, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
+            Icon(Icons.people_outline, size: 80.r, color: Colors.grey.shade400),
+            SizedBox(height: 16.h),
             Text(
               'No employees found',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+              style: getTextTheme().bodyLarge?.copyWith(
+                color: Colors.grey.shade600,
+              ),
             ),
           ],
         ),
@@ -290,7 +334,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16.w),
       itemCount: provider.employees.length,
       itemBuilder: (context, index) {
         final employee = provider.employees[index];
@@ -305,135 +349,206 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   ) {
     final dateFormat = DateFormat('dd/MM/yyyy');
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return GestureDetector(
+      onTap: () {
+        Get.to(
+          () => EmployeeDetailsScreen(employee: employee),
+          transition: Transition.rightToLeft,
+        );
+      },
+      child: Card(
+        margin: EdgeInsets.only(bottom: 12.h),
+        elevation: 3,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16.r),
+            gradient: LinearGradient(
+              colors: [Colors.white, Colors.indigo.shade50.withOpacity(0.3)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(16.w),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Profile Picture
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: Colors.indigo.shade100,
-                  child:
-                      employee.profileImageUrl != null &&
-                          employee.profileImageUrl!.isNotEmpty
-                      ? ClipOval(
-                          child: CachedNetworkImage(
-                            imageUrl: employee.profileImageUrl!,
-                            width: 60,
-                            height: 60,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) =>
-                                const CircularProgressIndicator(),
-                            errorWidget: (context, url, error) => Text(
-                              employee.name.isNotEmpty
-                                  ? employee.name[0].toUpperCase()
-                                  : 'E',
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.indigo,
+                Row(
+                  children: [
+                    // Profile Picture with Hero animation
+                    Hero(
+                      tag: 'employee_${employee.id}',
+                      child: CircleAvatar(
+                        radius: 35.r,
+                        backgroundColor: Colors.indigo.shade100,
+                        child:
+                            employee.profileImageUrl != null &&
+                                employee.profileImageUrl!.isNotEmpty
+                            ? ClipOval(
+                                child: CachedNetworkImage(
+                                  imageUrl: employee.profileImageUrl!,
+                                  width: 70.w,
+                                  height: 70.h,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) =>
+                                      CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.indigo,
+                                      ),
+                                  errorWidget: (context, url, error) => Text(
+                                    employee.name.isNotEmpty
+                                        ? employee.name[0].toUpperCase()
+                                        : 'E',
+                                    style: getTextTheme().headlineMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.indigo,
+                                        ),
+                                  ),
+                                ),
+                              )
+                            : Text(
+                                employee.name.isNotEmpty
+                                    ? employee.name[0].toUpperCase()
+                                    : 'E',
+                                style: getTextTheme().headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.indigo,
+                                ),
+                              ),
+                      ),
+                    ),
+
+                    SizedBox(width: 16.w),
+
+                    // Employee Info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            employee.name,
+                            style: getTextTheme().titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: 4.h),
+                          Text(
+                            employee.email,
+                            style: getTextTheme().bodyMedium?.copyWith(
+                              color: Colors.grey.shade600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: 8.h),
+                          // Status Chip
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12.w,
+                              vertical: 4.h,
+                            ),
+                            decoration: BoxDecoration(
+                              color: employee.isOnboarded
+                                  ? Colors.green.shade50
+                                  : Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(12.r),
+                              border: Border.all(
+                                color: employee.isOnboarded
+                                    ? Colors.green
+                                    : Colors.orange,
+                                width: 1,
                               ),
                             ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  employee.isOnboarded
+                                      ? Icons.check_circle
+                                      : Icons.pending,
+                                  color: employee.isOnboarded
+                                      ? Colors.green
+                                      : Colors.orange,
+                                  size: 14.r,
+                                ),
+                                SizedBox(width: 4.w),
+                                Text(
+                                  employee.isOnboarded
+                                      ? 'Onboarded'
+                                      : 'Pending',
+                                  style: getTextTheme().labelSmall?.copyWith(
+                                    color: employee.isOnboarded
+                                        ? Colors.green
+                                        : Colors.orange,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        )
-                      : Text(
-                          employee.name.isNotEmpty
-                              ? employee.name[0].toUpperCase()
-                              : 'E',
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.indigo,
-                          ),
-                        ),
+                        ],
+                      ),
+                    ),
+
+                    // Arrow Icon
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 20.r,
+                      color: Colors.grey.shade400,
+                    ),
+                  ],
                 ),
 
-                const SizedBox(width: 16),
+                SizedBox(height: 16.h),
 
-                // Employee Info
-                Expanded(
+                // Employee Details Grid
+                Container(
+                  padding: EdgeInsets.all(12.w),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        employee.name,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildInfoItem(
+                              'Employee ID',
+                              employee.employeeId ?? 'Not Set',
+                              Icons.badge,
+                            ),
+                          ),
+                          SizedBox(width: 12.w),
+                          Expanded(
+                            child: _buildInfoItem(
+                              'Department',
+                              employee.department ?? 'Not Set',
+                              Icons.work,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        employee.email,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade600,
-                        ),
+                      SizedBox(height: 12.h),
+                      _buildInfoItem(
+                        'Joining Date',
+                        employee.joiningDate != null
+                            ? dateFormat.format(employee.joiningDate!)
+                            : 'Not Set',
+                        Icons.calendar_today,
                       ),
                     ],
                   ),
                 ),
-
-                // Edit Button
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.indigo),
-                  onPressed: () => _showEditDialog(employee, provider),
-                ),
               ],
             ),
-
-            const SizedBox(height: 12),
-
-            // Employee Details
-            Row(
-              children: [
-                Expanded(
-                  child: _buildInfoItem(
-                    'Employee ID',
-                    employee.employeeId ?? 'Not Set',
-                    Icons.badge,
-                  ),
-                ),
-                Expanded(
-                  child: _buildInfoItem(
-                    'Department',
-                    employee.department ?? 'Not Set',
-                    Icons.work,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 8),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _buildInfoItem(
-                    'Joining Date',
-                    employee.joiningDate != null
-                        ? dateFormat.format(employee.joiningDate!)
-                        : 'Not Set',
-                    Icons.calendar_today,
-                  ),
-                ),
-                Expanded(
-                  child: _buildInfoItem(
-                    'Onboarded',
-                    employee.isOnboarded ? 'Yes' : 'No',
-                    employee.isOnboarded ? Icons.check_circle : Icons.pending,
-                    color: employee.isOnboarded ? Colors.green : Colors.orange,
-                  ),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -446,214 +561,34 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
     Color? color,
   }) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: color ?? Colors.grey.shade600),
-        const SizedBox(width: 4),
+        Icon(icon, size: 16.r, color: color ?? Colors.indigo.shade300),
+        SizedBox(width: 8.w),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 label,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                style: getTextTheme().labelSmall?.copyWith(
+                  color: Colors.grey.shade600,
+                ),
               ),
+              SizedBox(height: 2.h),
               Text(
                 value,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+                style: getTextTheme().bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
                   color: color,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
         ),
       ],
-    );
-  }
-
-  void _showEditDialog(
-    EmployeeModel employee,
-    EmployeeManagementProvider provider,
-  ) {
-    final employeeIdController = TextEditingController(
-      text: employee.employeeId ?? '',
-    );
-    final departmentController = TextEditingController(
-      text: employee.department ?? '',
-    );
-    DateTime? selectedDate = employee.joiningDate;
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text('Edit ${employee.name}'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: employeeIdController,
-                      decoration: const InputDecoration(
-                        labelText: 'Employee ID',
-                        border: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Colors.grey,
-                            width: 1.0,
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Colors.grey,
-                            width: 1.0,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Colors.blue,
-                            width: 2.0,
-                          ),
-                        ),
-                        disabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Colors.grey,
-                            width: 1.0,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: departmentController,
-                      decoration: const InputDecoration(
-                        labelText: 'Department',
-                        border: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Colors.grey,
-                            width: 1.0,
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Colors.grey,
-                            width: 1.0,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Colors.blue,
-                            width: 2.0,
-                          ),
-                        ),
-                        disabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Colors.grey,
-                            width: 1.0,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Joining Date',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        InkWell(
-                          onTap: () async {
-                            final DateTime? picked = await showDatePicker(
-                              context: context,
-                              initialDate: selectedDate ?? DateTime.now(),
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime.now(),
-                            );
-                            if (picked != null) {
-                              setState(() {
-                                selectedDate = picked;
-                              });
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  selectedDate != null
-                                      ? DateFormat(
-                                          'dd/MM/yyyy',
-                                        ).format(selectedDate!)
-                                      : 'Select Joining Date',
-                                ),
-                                const Icon(Icons.calendar_today),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    final success = await provider.updateEmployee(
-                      employeeId: employee.id,
-                      employeeIdValue: employeeIdController.text.trim().isEmpty
-                          ? null
-                          : employeeIdController.text.trim(),
-                      department: departmentController.text.trim().isEmpty
-                          ? null
-                          : departmentController.text.trim(),
-                      joiningDate: selectedDate,
-                    );
-
-                    if (success) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Employee updated successfully'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            provider.errorMessage ??
-                                'Failed to update employee',
-                          ),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
     );
   }
 }

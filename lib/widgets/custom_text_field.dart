@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../constants/const_textstyle.dart';
 
 class CustomTextField extends StatelessWidget {
   final TextEditingController controller;
@@ -31,12 +33,14 @@ class CustomTextField extends StatelessWidget {
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
+        labelStyle: getTextTheme().bodyMedium,
+        prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 20.r) : null,
         suffixIcon: suffixIcon,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(8.r),
         ),
         helperText: helperText,
+        helperStyle: getTextTheme().bodySmall,
       ),
     );
   }

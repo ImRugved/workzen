@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../admin_home.dart';
 import 'demo_page.dart';
 import '../../profile_screen.dart';
@@ -21,11 +21,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     const ProfileScreen(),
   ];
 
-  static const List<String> _titles = [
-    'Admin Dashboard',
-    'Demo Page',
-    'Profile',
-  ];
+  // static titles not used in UI; kept for future reference
 
   @override
   void initState() {
@@ -52,22 +48,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<bool> _onWillPop(BuildContext context) async {
     return await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Exit App'),
-        content: const Text('Are you sure you want to exit?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('No'),
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Exit App'),
+            content: const Text('Are you sure you want to exit?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('No'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Yes'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Yes'),
-          ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 
   @override
@@ -110,20 +107,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             backgroundColor: Colors.white,
             elevation: 0,
             onTap: _onItemTapped,
-            items: const [
+            items: [
               BottomNavigationBarItem(
-                icon: Icon(Icons.dashboard_outlined),
-                activeIcon: Icon(Icons.dashboard),
-                label: 'Admin Dashboard',
+                icon: Icon(Icons.dashboard_outlined, size: 22.r),
+                activeIcon: Icon(Icons.dashboard, size: 22.r),
+                label: 'Dashboard',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.science_outlined),
-                activeIcon: Icon(Icons.science),
+                icon: Icon(Icons.science_outlined, size: 22.r),
+                activeIcon: Icon(Icons.science, size: 22.r),
                 label: 'Demo Page',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline),
-                activeIcon: Icon(Icons.person),
+                icon: Icon(Icons.person_outline, size: 22.r),
+                activeIcon: Icon(Icons.person, size: 22.r),
                 label: 'Profile',
               ),
             ],

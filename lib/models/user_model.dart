@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class UserModel {
   final String id;
   final String name;
@@ -29,6 +31,26 @@ class UserModel {
     String? userId,
   }) : userId = userId ?? id;
 
+  // Helper method to parse DateTime from various formats
+  static DateTime? _parseDateTime(dynamic dateValue) {
+    if (dateValue == null) return null;
+
+    if (dateValue is DateTime) {
+      return dateValue;
+    } else if (dateValue is String) {
+      try {
+        return DateTime.parse(dateValue);
+      } catch (e) {
+        return null;
+      }
+    } else if (dateValue is Timestamp) {
+      // Handle Firestore Timestamp
+      return dateValue.toDate();
+    }
+
+    return null;
+  }
+
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       id: json['id'] ?? '',
@@ -37,14 +59,11 @@ class UserModel {
       fcmToken: json['fcmToken'] ?? '',
       isAdmin: json['isAdmin'] ?? false,
       profileImageUrl: json['profileImageUrl'],
-      employeeId: json['employeeId']?.toString(), // Convert to string if it's an int
+      employeeId: json['employeeId']
+          ?.toString(), // Convert to string if it's an int
       department: json['department'],
-      createdAt: json['createdAt'] != null 
-          ? DateTime.fromMillisecondsSinceEpoch(json['createdAt'].millisecondsSinceEpoch)
-          : null,
-      joiningDate: json['joiningDate'] != null 
-          ? DateTime.fromMillisecondsSinceEpoch(json['joiningDate'].millisecondsSinceEpoch)
-          : null,
+      createdAt: _parseDateTime(json['createdAt']),
+      joiningDate: _parseDateTime(json['joiningDate']),
       role: json['role'],
       isCasualLeave: json['isCasualLeave'],
       userId: json['userId'],

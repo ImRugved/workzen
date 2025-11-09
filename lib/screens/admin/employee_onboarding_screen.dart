@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +7,7 @@ import 'package:workzen/models/user_model.dart';
 import 'package:workzen/providers/onboarding_provider.dart';
 import 'package:workzen/providers/user_provider.dart';
 import 'package:workzen/widgets/app_drawer.dart';
+import '../../constants/const_textstyle.dart';
 
 class EmployeeOnboardingScreen extends StatefulWidget {
   const EmployeeOnboardingScreen({super.key});
@@ -55,7 +57,10 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Employee Onboarding'),
+        title: Text(
+          'Employee Onboarding',
+          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+        ),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
@@ -79,17 +84,17 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               // Main content area
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: EdgeInsets.all(16.w),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Search and Filter Section
                       _buildSearchSection(onboardingProvider),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16.h),
 
                       // Selected Users Display
                       _buildSelectedUsersSection(onboardingProvider),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16.h),
 
                       // Users List - Takes remaining space
                       Expanded(child: _buildUsersList(onboardingProvider)),
@@ -100,7 +105,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
               // Fixed bottom button
               Container(
-                padding: const EdgeInsets.all(16.0),
+                padding: EdgeInsets.all(16.w),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   boxShadow: [
