@@ -11,11 +11,8 @@ class RequestCard extends StatefulWidget {
   final RequestModel request;
   final bool isAdmin;
 
-  const RequestCard({
-    Key? key,
-    required this.request,
-    this.isAdmin = false,
-  }) : super(key: key);
+  const RequestCard({Key? key, required this.request, this.isAdmin = false})
+    : super(key: key);
 
   @override
   State<RequestCard> createState() => _RequestCardState();
@@ -36,9 +33,7 @@ class _RequestCardState extends State<RequestCard> {
     return Card(
       margin: EdgeInsets.only(bottom: 16.h),
       elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12.r),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
       child: Padding(
         padding: EdgeInsets.all(16.w),
         child: Column(
@@ -60,16 +55,17 @@ class _RequestCardState extends State<RequestCard> {
               ],
             ),
             SizedBox(height: 8.h),
-            
+
             // Request type
             _buildInfoRow(
               Icons.category,
               'Type',
               widget.request.typeDisplayName,
             ),
-            
+
             // Date information based on request type
-            if (widget.request.isLeaveRequest || widget.request.isWFHRequest) ...[
+            if (widget.request.isLeaveRequest ||
+                widget.request.isWFHRequest) ...[
               _buildInfoRow(
                 Icons.date_range,
                 'From',
@@ -87,74 +83,101 @@ class _RequestCardState extends State<RequestCard> {
                 dateFormat.format(widget.request.date!),
               ),
             ],
-            
+
             // Shift (only for leave requests)
             if (widget.request.isLeaveRequest && widget.request.shift != null)
               _buildInfoRow(Icons.access_time, 'Shift', widget.request.shift!),
-            
+
             // Reason
             _buildInfoRow(Icons.subject, 'Reason', widget.request.reason),
-            
+
             // Admin remark (if exists)
-            if (widget.request.status != AppConstants.statusPending && 
+            if (widget.request.status != AppConstants.statusPending &&
                 widget.request.adminRemark != null)
               _buildInfoRow(
                 Icons.comment,
                 'Admin Remark',
                 widget.request.adminRemark!,
               ),
-            
+
             SizedBox(height: 8.h),
-            
+
             // Applied on date
             _buildInfoRow(
               Icons.calendar_today,
               'Applied On',
               dateFormat.format(widget.request.appliedOn),
             ),
-            
+
             // Admin action buttons (only for pending requests)
-            if (widget.isAdmin && widget.request.status == AppConstants.statusPending)
+            if (widget.isAdmin &&
+                widget.request.status == AppConstants.statusPending)
               Padding(
                 padding: EdgeInsets.only(top: 16.0.h),
                 child: Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        icon: Icon(Icons.check, color: Colors.white, size: 18.r),
-                        label: Text('Approve', style: getTextTheme().labelLarge?.copyWith(color: Colors.white)),
+                        icon: Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 18.r,
+                        ),
+                        label: Text(
+                          'Approve',
+                          style: getTextTheme().labelLarge?.copyWith(
+                            color: Colors.white,
+                          ),
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
                         ),
-                        onPressed: () => _showRemarkDialog(AppConstants.statusApproved),
+                        onPressed: () =>
+                            _showRemarkDialog(AppConstants.statusApproved),
                       ),
                     ),
                     SizedBox(width: 12.w),
                     Expanded(
                       child: ElevatedButton.icon(
-                        icon: Icon(Icons.close, color: Colors.white, size: 18.r),
-                        label: Text('Reject', style: getTextTheme().labelLarge?.copyWith(color: Colors.white)),
+                        icon: Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 18.r,
+                        ),
+                        label: Text(
+                          'Reject',
+                          style: getTextTheme().labelLarge?.copyWith(
+                            color: Colors.white,
+                          ),
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red,
                           foregroundColor: Colors.white,
                         ),
-                        onPressed: () => _showRemarkDialog(AppConstants.statusRejected),
+                        onPressed: () =>
+                            _showRemarkDialog(AppConstants.statusRejected),
                       ),
                     ),
                   ],
                 ),
               ),
-            
+
             // Delete button for user's pending requests
-            if (!widget.isAdmin && widget.request.status == AppConstants.statusPending)
+            if (!widget.isAdmin &&
+                widget.request.status == AppConstants.statusPending)
               Padding(
                 padding: EdgeInsets.only(top: 16.0.h),
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     icon: Icon(Icons.delete, color: Colors.white, size: 18.r),
-                    label: Text('Delete Request', style: getTextTheme().labelLarge?.copyWith(color: Colors.white)),
+                    label: Text(
+                      'Delete Request',
+                      style: getTextTheme().labelLarge?.copyWith(
+                        color: Colors.white,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
@@ -180,9 +203,9 @@ class _RequestCardState extends State<RequestCard> {
           Text(
             '$label: ',
             style: getTextTheme().bodySmall?.copyWith(
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey[700],
-                ),
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[700],
+            ),
           ),
           Expanded(
             child: Text(
@@ -240,7 +263,10 @@ class _RequestCardState extends State<RequestCard> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('${status == AppConstants.statusApproved ? 'Approve' : 'Reject'} Request', style: getTextTheme().titleMedium),
+        title: Text(
+          '${status == AppConstants.statusApproved ? 'Approve' : 'Reject'} Request',
+          style: getTextTheme().titleMedium,
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -263,13 +289,19 @@ class _RequestCardState extends State<RequestCard> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: getTextTheme().labelLarge),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => _updateRequestStatus(status),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: status == AppConstants.statusApproved
+                  ? Colors.green
+                  : Colors.red,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
+            ),
             child: Text(
               status == AppConstants.statusApproved ? 'Approve' : 'Reject',
-              style: getTextTheme().labelLarge?.copyWith(color: Colors.white),
             ),
           ),
         ],
@@ -279,9 +311,12 @@ class _RequestCardState extends State<RequestCard> {
 
   void _updateRequestStatus(String status) async {
     Navigator.pop(context);
-    
-    final requestProvider = Provider.of<RequestProvider>(context, listen: false);
-    
+
+    final requestProvider = Provider.of<RequestProvider>(
+      context,
+      listen: false,
+    );
+
     bool success = await requestProvider.updateRequestStatus(
       widget.request,
       status,
@@ -319,7 +354,10 @@ class _RequestCardState extends State<RequestCard> {
           ElevatedButton(
             onPressed: _deleteRequest,
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Delete', style: getTextTheme().labelLarge?.copyWith(color: Colors.white)),
+            child: Text(
+              'Delete',
+              style: getTextTheme().labelLarge?.copyWith(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -328,9 +366,12 @@ class _RequestCardState extends State<RequestCard> {
 
   void _deleteRequest() async {
     Navigator.pop(context);
-    
-    final requestProvider = Provider.of<RequestProvider>(context, listen: false);
-    
+
+    final requestProvider = Provider.of<RequestProvider>(
+      context,
+      listen: false,
+    );
+
     bool success = await requestProvider.deletePendingRequest(widget.request);
 
     if (mounted) {

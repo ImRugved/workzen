@@ -17,6 +17,13 @@ service cloud.firestore {
       match /requests/{requestId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+      
+      // Allow users to access their own leaves subcollection (leave balances)
+      match /leaves/{leaveDocument} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        // Only admins can write to leave balances (via the admin rule below)
+        allow write: if false;
+      }
     }
     
     // Allow authenticated users to read and write their own attendance records

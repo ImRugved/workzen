@@ -43,6 +43,7 @@ class RequestModel {
     String status = AppConstants.statusPending,
     String? adminRemark,
     required DateTime appliedOn,
+    Map<String, dynamic>? additionalData,
   }) {
     return RequestModel(
       id: id,
@@ -56,6 +57,7 @@ class RequestModel {
       status: status,
       adminRemark: adminRemark,
       appliedOn: appliedOn,
+      additionalData: additionalData,
     );
   }
 
@@ -155,7 +157,7 @@ class RequestModel {
   bool get isLeaveRequest => type == AppConstants.requestTypeLeave;
   bool get isWFHRequest => type == AppConstants.requestTypeWFH;
   bool get isBreakRequest => type == AppConstants.requestTypeBreak;
-  
+
   bool get isPending => status == AppConstants.statusPending;
   bool get isApproved => status == AppConstants.statusApproved;
   bool get isRejected => status == AppConstants.statusRejected;
@@ -164,8 +166,12 @@ class RequestModel {
   String get displayDate {
     if (isBreakRequest && date != null) {
       return '${date!.day}/${date!.month}/${date!.year}';
-    } else if ((isLeaveRequest || isWFHRequest) && fromDate != null && toDate != null) {
-      if (fromDate!.day == toDate!.day && fromDate!.month == toDate!.month && fromDate!.year == toDate!.year) {
+    } else if ((isLeaveRequest || isWFHRequest) &&
+        fromDate != null &&
+        toDate != null) {
+      if (fromDate!.day == toDate!.day &&
+          fromDate!.month == toDate!.month &&
+          fromDate!.year == toDate!.year) {
         return '${fromDate!.day}/${fromDate!.month}/${fromDate!.year}';
       } else {
         return '${fromDate!.day}/${fromDate!.month}/${fromDate!.year} - ${toDate!.day}/${toDate!.month}/${toDate!.year}';

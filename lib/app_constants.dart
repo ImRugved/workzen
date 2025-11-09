@@ -1,7 +1,8 @@
 class AppConstants {
   static const String adminCode = "myadmin";
   static const String userCollection = "users";
-  static const String userRequestsCollection = "requests"; // Subcollection under users
+  static const String userRequestsCollection =
+      "requests"; // Subcollection under users
   static const String attendanceCollection = "attendance";
 
   // Request types
@@ -36,4 +37,10 @@ class AppConstants {
   // Collections
   static const String usersCollection = "users";
   static const String notificationsCollection = "notifications";
+  static const String leavesCollection = "leaves";
+
+  // Leave types
+  static const String leaveTypePL = "pl"; // Privilege Leave / Paid Leave
+  static const String leaveTypeSL = "sl"; // Sick Leave
+  static const String leaveTypeCL = "cl"; // Casual Leave
 }

@@ -14,19 +14,29 @@ class LeaveRequestsScreen extends StatefulWidget {
   State<LeaveRequestsScreen> createState() => _LeaveRequestsScreenState();
 }
 
-class _LeaveRequestsScreenState extends State<LeaveRequestsScreen>
-    with TickerProviderStateMixin {
-  late TabController _tabController;
-  final List<String> _tabs = ['Pending', 'Approved', 'Rejected', 'All'];
+class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
   Stream<List<RequestModel>>? _requestsStream;
   bool _isInitialized = false;
+
+  // Search and filter state
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String _selectedStatus = 'All'; // Default filter
+  final List<String> _statusFilters = [
+    'All',
+    'Pending',
+    'Approved',
+    'Rejected',
+  ];
 
   @override
   void initState() {
     super.initState();
-
-    // Initialize the TabController here with the number of tabs
-    _tabController = TabController(length: _tabs.length, vsync: this);
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.toLowerCase();
+      });
+    });
   }
 
   @override
@@ -42,17 +52,54 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen>
 
   void _initializeStream() {
     if (mounted) {
-      final requestProvider = Provider.of<RequestProvider>(context, listen: false);
+      final requestProvider = Provider.of<RequestProvider>(
+        context,
+        listen: false,
+      );
       setState(() {
-        _requestsStream = requestProvider.getAllRequestsStream(type: AppConstants.requestTypeLeave);
+        _requestsStream = requestProvider.getAllRequestsStream(
+          type: AppConstants.requestTypeLeave,
+        );
       });
     }
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  // Filter requests based on search query and status
+  List<RequestModel> _filterRequests(List<RequestModel> requests) {
+    var filteredRequests = requests;
+
+    // Filter by status
+    if (_selectedStatus != 'All') {
+      String statusConstant;
+      if (_selectedStatus == 'Pending') {
+        statusConstant = AppConstants.statusPending;
+      } else if (_selectedStatus == 'Approved') {
+        statusConstant = AppConstants.statusApproved;
+      } else {
+        statusConstant = AppConstants.statusRejected;
+      }
+
+      filteredRequests = filteredRequests
+          .where((request) => request.status == statusConstant)
+          .toList();
+    }
+
+    // Filter by search query (employee name)
+    if (_searchQuery.isNotEmpty) {
+      filteredRequests = filteredRequests
+          .where(
+            (request) => request.userName.toLowerCase().contains(_searchQuery),
+          )
+          .toList();
+    }
+
+    return filteredRequests;
   }
 
   @override
@@ -71,129 +118,164 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen>
             tooltip: 'Refresh',
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: _tabs
-              .map(
-                (String name) => Tab(
-                  child: Text(
-                    name,
-                    style: getTextTheme().labelLarge?.copyWith(
-                          color: Colors.white,
-                        ),
-                  ),
-                ),
-              )
-              .toList(),
-          labelColor: Colors.white,
-          indicatorColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-        ),
       ),
       body: _requestsStream == null
           ? const Center(child: CircularProgressIndicator())
-          : StreamBuilder<List<RequestModel>>(
-              stream: _requestsStream,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      'Error loading leave requests: ${snapshot.error}',
-                      style: getTextTheme().bodyMedium?.copyWith(
-                        color: Colors.red,
-                      ),
-                    ),
-                  );
-                }
-
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.event_busy,
-                          size: 80.r,
-                          color: Colors.grey[400],
-                        ),
-                        SizedBox(height: 16.h),
-                        Text(
-                          'No leave requests found',
-                          style: getTextTheme().titleMedium?.copyWith(
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                final allRequests = snapshot.data!;
-
-                // Filter requests based on status
-                final pendingRequests = allRequests
-                    .where(
-                      (request) => request.status == AppConstants.statusPending,
-                    )
-                    .toList();
-                final approvedRequests = allRequests
-                    .where(
-                      (request) => request.status == AppConstants.statusApproved,
-                    )
-                    .toList();
-                final rejectedRequests = allRequests
-                    .where(
-                      (request) => request.status == AppConstants.statusRejected,
-                    )
-                    .toList();
-
-                return TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildRequestList(pendingRequests, 'No pending leave requests'),
-                    _buildRequestList(
-                      approvedRequests,
-                      'No approved leave requests',
-                    ),
-                    _buildRequestList(
-                      rejectedRequests,
-                      'No rejected leave requests',
-                    ),
-                    _buildRequestList(allRequests, 'No leave requests found'),
-                  ],
-                );
-              },
-            ),
-    );
-  }
-
-  Widget _buildRequestList(List<RequestModel> requests, String emptyMessage) {
-    return requests.isEmpty
-        ? Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+          : Column(
               children: [
-                Icon(Icons.event_busy, size: 80.r, color: Colors.grey[400]),
-                SizedBox(height: 16.h),
-                Text(
-                  emptyMessage,
-                  style: getTextTheme().titleMedium?.copyWith(
-                    color: Colors.grey,
+                // Search bar
+                Padding(
+                  padding: EdgeInsets.all(16.w),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search by employee name...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                    ),
+                  ),
+                ),
+
+                // Status filter chips
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w),
+                  child: SizedBox(
+                    height: 50.h,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _statusFilters.length,
+                      itemBuilder: (context, index) {
+                        final status = _statusFilters[index];
+                        final isSelected = _selectedStatus == status;
+
+                        return Padding(
+                          padding: EdgeInsets.only(right: 8.w),
+                          child: FilterChip(
+                            label: Text(status),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              setState(() {
+                                _selectedStatus = status;
+                              });
+                            },
+                            selectedColor: Theme.of(
+                              context,
+                            ).primaryColor.withOpacity(0.2),
+                            checkmarkColor: Theme.of(context).primaryColor,
+                            labelStyle: getTextTheme().bodyMedium?.copyWith(
+                              color: isSelected
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.black87,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+
+                SizedBox(height: 8.h),
+
+                // Requests list
+                Expanded(
+                  child: StreamBuilder<List<RequestModel>>(
+                    stream: _requestsStream,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Text(
+                            'Error loading leave requests: ${snapshot.error}',
+                            style: getTextTheme().bodyMedium?.copyWith(
+                              color: Colors.red,
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.event_busy,
+                                size: 80.r,
+                                color: Colors.grey[400],
+                              ),
+                              SizedBox(height: 16.h),
+                              Text(
+                                'No leave requests found',
+                                style: getTextTheme().titleMedium?.copyWith(
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      final allRequests = snapshot.data!;
+                      final filteredRequests = _filterRequests(allRequests);
+
+                      if (filteredRequests.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.search_off,
+                                size: 80.r,
+                                color: Colors.grey[400],
+                              ),
+                              SizedBox(height: 16.h),
+                              Text(
+                                'No requests match your filters',
+                                style: getTextTheme().titleMedium?.copyWith(
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16.w,
+                          vertical: 8.h,
+                        ),
+                        itemCount: filteredRequests.length,
+                        itemBuilder: (context, index) {
+                          return RequestCard(
+                            request: filteredRequests[index],
+                            isAdmin: true,
+                          );
+                        },
+                      );
+                    },
                   ),
                 ),
               ],
             ),
-          )
-        : ListView.builder(
-            padding: EdgeInsets.all(16.w),
-            itemCount: requests.length,
-            itemBuilder: (context, index) {
-              return RequestCard(request: requests[index], isAdmin: true);
-            },
-          );
+    );
   }
 }
