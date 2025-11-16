@@ -27,7 +27,7 @@ class LeaveCard extends StatelessWidget {
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
       child: Padding(
-        padding: EdgeInsets.all(12.w),
+        padding: EdgeInsets.all(8.w),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -86,86 +86,49 @@ class LeaveCard extends StatelessWidget {
             SizedBox(height: 8.h),
             // Row 2: From - To Date
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(Icons.date_range, size: 16.r, color: Colors.grey[600]),
-                SizedBox(width: 6.w),
-                Text(
-                  'From: ',
-                  style: getTextTheme().bodyMedium?.copyWith(
-                    color: Colors.grey[700],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  dateFormat.format(request.fromDate ?? DateTime.now()),
-                  style: getTextTheme().bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
+                _InfoRow(
+                  icon: Icons.date_range,
+                  label: 'From',
+                  value: dateFormat.format(request.fromDate ?? DateTime.now()),
                 ),
                 SizedBox(width: 12.w),
-                Text(
-                  'To: ',
-                  style: getTextTheme().bodyMedium?.copyWith(
-                    color: Colors.grey[700],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  dateFormat.format(request.toDate ?? DateTime.now()),
-                  style: getTextTheme().bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
+                _InfoRow(
+                  icon: Icons.date_range,
+                  label: 'To',
+                  value: dateFormat.format(request.toDate ?? DateTime.now()),
                 ),
               ],
             ),
             SizedBox(height: 8.h),
             // Row 3: Applied On | Type (Full Day/Half Day)
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(Icons.calendar_today, size: 16.r, color: Colors.grey[600]),
-                SizedBox(width: 6.w),
-                Text(
-                  'Applied On: ',
-                  style: getTextTheme().bodySmall?.copyWith(
-                    color: Colors.grey[700],
-                  ),
-                ),
-                Text(
-                  dateFormat.format(request.appliedOn),
-                  style: getTextTheme().bodySmall?.copyWith(
-                    color: Colors.grey[700],
-                  ),
+                _InfoRow(
+                  icon: Icons.calendar_today,
+                  label: 'Apply On',
+                  value: dateFormat.format(request.appliedOn),
                 ),
                 if (request.shift != null) ...[
-                  SizedBox(width: 16.w),
-                  Icon(Icons.access_time, size: 16.r, color: Colors.grey[600]),
-                  SizedBox(width: 6.w),
-                  Text(
-                    'Type: ',
-                    style: getTextTheme().bodySmall?.copyWith(
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  Text(
-                    request.shift!,
-                    style: getTextTheme().bodySmall?.copyWith(
-                      color: Colors.grey[700],
-                    ),
+                  //SizedBox(width: 1.w),
+                  _InfoRow(
+                    icon: Icons.access_time,
+                    label: 'Type',
+                    value: request.shift!,
                   ),
                 ],
               ],
             ),
+
             SizedBox(height: 8.h),
             // Row 5: Reason
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.subject, size: 16.r, color: Colors.grey[600]),
-                SizedBox(width: 6.w),
-                Expanded(
-                  child: Text(request.reason, style: getTextTheme().bodyMedium),
-                ),
-              ],
+            _InfoRow(
+              icon: Icons.subject,
+              label: 'Reason',
+              value: request.reason,
+              isExpanded: true,
             ),
             // Admin Remark
             if (request.status != 'pending' && request.adminRemark != null) ...[
@@ -488,5 +451,41 @@ class LeaveCard extends StatelessWidget {
       default:
         return Colors.grey;
     }
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isExpanded;
+
+  const _InfoRow({
+    Key? key,
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.isExpanded = false,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: isExpanded
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
+      children: [
+        Icon(icon, size: 16.r, color: Colors.grey[600]),
+        SizedBox(width: 3.w),
+        Text(
+          '$label: ',
+          style: getTextTheme().bodyMedium?.copyWith(color: Colors.grey[700]),
+        ),
+        if (isExpanded)
+          Expanded(child: Text(value, style: getTextTheme().bodyMedium))
+        else
+          Text(value, style: getTextTheme().bodyMedium),
+      ],
+    );
   }
 }

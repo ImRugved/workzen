@@ -113,6 +113,12 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _onRefresh() async {
+    // Refresh both stream and leave balances
+    _initializeStream();
+    await _loadLeaveBalances();
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
@@ -134,405 +140,418 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
       drawer: const AppDrawer(),
       body: authProvider.userModel == null
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: EdgeInsets.all(16.w),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Welcome section
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.indigo.shade600,
-                            Colors.indigo.shade400,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(15.r),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.indigo.withOpacity(0.3),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
+          : RefreshIndicator(
+              onRefresh: _onRefresh,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Padding(
+                  padding: EdgeInsets.all(16.w),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Welcome section
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.indigo.shade600,
+                              Colors.indigo.shade400,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(20.w),
-                        child: Row(
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: CircleAvatar(
-                                radius: 35.r,
-                                backgroundColor: Colors.white,
-                                child: Text(
-                                  authProvider.userModel!.name.isNotEmpty
-                                      ? authProvider.userModel!.name[0]
-                                            .toUpperCase()
-                                      : '?',
-                                  style: getTextTheme().displayMedium?.copyWith(
-                                    color: Colors.indigo.shade600,
-                                    fontWeight: FontWeight.bold,
+                          borderRadius: BorderRadius.circular(15.r),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.indigo.withOpacity(0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(20.w),
+                          child: Row(
+                            children: [
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.1),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: CircleAvatar(
+                                  radius: 35.r,
+                                  backgroundColor: Colors.white,
+                                  child: Text(
+                                    authProvider.userModel!.name.isNotEmpty
+                                        ? authProvider.userModel!.name[0]
+                                              .toUpperCase()
+                                        : '?',
+                                    style: getTextTheme().displayMedium
+                                        ?.copyWith(
+                                          color: Colors.indigo.shade600,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                   ),
                                 ),
                               ),
-                            ),
-                            SizedBox(width: 16.w),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Welcome Back! 👋',
-                                    style: getTextTheme().bodyMedium?.copyWith(
-                                      color: Colors.white.withOpacity(0.9),
+                              SizedBox(width: 16.w),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Welcome Back! 👋',
+                                      style: getTextTheme().bodyMedium
+                                          ?.copyWith(
+                                            color: Colors.white.withOpacity(
+                                              0.9,
+                                            ),
+                                          ),
                                     ),
-                                  ),
-                                  SizedBox(height: 4.h),
-                                  Text(
-                                    authProvider.userModel!.name,
-                                    style: getTextTheme().titleLarge?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
+                                    SizedBox(height: 4.h),
+                                    Text(
+                                      authProvider.userModel!.name,
+                                      style: getTextTheme().titleLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
                                     ),
-                                  ),
-                                  SizedBox(height: 4.h),
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.email_outlined,
-                                        size: 14.r,
-                                        color: Colors.white.withOpacity(0.8),
-                                      ),
-                                      SizedBox(width: 4.w),
-                                      Expanded(
-                                        child: Text(
-                                          authProvider.userModel!.email,
-                                          style: getTextTheme().bodySmall
-                                              ?.copyWith(
-                                                color: Colors.white.withOpacity(
-                                                  0.8,
-                                                ),
-                                              ),
-                                          overflow: TextOverflow.ellipsis,
+                                    SizedBox(height: 4.h),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.email_outlined,
+                                          size: 14.r,
+                                          color: Colors.white.withOpacity(0.8),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                        SizedBox(width: 4.w),
+                                        Expanded(
+                                          child: Text(
+                                            authProvider.userModel!.email,
+                                            style: getTextTheme().bodySmall
+                                                ?.copyWith(
+                                                  color: Colors.white
+                                                      .withOpacity(0.8),
+                                                ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 24.h),
-
-                    // Leave Balance Section
-                    _buildLeaveBalanceSection(),
-                    SizedBox(height: 24.h),
-
-                    // Quick Actions
-                    Text(
-                      'Quick Actions',
-                      style: getTextTheme().titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 16.h),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildActionCard(
-                            context,
-                            'Apply Leave',
-                            Icons.event_available,
-                            Colors.blue,
-                            () async {
-                              await Get.toNamed('/apply_leave_screen');
-                              _initializeStream();
-                            },
+                            ],
                           ),
                         ),
-                        SizedBox(width: 16.w),
-                        Expanded(
-                          child: _buildActionCard(
-                            context,
-                            'Leave History',
-                            Icons.history,
-                            Colors.purple,
-                            () async {
+                      ),
+                      SizedBox(height: 24.h),
+
+                      // Leave Balance Section
+                      _buildLeaveBalanceSection(),
+                      SizedBox(height: 24.h),
+
+                      // Quick Actions
+                      Text(
+                        'Quick Actions',
+                        style: getTextTheme().titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 16.h),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildActionCard(
+                              context,
+                              'Apply Leave',
+                              Icons.event_available,
+                              Colors.blue,
+                              () async {
+                                await Get.toNamed('/apply_leave_screen');
+                                _initializeStream();
+                              },
+                            ),
+                          ),
+                          SizedBox(width: 16.w),
+                          Expanded(
+                            child: _buildActionCard(
+                              context,
+                              'Leave History',
+                              Icons.history,
+                              Colors.purple,
+                              () async {
+                                await Get.toNamed('/leave_history_screen');
+                                _initializeStream();
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 24.h),
+
+                      // Recent Requests
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Recent Requests',
+                            style: getTextTheme().titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () async {
                               await Get.toNamed('/leave_history_screen');
                               _initializeStream();
                             },
+                            child: Text(
+                              'View All',
+                              style: getTextTheme().labelMedium,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 24.h),
+                        ],
+                      ),
+                      SizedBox(height: 8.h),
 
-                    // Recent Requests
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Recent Requests',
-                          style: getTextTheme().titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            await Get.toNamed('/leave_history_screen');
-                            _initializeStream();
-                          },
-                          child: Text(
-                            'View All',
-                            style: getTextTheme().labelMedium,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8.h),
-
-                    // Requests list with StreamBuilder (Pending only)
-                    SizedBox(
-                      height: 300.h,
-                      child: _userLeavesStream == null
-                          ? const Center(child: CircularProgressIndicator())
-                          : StreamBuilder<List<RequestModel>>(
-                              stream: _userLeavesStream,
-                              builder: (context, snapshot) {
-                                if (snapshot.connectionState ==
-                                    ConnectionState.waiting) {
-                                  return const Center(
-                                    child: CircularProgressIndicator(),
-                                  );
-                                }
-
-                                if (snapshot.hasError) {
-                                  // Handle different types of errors with user-friendly messages
-                                  String errorMessage =
-                                      'Unable to load your requests at the moment.';
-
-                                  if (snapshot.error.toString().contains(
-                                        'permission-denied',
-                                      ) ||
-                                      snapshot.error.toString().contains(
-                                        'PERMISSION_DENIED',
-                                      )) {
-                                    errorMessage =
-                                        'Access denied. Please check your account permissions.';
-                                  } else if (snapshot.error.toString().contains(
-                                        'network',
-                                      ) ||
-                                      snapshot.error.toString().contains(
-                                        'connection',
-                                      )) {
-                                    errorMessage =
-                                        'Network error. Please check your internet connection.';
+                      // Requests list with StreamBuilder (Pending only)
+                      SizedBox(
+                        height: 300.h,
+                        child: _userLeavesStream == null
+                            ? const Center(child: CircularProgressIndicator())
+                            : StreamBuilder<List<RequestModel>>(
+                                stream: _userLeavesStream,
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
                                   }
 
-                                  return Center(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.error_outline,
-                                          size: 48.r,
-                                          color: Colors.orange,
-                                        ),
-                                        SizedBox(height: 12.h),
-                                        Text(
-                                          errorMessage,
-                                          style: getTextTheme().bodyMedium
-                                              ?.copyWith(color: Colors.grey),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                        SizedBox(height: 12.h),
-                                        ElevatedButton.icon(
-                                          onPressed: _initializeStream,
-                                          icon: Icon(Icons.refresh, size: 20.r),
-                                          label: Text(
-                                            'Try Again',
-                                            style: getTextTheme().labelLarge,
+                                  if (snapshot.hasError) {
+                                    // Handle different types of errors with user-friendly messages
+                                    String errorMessage =
+                                        'Unable to load your requests at the moment.';
+
+                                    if (snapshot.error.toString().contains(
+                                          'permission-denied',
+                                        ) ||
+                                        snapshot.error.toString().contains(
+                                          'PERMISSION_DENIED',
+                                        )) {
+                                      errorMessage =
+                                          'Access denied. Please check your account permissions.';
+                                    } else if (snapshot.error
+                                            .toString()
+                                            .contains('network') ||
+                                        snapshot.error.toString().contains(
+                                          'connection',
+                                        )) {
+                                      errorMessage =
+                                          'Network error. Please check your internet connection.';
+                                    }
+
+                                    return Center(
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.error_outline,
+                                            size: 48.r,
+                                            color: Colors.orange,
                                           ),
-                                          style: ElevatedButton.styleFrom(
-                                            padding: EdgeInsets.symmetric(
-                                              horizontal: 16.w,
-                                              vertical: 8.h,
+                                          SizedBox(height: 12.h),
+                                          Text(
+                                            errorMessage,
+                                            style: getTextTheme().bodyMedium
+                                                ?.copyWith(color: Colors.grey),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                          SizedBox(height: 12.h),
+                                          ElevatedButton.icon(
+                                            onPressed: _initializeStream,
+                                            icon: Icon(
+                                              Icons.refresh,
+                                              size: 20.r,
                                             ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }
-
-                                if (!snapshot.hasData ||
-                                    snapshot.data!.isEmpty) {
-                                  return Center(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.pending_actions,
-                                          size: 64.r,
-                                          color: Colors.grey[400],
-                                        ),
-                                        SizedBox(height: 16.h),
-                                        Text(
-                                          'No pending requests',
-                                          style: getTextTheme().titleMedium
-                                              ?.copyWith(color: Colors.grey),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }
-
-                                // Filter only pending requests
-                                final allRequests = snapshot.data!;
-                                final requests = allRequests
-                                    .where(
-                                      (request) => request.status == 'pending',
-                                    )
-                                    .toList();
-
-                                // If no pending requests
-                                if (requests.isEmpty) {
-                                  return Center(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.check_circle_outline,
-                                          size: 64.r,
-                                          color: Colors.green[400],
-                                        ),
-                                        SizedBox(height: 16.h),
-                                        Text(
-                                          'No pending requests',
-                                          style: getTextTheme().titleMedium
-                                              ?.copyWith(color: Colors.grey),
-                                        ),
-                                        SizedBox(height: 8.h),
-                                        Text(
-                                          'All requests have been processed',
-                                          style: getTextTheme().bodySmall
-                                              ?.copyWith(color: Colors.grey),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }
-
-                                return ListView.builder(
-                                  itemCount: requests.length > 3
-                                      ? 3
-                                      : requests.length,
-                                  itemBuilder: (context, index) {
-                                    final request = requests[index];
-                                    return Card(
-                                      margin: EdgeInsets.only(bottom: 12.h),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          10.r,
-                                        ),
-                                        side: BorderSide(
-                                          color: request.status == 'pending'
-                                              ? Colors.orange.withOpacity(0.5)
-                                              : request.status == 'approved'
-                                              ? Colors.green.withOpacity(0.5)
-                                              : Colors.red.withOpacity(0.5),
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: ListTile(
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 16.w,
-                                          vertical: 8.h,
-                                        ),
-                                        title: Text(
-                                          'From: ${_formatDate(request.fromDate!)} To: ${_formatDate(request.toDate!)}',
-                                          style: getTextTheme().bodyMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.bold,
+                                            label: Text(
+                                              'Try Again',
+                                              style: getTextTheme().labelLarge,
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              padding: EdgeInsets.symmetric(
+                                                horizontal: 16.w,
+                                                vertical: 8.h,
                                               ),
-                                        ),
-                                        subtitle: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            SizedBox(height: 4.h),
-                                            Text(
-                                              'Reason: ${request.reason}',
-                                              style: getTextTheme().bodyMedium,
                                             ),
-                                            SizedBox(height: 4.h),
-                                            Row(
-                                              children: [
-                                                _buildStatusChip(
-                                                  request.status,
-                                                ),
-                                                if (request.adminRemark !=
-                                                        null &&
-                                                    request
-                                                        .adminRemark!
-                                                        .isNotEmpty)
-                                                  Expanded(
-                                                    child: Padding(
-                                                      padding: EdgeInsets.only(
-                                                        left: 8.w,
-                                                      ),
-                                                      child: Text(
-                                                        'Remark: ${request.adminRemark}',
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        style: getTextTheme()
-                                                            .bodySmall,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                        trailing: Icon(
-                                          Icons.arrow_forward_ios,
-                                          size: 16.r,
-                                        ),
-                                        onTap: () async {
-                                          await Get.toNamed(
-                                            '/leave_history_screen',
-                                          );
-                                          _initializeStream();
-                                        },
+                                          ),
+                                        ],
                                       ),
                                     );
-                                  },
-                                );
-                              },
-                            ),
-                    ),
-                    SizedBox(height: 16.h),
-                  ],
+                                  }
+
+                                  if (!snapshot.hasData ||
+                                      snapshot.data!.isEmpty) {
+                                    return Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.pending_actions,
+                                            size: 64.r,
+                                            color: Colors.grey[400],
+                                          ),
+                                          SizedBox(height: 16.h),
+                                          Text(
+                                            'No pending requests',
+                                            style: getTextTheme().titleMedium
+                                                ?.copyWith(color: Colors.grey),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
+
+                                  // Filter only pending requests
+                                  final allRequests = snapshot.data!;
+                                  final requests = allRequests
+                                      .where(
+                                        (request) =>
+                                            request.status == 'pending',
+                                      )
+                                      .toList();
+
+                                  // If no pending requests
+                                  if (requests.isEmpty) {
+                                    return Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.check_circle_outline,
+                                            size: 64.r,
+                                            color: Colors.green[400],
+                                          ),
+                                          SizedBox(height: 16.h),
+                                          Text(
+                                            'No pending requests',
+                                            style: getTextTheme().titleMedium
+                                                ?.copyWith(color: Colors.grey),
+                                          ),
+                                          SizedBox(height: 8.h),
+                                          Text(
+                                            'All requests have been processed',
+                                            style: getTextTheme().bodySmall
+                                                ?.copyWith(color: Colors.grey),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
+
+                                  return ListView.builder(
+                                    itemCount: requests.length > 3
+                                        ? 3
+                                        : requests.length,
+                                    itemBuilder: (context, index) {
+                                      final request = requests[index];
+                                      return Card(
+                                        margin: EdgeInsets.only(bottom: 12.h),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10.r,
+                                          ),
+                                          side: BorderSide(
+                                            color: request.status == 'pending'
+                                                ? Colors.orange.withOpacity(0.5)
+                                                : request.status == 'approved'
+                                                ? Colors.green.withOpacity(0.5)
+                                                : Colors.red.withOpacity(0.5),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.symmetric(
+                                            horizontal: 16.w,
+                                            vertical: 8.h,
+                                          ),
+                                          title: Text(
+                                            'From: ${_formatDate(request.fromDate!)} To: ${_formatDate(request.toDate!)}',
+                                            style: getTextTheme().bodyMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                          ),
+                                          subtitle: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              SizedBox(height: 4.h),
+                                              Text(
+                                                'Reason: ${request.reason}',
+                                                style:
+                                                    getTextTheme().bodyMedium,
+                                              ),
+                                              SizedBox(height: 4.h),
+                                              Row(
+                                                children: [
+                                                  _buildStatusChip(
+                                                    request.status,
+                                                  ),
+                                                  if (request.adminRemark !=
+                                                          null &&
+                                                      request
+                                                          .adminRemark!
+                                                          .isNotEmpty)
+                                                    Expanded(
+                                                      child: Padding(
+                                                        padding:
+                                                            EdgeInsets.only(
+                                                              left: 8.w,
+                                                            ),
+                                                        child: Text(
+                                                          'Remark: ${request.adminRemark}',
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          style: getTextTheme()
+                                                              .bodySmall,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                          trailing: Icon(
+                                            Icons.arrow_forward_ios,
+                                            size: 16.r,
+                                          ),
+                                          onTap: () async {
+                                            await Get.toNamed(
+                                              '/leave_history_screen',
+                                            );
+                                            _initializeStream();
+                                          },
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                      SizedBox(height: 16.h),
+                    ],
+                  ),
                 ),
               ),
             ),
