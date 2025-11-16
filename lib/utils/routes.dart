@@ -14,6 +14,7 @@ import '../screens/user/attendance_history_screen.dart';
 import '../screens/user/attendance_screen.dart';
 import '../screens/user/leave_history_screen.dart';
 import '../screens/profile_screen.dart';
+import '../screens/security_settings_screen.dart';
 
 class Routes {
   static final pages = [
@@ -124,6 +125,14 @@ class Routes {
     GetPage(
       name: '/profile_screen',
       page: () => const ProfileScreen(),
+      transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+
+    // Security settings screen
+    GetPage(
+      name: '/security_settings_screen',
+      page: () => const SecuritySettingsScreen(),
       transition: Transition.rightToLeft,
       transitionDuration: const Duration(milliseconds: 300),
     ),

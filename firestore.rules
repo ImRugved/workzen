@@ -1,46 +1,70 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow authenticated users to read and write their own user document
+    
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
     match /users/{userId} {
       // Allow users to read and write their own document
       allow read, write: if request.auth != null && request.auth.uid == userId;
-      // Allow authenticated users to read user documents for admin queries (needed for notifications)
+      
+      // Allow authenticated users to read user documents (needed for admin queries and notifications)
       allow read: if request.auth != null;
+      
       // Allow FCM token updates for any authenticated user (for token cleanup scenarios)
       allow update: if request.auth != null && 
         (request.auth.uid == userId || 
          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken']) &&
           request.resource.data.fcmToken == ''));
       
-      // Allow users to access their own requests subcollection
+      // ============================================
+      // USER SUBCOLLECTIONS
+      // ============================================
+      
+      // Requests subcollection - users can manage their own leave/WFH/break requests
       match /requests/{requestId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
+        // Admins can also read all requests (handled by admin rule below)
       }
       
-      // Allow users to access their own leaves subcollection (leave balances)
+      // Leaves subcollection - leave balances (read-only for users, write-only for admins)
       match /leaves/{leaveDocument} {
         allow read: if request.auth != null && request.auth.uid == userId;
         // Only admins can write to leave balances (via the admin rule below)
         allow write: if false;
       }
+      
+      // Security subcollection - users can manage their own security settings
+      match /security/{securityDocument} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
-    // Allow authenticated users to read and write their own attendance records
+    // ============================================
+    // ATTENDANCE COLLECTION
+    // ============================================
     match /attendance/{document} {
+      // Users can read and write their own attendance records
       allow read, write: if request.auth != null && 
         (request.auth.uid == resource.data.userId || 
          request.auth.uid == request.resource.data.userId);
     }
     
-    // Keep the old leaves collection for backward compatibility (if needed)
+    // ============================================
+    // LEGACY LEAVES COLLECTION (for backward compatibility)
+    // ============================================
     match /leaves/{document} {
       allow read, write: if request.auth != null && 
         (request.auth.uid == resource.data.userId || 
          request.auth.uid == request.resource.data.userId);
     }
     
-    // Allow admins to read and write all documents
+    // ============================================
+    // ADMIN OVERRIDE RULE
+    // ============================================
+    // Admins can read and write all documents
+    // This rule should be last as it's a catch-all
     match /{document=**} {
       allow read, write: if request.auth != null && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;

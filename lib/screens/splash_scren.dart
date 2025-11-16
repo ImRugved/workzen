@@ -8,6 +8,9 @@ import '../constants/const_textstyle.dart';
 import 'admin/dashboard/admin_dashboard_screen.dart';
 import 'auth/login_screen.dart';
 import 'user/dashboard/user_dashboard_screen.dart';
+import '../providers/security_provider.dart';
+import 'app_unlock_screen.dart';
+import 'app_unlock_pin_setup_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -62,15 +65,35 @@ class _SplashScreenState extends State<SplashScreen>
       log('- userModel: ${authProvider.userModel?.name}');
 
       if (authProvider.isLoggedIn && authProvider.userModel != null) {
-        // User is logged in and user data is loaded, navigate to appropriate dashboard
+        // User is logged in and user data is loaded
         log('Navigating to dashboard - isAdmin: ${authProvider.isAdmin}');
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => authProvider.isAdmin
-                ? const AdminDashboardScreen()
-                : const UserDashboardScreen(),
-          ),
-        );
+        
+        // Check security settings
+        final securityProvider = Provider.of<SecurityProvider>(context, listen: false);
+        await securityProvider.initializeSecurity(authProvider.userModel!.id);
+        
+        // Check if app unlock PIN exists (mandatory)
+        final hasPin = await securityProvider.hasAppUnlockPIN(authProvider.userModel!.id);
+        
+        final targetScreen = authProvider.isAdmin
+            ? const AdminDashboardScreen()
+            : const UserDashboardScreen();
+        
+        if (!hasPin) {
+          // PIN not set - show setup screen
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => AppUnlockPinSetupScreen(isFirstTime: true),
+            ),
+          );
+        } else {
+          // PIN exists - show unlock screen
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => AppUnlockScreen(child: targetScreen),
+            ),
+          );
+        }
       } else {
         // User is not logged in or user data not loaded, navigate to login screen
         log(

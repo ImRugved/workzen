@@ -10,6 +10,7 @@ import 'dart:io';
 import '../constants/const_textstyle.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../app_constants.dart';
+import 'security_settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -507,6 +508,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         SizedBox(height: 16.h),
 
+                        const Divider(),
+
+                        ListTile(
+                          leading: const Icon(Icons.security, color: Colors.blue),
+                          title: Text(
+                            'Security',
+                            style: getTextTheme().bodyMedium,
+                          ),
+                          trailing: Icon(Icons.arrow_forward_ios, size: 16.r),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const SecuritySettingsScreen(),
+                              ),
+                            );
+                          },
+                        ),
                         const Divider(),
 
                         ListTile(

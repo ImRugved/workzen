@@ -61,6 +61,10 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>This app needs location access to track attendance and verify work location.</string>
 	
+	<!-- Biometric authentication permission -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>This app uses Face ID to securely authenticate and unlock the app.</string>
+	
 	<!-- Notification permissions -->
 	<key>UIBackgroundModes</key>
 	<array>

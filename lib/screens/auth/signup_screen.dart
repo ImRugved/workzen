@@ -3,9 +3,14 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/security_provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../constants/const_textstyle.dart';
+import '../app_unlock_pin_setup_screen.dart';
+import '../app_unlock_screen.dart';
+import '../admin/dashboard/admin_dashboard_screen.dart';
+import '../user/dashboard/user_dashboard_screen.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({Key? key}) : super(key: key);
@@ -55,10 +60,32 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
         );
 
-        // Navigate to appropriate dashboard based on user role
-        Get.offNamed(
-          authProvider.isAdmin ? '/admin_dashboard' : '/user_dashboard',
-        );
+        // Check security settings
+        final securityProvider = Provider.of<SecurityProvider>(context, listen: false);
+        await securityProvider.initializeSecurity(authProvider.userModel!.id);
+        
+        // Check if app unlock PIN exists (mandatory)
+        final hasPin = await securityProvider.hasAppUnlockPIN(authProvider.userModel!.id);
+        
+        final targetScreen = authProvider.isAdmin
+            ? const AdminDashboardScreen()
+            : const UserDashboardScreen();
+        
+        if (!hasPin) {
+          // PIN not set - show setup screen
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const AppUnlockPinSetupScreen(isFirstTime: true),
+            ),
+          );
+        } else {
+          // PIN exists - show unlock screen
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => AppUnlockScreen(child: targetScreen),
+            ),
+          );
+        }
       } else if (mounted) {
         // Show specific error message
         String errorMessage =
