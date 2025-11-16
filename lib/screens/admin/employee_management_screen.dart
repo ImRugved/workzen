@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
+import 'package:workzen/constants/constant_colors.dart';
 import '../../providers/employee_management_provider.dart';
 import '../../models/employee_model.dart';
 import '../../widgets/app_drawer.dart';
@@ -45,10 +45,12 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       appBar: AppBar(
         title: Text(
           'Employee Management',
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+          style: getTextTheme().titleLarge?.copyWith(
+            color: ConstColors.textColorWhite,
+          ),
         ),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
+        backgroundColor: ConstColors.primary,
+        foregroundColor: ConstColors.textColorWhite,
         actions: [
           IconButton(
             icon: Icon(Icons.refresh, size: 24.r),
@@ -86,10 +88,10 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
     return Container(
       padding: EdgeInsets.all(10.w),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ConstColors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
+            color: ConstColors.grey.withOpacity(0.2),
             spreadRadius: 1,
             blurRadius: 2,
             offset: const Offset(0, 1),
@@ -173,7 +175,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                   provider.clearFilters();
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo,
+                  backgroundColor: ConstColors.primary,
                   padding: EdgeInsets.symmetric(
                     horizontal: 16.w,
                     vertical: 12.h,
@@ -182,12 +184,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                     borderRadius: BorderRadius.circular(10.r),
                   ),
                 ),
-                child: Text(
-                  'Clear',
-                  style: getTextTheme().labelMedium?.copyWith(
-                    color: Colors.white,
-                  ),
-                ),
+                child: Text('Clear', style: getTextTheme().labelMedium),
               ),
             ],
           ),
@@ -206,7 +203,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             child: _buildStatCard(
               'Total Employees',
               provider.totalEmployees.toString(),
-              Colors.blue,
+              ConstColors.infoBlue,
               Icons.people,
             ),
           ),
@@ -215,7 +212,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             child: _buildStatCard(
               'Onboarded',
               provider.onboardedEmployees.toString(),
-              Colors.green,
+              ConstColors.successGreen,
               Icons.check_circle,
             ),
           ),
@@ -224,7 +221,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             child: _buildStatCard(
               'Pending',
               provider.pendingEmployees.toString(),
-              Colors.orange,
+              ConstColors.warningAmber,
               Icons.pending,
             ),
           ),
@@ -261,7 +258,10 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             SizedBox(height: 1.h),
             Text(
               title,
-              style: TextStyle(fontSize: 9.sp, color: Colors.grey.shade600),
+              style: getTextTheme().labelSmall?.copyWith(
+                fontSize: 9.sp,
+                color: ConstColors.textColorLight,
+              ),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -274,7 +274,9 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
 
   Widget _buildEmployeeList(EmployeeManagementProvider provider) {
     if (provider.isLoading) {
-      return Center(child: CircularProgressIndicator(color: Colors.indigo));
+      return Center(
+        child: CircularProgressIndicator(color: ConstColors.primary),
+      );
     }
 
     if (provider.errorMessage != null) {
@@ -282,14 +284,14 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 80.r, color: Colors.red.shade300),
+            Icon(Icons.error_outline, size: 80.r, color: ConstColors.errorRed),
             SizedBox(height: 16.h),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 32.w),
               child: Text(
                 provider.errorMessage!,
                 style: getTextTheme().bodyLarge?.copyWith(
-                  color: Colors.grey.shade700,
+                  color: ConstColors.textColorLight,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -298,17 +300,14 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             ElevatedButton.icon(
               onPressed: () => provider.refreshEmployees(),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,
+                backgroundColor: ConstColors.primary,
                 padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12.r),
                 ),
               ),
               icon: Icon(Icons.refresh, size: 20.r),
-              label: Text(
-                'Retry',
-                style: getTextTheme().labelLarge?.copyWith(color: Colors.white),
-              ),
+              label: Text('Retry', style: getTextTheme().labelMedium),
             ),
           ],
         ),
@@ -320,12 +319,16 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.people_outline, size: 80.r, color: Colors.grey.shade400),
+            Icon(
+              Icons.people_outline,
+              size: 80.r,
+              color: ConstColors.textColorLight,
+            ),
             SizedBox(height: 16.h),
             Text(
               'No employees found',
               style: getTextTheme().bodyLarge?.copyWith(
-                color: Colors.grey.shade600,
+                color: ConstColors.textColorLight,
               ),
             ),
           ],
@@ -357,6 +360,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         );
       },
       child: Card(
+        color: ConstColors.white,
         margin: EdgeInsets.only(bottom: 12.h),
         elevation: 3,
         shape: RoundedRectangleBorder(
@@ -366,185 +370,132 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16.r),
             gradient: LinearGradient(
-              colors: [Colors.white, Colors.indigo.shade50.withOpacity(0.3)],
+              colors: [
+                ConstColors.white,
+                ConstColors.lightShade.withOpacity(0.3),
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
           ),
           child: Padding(
-            padding: EdgeInsets.all(16.w),
+            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Name and Status Row
                 Row(
                   children: [
-                    // Profile Picture with Hero animation
-                    Hero(
-                      tag: 'employee_${employee.id}',
-                      child: CircleAvatar(
-                        radius: 35.r,
-                        backgroundColor: Colors.indigo.shade100,
-                        child:
-                            employee.profileImageUrl != null &&
-                                employee.profileImageUrl!.isNotEmpty
-                            ? ClipOval(
-                                child: CachedNetworkImage(
-                                  imageUrl: employee.profileImageUrl!,
-                                  width: 70.w,
-                                  height: 70.h,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) =>
-                                      CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.indigo,
-                                      ),
-                                  errorWidget: (context, url, error) => Text(
-                                    employee.name.isNotEmpty
-                                        ? employee.name[0].toUpperCase()
-                                        : 'E',
-                                    style: getTextTheme().headlineMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.indigo,
-                                        ),
-                                  ),
-                                ),
-                              )
-                            : Text(
-                                employee.name.isNotEmpty
-                                    ? employee.name[0].toUpperCase()
-                                    : 'E',
-                                style: getTextTheme().headlineMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.indigo,
-                                ),
-                              ),
+                    Expanded(
+                      child: Text(
+                        employee.name,
+                        style: getTextTheme().titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-
-                    SizedBox(width: 16.w),
-
-                    // Employee Info
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    SizedBox(width: 8.w),
+                    // Status Chip
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 8.w,
+                        vertical: 2.h,
+                      ),
+                      decoration: BoxDecoration(
+                        color: employee.isOnboarded
+                            ? ConstColors.successGreen.withOpacity(0.1)
+                            : ConstColors.warningAmber.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8.r),
+                        border: Border.all(
+                          color: employee.isOnboarded
+                              ? ConstColors.successGreen
+                              : ConstColors.warningAmber,
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            employee.name,
-                            style: getTextTheme().titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Icon(
+                            employee.isOnboarded
+                                ? Icons.check_circle
+                                : Icons.pending,
+                            color: employee.isOnboarded
+                                ? ConstColors.successGreen
+                                : ConstColors.warningAmber,
+                            size: 12.r,
                           ),
-                          SizedBox(height: 4.h),
+                          SizedBox(width: 4.w),
                           Text(
-                            employee.email,
-                            style: getTextTheme().bodyMedium?.copyWith(
-                              color: Colors.grey.shade600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          SizedBox(height: 8.h),
-                          // Status Chip
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 12.w,
-                              vertical: 4.h,
-                            ),
-                            decoration: BoxDecoration(
+                            employee.isOnboarded ? 'Onboarded' : 'Pending',
+                            style: getTextTheme().labelSmall?.copyWith(
                               color: employee.isOnboarded
-                                  ? Colors.green.shade50
-                                  : Colors.orange.shade50,
-                              borderRadius: BorderRadius.circular(12.r),
-                              border: Border.all(
-                                color: employee.isOnboarded
-                                    ? Colors.green
-                                    : Colors.orange,
-                                width: 1,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  employee.isOnboarded
-                                      ? Icons.check_circle
-                                      : Icons.pending,
-                                  color: employee.isOnboarded
-                                      ? Colors.green
-                                      : Colors.orange,
-                                  size: 14.r,
-                                ),
-                                SizedBox(width: 4.w),
-                                Text(
-                                  employee.isOnboarded
-                                      ? 'Onboarded'
-                                      : 'Pending',
-                                  style: getTextTheme().labelSmall?.copyWith(
-                                    color: employee.isOnboarded
-                                        ? Colors.green
-                                        : Colors.orange,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
+                                  ? ConstColors.successGreen
+                                  : ConstColors.warningAmber,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10.sp,
                             ),
                           ),
                         ],
                       ),
                     ),
-
+                  ],
+                ),
+                SizedBox(height: 4.h),
+                // Email and Arrow Icon Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        employee.email,
+                        style: getTextTheme().bodySmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    SizedBox(width: 8.w),
                     // Arrow Icon
                     Icon(
                       Icons.arrow_forward_ios,
-                      size: 20.r,
-                      color: Colors.grey.shade400,
+                      size: 16.r,
+                      color: ConstColors.textColorLight,
                     ),
                   ],
                 ),
 
-                SizedBox(height: 16.h),
+                SizedBox(height: 8.h),
 
-                // Employee Details Grid
-                Container(
-                  padding: EdgeInsets.all(12.w),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildInfoItem(
-                              'Employee ID',
-                              employee.employeeId ?? 'Not Set',
-                              Icons.badge,
-                            ),
-                          ),
-                          SizedBox(width: 12.w),
-                          Expanded(
-                            child: _buildInfoItem(
-                              'Department',
-                              employee.department ?? 'Not Set',
-                              Icons.work,
-                            ),
-                          ),
-                        ],
+                // Employee Details: ID, Department, Joining Date
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoItem(
+                        'Emp ID',
+                        employee.employeeId ?? 'Not Set',
+                        Icons.badge,
                       ),
-                      SizedBox(height: 12.h),
-                      _buildInfoItem(
+                    ),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: _buildInfoItem(
+                        'Department',
+                        employee.department ?? 'Not Set',
+                        Icons.work,
+                      ),
+                    ),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: _buildInfoItem(
                         'Joining Date',
                         employee.joiningDate != null
                             ? dateFormat.format(employee.joiningDate!)
                             : 'Not Set',
                         Icons.calendar_today,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -560,33 +511,33 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
     IconData icon, {
     Color? color,
   }) {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16.r, color: color ?? Colors.indigo.shade300),
-        SizedBox(width: 8.w),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
+        Row(
+          children: [
+            Icon(icon, size: 12.r, color: color ?? ConstColors.primary),
+            SizedBox(width: 4.w),
+            Expanded(
+              child: Text(
                 label,
-                style: getTextTheme().labelSmall?.copyWith(
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              SizedBox(height: 2.h),
-              Text(
-                value,
-                style: getTextTheme().bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
+                style: getTextTheme().labelSmall?.copyWith(fontSize: 10.sp),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-            ],
+            ),
+          ],
+        ),
+        SizedBox(height: 2.h),
+        Text(
+          value,
+          style: getTextTheme().bodySmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: color,
+            fontSize: 11.sp,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );

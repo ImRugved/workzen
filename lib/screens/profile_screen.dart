@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:get/get.dart';
 import '../providers/auth_provider.dart';
 import '../services/supabase_service.dart';
 import '../models/user_model.dart';
@@ -558,9 +559,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       ),
                                     ),
                                     TextButton(
-                                      onPressed: () {
+                                      onPressed: () async {
                                         Navigator.pop(context);
-                                        authProvider.logout();
+                                        await authProvider.logout();
+                                        if (context.mounted) {
+                                          Get.offAllNamed('/login_screen');
+                                        }
                                       },
                                       child: Text(
                                         'Logout',

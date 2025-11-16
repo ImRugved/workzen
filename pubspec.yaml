@@ -65,6 +65,8 @@ dependencies:
   animated_number: ^1.0.2
   # Biometric authentication
   local_auth: ^2.3.0
+  # Carousel slider
+  carousel_slider: ^5.0.0
 
 dev_dependencies:
   flutter_test:
@@ -91,3 +93,12 @@ flutter:
   assets:
     - assets/service.json
     - assets/images/
+
+# Flutter Launcher Icons configuration
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png"
+  min_sdk_android: 21 # Android min sdk min:16, default 21
+  adaptive_icon_background: "#FFFFFF" # Android adaptive icon background color
+  adaptive_icon_foreground: "assets/images/logo.png" # Android adaptive icon foreground image

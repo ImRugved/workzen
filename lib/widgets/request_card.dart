@@ -6,6 +6,7 @@ import '../app_constants.dart';
 import '../models/request_model.dart';
 import '../providers/request_provider.dart';
 import '../constants/const_textstyle.dart';
+import '../constants/constant_colors.dart';
 
 class RequestCard extends StatefulWidget {
   final RequestModel request;
@@ -31,23 +32,25 @@ class _RequestCardState extends State<RequestCard> {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: EdgeInsets.only(bottom: 16.h),
-      elevation: 4,
+      margin: EdgeInsets.only(bottom: 12.h),
+      elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
       child: Padding(
-        padding: EdgeInsets.all(16.w),
+        padding: EdgeInsets.all(8.w),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with user name and status
+            // Row 1: Name of user with status
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
                   child: Text(
                     widget.request.userName,
-                    style: getTextTheme().titleMedium?.copyWith(
+                    style: getTextTheme().bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 SizedBox(width: 8.w),
@@ -56,58 +59,125 @@ class _RequestCardState extends State<RequestCard> {
             ),
             SizedBox(height: 8.h),
 
-            // Request type
-            _buildInfoRow(
-              Icons.category,
-              'Type',
-              widget.request.typeDisplayName,
-            ),
-
-            // Date information based on request type
-            if (widget.request.isLeaveRequest ||
-                widget.request.isWFHRequest) ...[
-              _buildInfoRow(
-                Icons.date_range,
-                'From',
-                dateFormat.format(widget.request.fromDate!),
+            // Row 2: Leave type and shift in one row (only for leave requests)
+            if (widget.request.isLeaveRequest) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Leave Type
+                  if (widget.request.additionalData?['leaveType'] != null)
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 8.w,
+                        vertical: 4.h,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _getLeaveTypeColor(
+                          widget.request.additionalData!['leaveType'],
+                        ).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6.r),
+                        border: Border.all(
+                          color: _getLeaveTypeColor(
+                            widget.request.additionalData!['leaveType'],
+                          ),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        _getLeaveTypeFullName(
+                          widget.request.additionalData!['leaveType'],
+                        ),
+                        style: getTextTheme().labelMedium?.copyWith(
+                          color: _getLeaveTypeColor(
+                            widget.request.additionalData!['leaveType'],
+                          ),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  if (widget.request.shift != null) ...[
+                    SizedBox(width: 12.w),
+                    _InfoRow(
+                      icon: Icons.access_time,
+                      label: 'Type',
+                      value: widget.request.shift!,
+                    ),
+                  ],
+                ],
               ),
-              _buildInfoRow(
-                Icons.date_range,
-                'To',
-                dateFormat.format(widget.request.toDate!),
-              ),
-            ] else if (widget.request.isBreakRequest) ...[
-              _buildInfoRow(
-                Icons.date_range,
-                'Date',
-                dateFormat.format(widget.request.date!),
-              ),
+              SizedBox(height: 8.h),
             ],
 
-            // Shift (only for leave requests)
-            if (widget.request.isLeaveRequest && widget.request.shift != null)
-              _buildInfoRow(Icons.access_time, 'Shift', widget.request.shift!),
+            // Row 3: From to date in row
+            if (widget.request.isLeaveRequest ||
+                widget.request.isWFHRequest) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _InfoRow(
+                    icon: Icons.date_range,
+                    label: 'From',
+                    value: dateFormat.format(
+                      widget.request.fromDate ?? DateTime.now(),
+                    ),
+                  ),
+                  SizedBox(width: 12.w),
+                  _InfoRow(
+                    icon: Icons.date_range,
+                    label: 'To',
+                    value: dateFormat.format(
+                      widget.request.toDate ?? DateTime.now(),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 8.h),
+            ] else if (widget.request.isBreakRequest) ...[
+              _InfoRow(
+                icon: Icons.date_range,
+                label: 'Date',
+                value: dateFormat.format(widget.request.date ?? DateTime.now()),
+              ),
+              SizedBox(height: 8.h),
+            ],
 
-            // Reason
-            _buildInfoRow(Icons.subject, 'Reason', widget.request.reason),
+            // Row 4: Applied on date
+            _InfoRow(
+              icon: Icons.calendar_today,
+              label: 'Applied On',
+              value: dateFormat.format(widget.request.appliedOn),
+            ),
+            SizedBox(height: 8.h),
+
+            // Row 5: Reason
+            _InfoRow(
+              icon: Icons.subject,
+              label: 'Reason',
+              value: widget.request.reason,
+              isExpanded: true,
+            ),
 
             // Admin remark (if exists)
             if (widget.request.status != AppConstants.statusPending &&
-                widget.request.adminRemark != null)
-              _buildInfoRow(
-                Icons.comment,
-                'Admin Remark',
-                widget.request.adminRemark!,
+                widget.request.adminRemark != null) ...[
+              SizedBox(height: 8.h),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.comment, size: 16.r, color: Colors.blue[600]),
+                  SizedBox(width: 6.w),
+                  Expanded(
+                    child: Text(
+                      'Admin: ${widget.request.adminRemark!}',
+                      style: getTextTheme().bodySmall?.copyWith(
+                        color: Colors.blue[700],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-
-            SizedBox(height: 8.h),
-
-            // Applied on date
-            _buildInfoRow(
-              Icons.calendar_today,
-              'Applied On',
-              dateFormat.format(widget.request.appliedOn),
-            ),
+            ],
 
             // Admin action buttons (only for pending requests)
             if (widget.isAdmin &&
@@ -192,67 +262,65 @@ class _RequestCardState extends State<RequestCard> {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4.h),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16.r, color: Colors.grey[600]),
-          SizedBox(width: 8.w),
-          Text(
-            '$label: ',
-            style: getTextTheme().bodySmall?.copyWith(
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[700],
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: getTextTheme().bodyMedium?.copyWith(color: Colors.black87),
-            ),
-          ),
-        ],
-      ),
-    );
+  String _getLeaveTypeFullName(String leaveType) {
+    switch (leaveType.toLowerCase()) {
+      case AppConstants.leaveTypePL:
+        return 'Privilege Leave (PL)';
+      case AppConstants.leaveTypeSL:
+        return 'Sick Leave (SL)';
+      case AppConstants.leaveTypeCL:
+        return 'Casual Leave (CL)';
+      default:
+        return '${leaveType.toUpperCase()} (${leaveType.toUpperCase()})';
+    }
+  }
+
+  Color _getLeaveTypeColor(String leaveType) {
+    switch (leaveType.toLowerCase()) {
+      case AppConstants.leaveTypePL:
+        return ConstColors.infoBlue;
+      case AppConstants.leaveTypeSL:
+        return ConstColors.successGreen;
+      case AppConstants.leaveTypeCL:
+        return ConstColors.inProgressOrange;
+      default:
+        return Colors.grey;
+    }
   }
 
   Widget _getStatusChip(String status) {
-    Color backgroundColor;
-    Color textColor;
-    String displayText;
+    Color color;
+    String label;
 
     switch (status.toLowerCase()) {
       case 'approved':
-        backgroundColor = Colors.green;
-        textColor = Colors.white;
-        displayText = 'Approved';
+        color = ConstColors.successGreen;
+        label = 'Approved';
         break;
       case 'rejected':
-        backgroundColor = Colors.red;
-        textColor = Colors.white;
-        displayText = 'Rejected';
+        color = ConstColors.errorRed;
+        label = 'Rejected';
         break;
       case 'pending':
       default:
-        backgroundColor = Colors.orange;
-        textColor = Colors.white;
-        displayText = 'Pending';
+        color = ConstColors.warningAmber;
+        label = 'Pending';
         break;
     }
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
       decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(20.r),
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: color),
       ),
       child: Text(
-        displayText,
+        label,
         style: getTextTheme().labelSmall?.copyWith(
-          color: textColor,
+          color: color,
           fontWeight: FontWeight.bold,
+          fontSize: 10.sp,
         ),
       ),
     );
@@ -386,5 +454,41 @@ class _RequestCardState extends State<RequestCard> {
         ),
       );
     }
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isExpanded;
+
+  const _InfoRow({
+    Key? key,
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.isExpanded = false,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: isExpanded
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
+      children: [
+        Icon(icon, size: 16.r, color: Colors.grey[600]),
+        SizedBox(width: 3.w),
+        Text(
+          '$label: ',
+          style: getTextTheme().bodyMedium?.copyWith(color: Colors.grey[700]),
+        ),
+        if (isExpanded)
+          Expanded(child: Text(value, style: getTextTheme().bodyMedium))
+        else
+          Text(value, style: getTextTheme().bodyMedium),
+      ],
+    );
   }
 }

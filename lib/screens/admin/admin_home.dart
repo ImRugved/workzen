@@ -4,14 +4,17 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:animated_number/animated_number.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:carousel_slider/carousel_slider.dart';
 import '../../models/request_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../providers/employee_management_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_drawer.dart';
+import '../../widgets/dot_indicator.dart';
 import '../../app_constants.dart';
 import '../../constants/const_textstyle.dart';
+import '../../constants/constant_colors.dart';
 
 class AdminHome extends StatefulWidget {
   const AdminHome({Key? key}) : super(key: key);
@@ -23,6 +26,7 @@ class AdminHome extends StatefulWidget {
 class _AdminHomeState extends State<AdminHome> {
   Stream<List<RequestModel>>? _leavesStream;
   final bool isAnimated = true; // Default to true, can be changed
+  int _currentCarouselIndex = 0; // Track current carousel index
 
   @override
   void initState() {
@@ -223,10 +227,13 @@ class _AdminHomeState extends State<AdminHome> {
                       ),
                       SizedBox(height: 24.h),
 
-                      // Employee Statistics Section
-                      _buildSectionHeader('Employee Overview', Icons.people),
+                      // Employee Statistics Section with Carousel
+                      _buildSectionHeader(
+                        _getCarouselSectionTitle(allRequests),
+                        Icons.people,
+                      ),
                       SizedBox(height: 12.h),
-                      _buildEmployeeStatsCard(employeeProvider),
+                      _buildOverviewCarousel(employeeProvider, allRequests),
                       SizedBox(height: 24.h),
 
                       // Leave Requests Statistics Section
@@ -398,6 +405,52 @@ class _AdminHomeState extends State<AdminHome> {
                                           ],
                                         ),
                                         SizedBox(height: 8.h),
+                                        // Leave Type (only for leave requests)
+                                        if (request.isLeaveRequest &&
+                                            request.additionalData?['leaveType'] !=
+                                                null)
+                                          Padding(
+                                            padding: EdgeInsets.only(
+                                              bottom: 8.h,
+                                            ),
+                                            child: Container(
+                                              padding: EdgeInsets.symmetric(
+                                                horizontal: 8.w,
+                                                vertical: 4.h,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: _getLeaveTypeColor(
+                                                  request
+                                                      .additionalData!['leaveType'],
+                                                ).withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(6.r),
+                                                border: Border.all(
+                                                  color: _getLeaveTypeColor(
+                                                    request
+                                                        .additionalData!['leaveType'],
+                                                  ),
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                _getLeaveTypeFullName(
+                                                  request
+                                                      .additionalData!['leaveType'],
+                                                ),
+                                                style: getTextTheme()
+                                                    .labelMedium
+                                                    ?.copyWith(
+                                                      color: _getLeaveTypeColor(
+                                                        request
+                                                            .additionalData!['leaveType'],
+                                                      ),
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                              ),
+                                            ),
+                                          ),
                                         Text(
                                           'From: ${_formatDate(request.fromDate!)} To: ${_formatDate(request.toDate!)}',
                                           style: getTextTheme().bodyMedium,
@@ -408,32 +461,6 @@ class _AdminHomeState extends State<AdminHome> {
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: getTextTheme().bodyMedium,
-                                        ),
-                                        SizedBox(height: 8.h),
-                                        Align(
-                                          alignment: Alignment.centerRight,
-                                          child: TextButton(
-                                            onPressed: () async {
-                                              await Get.toNamed(
-                                                '/leave_requests_screen',
-                                              );
-                                              if (mounted) _initializeData();
-                                            },
-                                            style: TextButton.styleFrom(
-                                              padding: EdgeInsets.symmetric(
-                                                horizontal: 12.w,
-                                                vertical: 8.h,
-                                              ),
-                                              minimumSize: Size.zero,
-                                              tapTargetSize:
-                                                  MaterialTapTargetSize
-                                                      .shrinkWrap,
-                                            ),
-                                            child: Text(
-                                              'View Details',
-                                              style: getTextTheme().labelMedium,
-                                            ),
-                                          ),
                                         ),
                                       ],
                                     ),
@@ -447,6 +474,54 @@ class _AdminHomeState extends State<AdminHome> {
               },
             ),
     );
+  }
+
+  // Get section title based on current carousel index
+  String _getCarouselSectionTitle(List<RequestModel> allRequests) {
+    // Count pending leave requests to determine if leave chart exists
+    final pendingLeaveRequests = allRequests
+        .where(
+          (r) =>
+              r.type == AppConstants.requestTypeLeave &&
+              r.status == AppConstants.statusPending,
+        )
+        .toList();
+
+    int plCount = 0;
+    int slCount = 0;
+    int clCount = 0;
+
+    for (var request in pendingLeaveRequests) {
+      final leaveType = request.additionalData?['leaveType'] as String?;
+      if (leaveType != null) {
+        switch (leaveType.toLowerCase()) {
+          case 'pl':
+            plCount++;
+            break;
+          case 'sl':
+            slCount++;
+            break;
+          case 'cl':
+            clCount++;
+            break;
+        }
+      }
+    }
+
+    final totalPendingLeaves = plCount + slCount + clCount;
+    final hasLeaveChart = totalPendingLeaves > 0;
+
+    // If only one chart (employee chart), always show "Employee Overview"
+    if (!hasLeaveChart) {
+      return 'Employee Overview';
+    }
+
+    // If two charts, show based on current index
+    if (_currentCarouselIndex == 0) {
+      return 'Onboarding Overview';
+    } else {
+      return 'Request Overview';
+    }
   }
 
   // Section Header
@@ -467,48 +542,145 @@ class _AdminHomeState extends State<AdminHome> {
     );
   }
 
+  // Overview Carousel with Employee and Leave Type Charts
+  Widget _buildOverviewCarousel(
+    EmployeeManagementProvider employeeProvider,
+    List<RequestModel> allRequests,
+  ) {
+    // Count only PENDING leave requests by type
+    final pendingLeaveRequests = allRequests
+        .where(
+          (r) =>
+              r.type == AppConstants.requestTypeLeave &&
+              r.status == AppConstants.statusPending,
+        )
+        .toList();
+
+    int plCount = 0;
+    int slCount = 0;
+    int clCount = 0;
+
+    for (var request in pendingLeaveRequests) {
+      final leaveType = request.additionalData?['leaveType'] as String?;
+      if (leaveType != null) {
+        switch (leaveType.toLowerCase()) {
+          case 'pl':
+            plCount++;
+            break;
+          case 'sl':
+            slCount++;
+            break;
+          case 'cl':
+            clCount++;
+            break;
+        }
+      }
+    }
+
+    final totalPendingLeaves = plCount + slCount + clCount;
+
+    // Build items list - always include employee chart
+    List<Widget> carouselItems = [
+      SizedBox(
+        width: double.infinity,
+        child: _buildEmployeeChartCard(employeeProvider),
+      ),
+    ];
+
+    // Only add leave type chart if there are pending leave requests
+    if (totalPendingLeaves > 0) {
+      carouselItems.add(
+        SizedBox(
+          width: double.infinity,
+          child: _buildLeaveTypeChartCard(
+            plCount,
+            slCount,
+            clCount,
+            totalPendingLeaves,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: CarouselSlider(
+            options: CarouselOptions(
+              height: 200.h, // Reduced height for smaller card
+              autoPlay:
+                  carouselItems.length >
+                  1, // Only auto-play if more than one item
+              autoPlayInterval: const Duration(seconds: 4),
+              autoPlayAnimationDuration: const Duration(milliseconds: 800),
+              autoPlayCurve: Curves.fastOutSlowIn,
+              enlargeCenterPage: false,
+              viewportFraction: 1.0,
+              enableInfiniteScroll: carouselItems.length > 1,
+              onPageChanged: (index, reason) {
+                setState(() {
+                  _currentCarouselIndex = index;
+                });
+              },
+            ),
+            items: carouselItems,
+          ),
+        ),
+        SizedBox(height: 8.h),
+        // Dot Indicator
+        DotIndicator(
+          itemCount: carouselItems.length,
+          currentIndex: _currentCarouselIndex,
+        ),
+      ],
+    );
+  }
+
   // Employee Statistics Card with Pie Chart
-  Widget _buildEmployeeStatsCard(EmployeeManagementProvider provider) {
+  Widget _buildEmployeeChartCard(EmployeeManagementProvider provider) {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
       child: Padding(
-        padding: EdgeInsets.all(20.w),
+        padding: EdgeInsets.all(12.w),
         child: provider.totalEmployees > 0
-            ? Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Pie Chart with Total in Center
+                  // Chart and Total in Center
                   SizedBox(
-                    width: 140.w,
-                    height: 140.h,
+                    width: 120.w,
+                    height: 120.h,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
                         PieChart(
                           PieChartData(
                             sectionsSpace: 2,
-                            centerSpaceRadius: 40.r,
+                            centerSpaceRadius: 35.r,
                             sections: [
                               PieChartSectionData(
                                 value: provider.onboardedEmployees.toDouble(),
                                 title: '${provider.onboardedEmployees}',
-                                color: Colors.green,
-                                radius: 35.r,
-                                titleStyle: getTextTheme().bodyMedium?.copyWith(
+                                color: ConstColors.successGreen,
+                                radius: 30.r,
+                                titleStyle: getTextTheme().bodySmall?.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: ConstColors.white,
+                                  fontSize: 11.sp,
                                 ),
                               ),
                               PieChartSectionData(
                                 value: provider.pendingEmployees.toDouble(),
                                 title: '${provider.pendingEmployees}',
-                                color: Colors.orange,
-                                radius: 35.r,
-                                titleStyle: getTextTheme().bodyMedium?.copyWith(
+                                color: ConstColors.warningAmber,
+                                radius: 30.r,
+                                titleStyle: getTextTheme().bodySmall?.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: ConstColors.white,
+                                  fontSize: 11.sp,
                                 ),
                               ),
                             ],
@@ -526,20 +698,23 @@ class _AdminHomeState extends State<AdminHome> {
                                         .toDouble(),
                                     duration: const Duration(seconds: 1),
                                     isFloatingPoint: false,
-                                    style: getTextTheme().displayMedium
-                                        ?.copyWith(color: Colors.indigo),
+                                    style: getTextTheme().titleMedium?.copyWith(
+                                      color: ConstColors.primary,
+                                    ),
                                   )
                                 : Text(
                                     provider.totalEmployees.toString(),
-                                    style: getTextTheme().displayMedium
-                                        ?.copyWith(color: Colors.indigo),
+                                    style: getTextTheme().titleMedium?.copyWith(
+                                      color: ConstColors.primary,
+                                    ),
                                   ),
                             SizedBox(height: 2.h),
                             Text(
                               'Total',
-                              style: getTextTheme().bodySmall?.copyWith(
+                              style: getTextTheme().labelSmall?.copyWith(
                                 fontWeight: FontWeight.w500,
-                                color: Colors.grey,
+                                color: ConstColors.textColorLight,
+                                fontSize: 9.sp,
                               ),
                             ),
                           ],
@@ -547,14 +722,15 @@ class _AdminHomeState extends State<AdminHome> {
                       ],
                     ),
                   ),
-                  // Legend
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+                  SizedBox(height: 8.h),
+                  // Legend below chart, wrapped in row
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 12.w,
+                    runSpacing: 8.h,
                     children: [
-                      _buildLegendItem('Onboarded', Colors.green),
-                      SizedBox(height: 12.h),
-                      _buildLegendItem('Pending', Colors.orange),
+                      _buildLegendItem('Onboarded', ConstColors.successGreen),
+                      _buildLegendItem('Pending', ConstColors.warningAmber),
                     ],
                   ),
                 ],
@@ -564,7 +740,155 @@ class _AdminHomeState extends State<AdminHome> {
                 child: Text(
                   'No employee data available',
                   style: getTextTheme().bodyMedium?.copyWith(
-                    color: Colors.grey,
+                    color: ConstColors.textColorLight,
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+
+  // Leave Type Chart Card (PL, SL, CL)
+  Widget _buildLeaveTypeChartCard(
+    int plCount,
+    int slCount,
+    int clCount,
+    int totalLeaves,
+  ) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+      child: Padding(
+        padding: EdgeInsets.all(8.w),
+        child: totalLeaves > 0
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Chart and Total in Center
+                  SizedBox(
+                    width: 110.w,
+                    height: 110.h,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        PieChart(
+                          PieChartData(
+                            sectionsSpace: 2,
+                            centerSpaceRadius: 32.r,
+                            sections: [
+                              if (plCount > 0)
+                                PieChartSectionData(
+                                  value: plCount.toDouble(),
+                                  title: '$plCount',
+                                  color: ConstColors
+                                      .infoBlue, // Same as user home (blue)
+                                  radius: 28.r,
+                                  titleStyle: getTextTheme().bodySmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: ConstColors.white,
+                                        fontSize: 11.sp,
+                                      ),
+                                ),
+                              if (slCount > 0)
+                                PieChartSectionData(
+                                  value: slCount.toDouble(),
+                                  title: '$slCount',
+                                  color: ConstColors
+                                      .successGreen, // Same as user home (green)
+                                  radius: 28.r,
+                                  titleStyle: getTextTheme().bodySmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: ConstColors.white,
+                                        fontSize: 11.sp,
+                                      ),
+                                ),
+                              if (clCount > 0)
+                                PieChartSectionData(
+                                  value: clCount.toDouble(),
+                                  title: '$clCount',
+                                  color: ConstColors
+                                      .inProgressOrange, // Same as user home (orange)
+                                  radius: 28.r,
+                                  titleStyle: getTextTheme().bodySmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: ConstColors.white,
+                                        fontSize: 11.sp,
+                                      ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        // Total Count in Center
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            isAnimated
+                                ? AnimatedNumber(
+                                    startValue: totalLeaves.toDouble() / 2,
+                                    endValue: totalLeaves.toDouble(),
+                                    duration: const Duration(seconds: 1),
+                                    isFloatingPoint: false,
+                                    style: getTextTheme().titleMedium?.copyWith(
+                                      color: ConstColors.primary,
+                                    ),
+                                  )
+                                : Text(
+                                    totalLeaves.toString(),
+                                    style: getTextTheme().titleMedium?.copyWith(
+                                      color: ConstColors.primary,
+                                    ),
+                                  ),
+                            SizedBox(height: 2.h),
+                            Text(
+                              'Total',
+                              style: getTextTheme().labelSmall?.copyWith(
+                                fontWeight: FontWeight.w500,
+                                color: ConstColors.textColorLight,
+                                fontSize: 9.sp,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 6.h),
+                  // Legend below chart, wrapped in row
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 4.w,
+                    runSpacing: 6.h,
+                    children: [
+                      if (plCount > 0)
+                        _buildLegendItem(
+                          'Privilege Leave (PL)',
+                          ConstColors.infoBlue, // Same as user home (blue)
+                        ),
+                      if (slCount > 0)
+                        _buildLegendItem(
+                          'Sick Leave (SL)',
+                          ConstColors.successGreen, // Same as user home (green)
+                        ),
+                      if (clCount > 0)
+                        _buildLegendItem(
+                          'Casual Leave (CL)',
+                          ConstColors
+                              .inProgressOrange, // Same as user home (orange)
+                        ),
+                    ],
+                  ),
+                ],
+              )
+            : Padding(
+                padding: EdgeInsets.all(40.w),
+                child: Text(
+                  'No leave requests available',
+                  style: getTextTheme().bodyMedium?.copyWith(
+                    color: ConstColors.textColorLight,
                   ),
                 ),
               ),
@@ -871,5 +1195,31 @@ class _AdminHomeState extends State<AdminHome> {
 
   String _formatDate(DateTime date) {
     return "${date.day}/${date.month}/${date.year}";
+  }
+
+  String _getLeaveTypeFullName(String leaveType) {
+    switch (leaveType.toLowerCase()) {
+      case AppConstants.leaveTypePL:
+        return 'Privilege Leave (PL)';
+      case AppConstants.leaveTypeSL:
+        return 'Sick Leave (SL)';
+      case AppConstants.leaveTypeCL:
+        return 'Casual Leave (CL)';
+      default:
+        return '${leaveType.toUpperCase()} (${leaveType.toUpperCase()})';
+    }
+  }
+
+  Color _getLeaveTypeColor(String leaveType) {
+    switch (leaveType.toLowerCase()) {
+      case AppConstants.leaveTypePL:
+        return ConstColors.infoBlue;
+      case AppConstants.leaveTypeSL:
+        return ConstColors.successGreen;
+      case AppConstants.leaveTypeCL:
+        return ConstColors.inProgressOrange;
+      default:
+        return Colors.grey;
+    }
   }
 }

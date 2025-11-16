@@ -67,18 +67,23 @@ class _SplashScreenState extends State<SplashScreen>
       if (authProvider.isLoggedIn && authProvider.userModel != null) {
         // User is logged in and user data is loaded
         log('Navigating to dashboard - isAdmin: ${authProvider.isAdmin}');
-        
+
         // Check security settings
-        final securityProvider = Provider.of<SecurityProvider>(context, listen: false);
+        final securityProvider = Provider.of<SecurityProvider>(
+          context,
+          listen: false,
+        );
         await securityProvider.initializeSecurity(authProvider.userModel!.id);
-        
+
         // Check if app unlock PIN exists (mandatory)
-        final hasPin = await securityProvider.hasAppUnlockPIN(authProvider.userModel!.id);
-        
+        final hasPin = await securityProvider.hasAppUnlockPIN(
+          authProvider.userModel!.id,
+        );
+
         final targetScreen = authProvider.isAdmin
             ? const AdminDashboardScreen()
             : const UserDashboardScreen();
-        
+
         if (!hasPin) {
           // PIN not set - show setup screen
           Navigator.of(context).pushReplacement(
@@ -157,21 +162,25 @@ class _SplashScreenState extends State<SplashScreen>
                 Center(
                   child: Text(
                     'Attendance Management',
-                    style: getTextTheme()
-                        .headlineSmall
-                        ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: getTextTheme().headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
 
                 SizedBox(height: 10.h),
                 Text(
                   'Manage your leaves easily',
-                  style:
-                      getTextTheme().bodyLarge?.copyWith(color: Colors.white70),
+                  style: getTextTheme().bodyLarge?.copyWith(
+                    color: Colors.white70,
+                  ),
                 ),
                 SizedBox(height: 40.h),
                 // Loading indicator
-                const CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
               ],
             ),
           ),
