@@ -52,13 +52,21 @@ class UserModel {
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    // Handle profileImageUrl - convert empty strings to null
+    final profileImageUrlValue = json['profileImageUrl'];
+    final profileImageUrl =
+        profileImageUrlValue != null &&
+            profileImageUrlValue.toString().trim().isNotEmpty
+        ? profileImageUrlValue.toString()
+        : null;
+
     return UserModel(
       id: json['id'] ?? '',
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       fcmToken: json['fcmToken'] ?? '',
       isAdmin: json['isAdmin'] ?? false,
-      profileImageUrl: json['profileImageUrl'],
+      profileImageUrl: profileImageUrl,
       employeeId: json['employeeId']
           ?.toString(), // Convert to string if it's an int
       department: json['department'],

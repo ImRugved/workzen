@@ -44,8 +44,13 @@ class AuthProvider with ChangeNotifier {
 
       if (userDoc.exists) {
         Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+        log("User data from Firestore - profileImageUrl: ${userData['profileImageUrl']}");
+        log("User data from Firestore - profileImageUrl type: ${userData['profileImageUrl'].runtimeType}");
+        log("User data from Firestore - all keys: ${userData.keys.toList()}");
         _userModel = UserModel.fromJson(userData);
         log("User data fetched successfully: ${_userModel?.name}");
+        log("UserModel profileImageUrl after parsing: ${_userModel?.profileImageUrl}");
+        log("UserModel profileImageUrl type after parsing: ${_userModel?.profileImageUrl.runtimeType}");
       } else {
         log("User document does not exist in Firestore");
       }
@@ -66,8 +71,13 @@ class AuthProvider with ChangeNotifier {
   // Public method to refresh user data
   Future<void> refreshUserData() async {
     if (_user != null) {
+      log("refreshUserData called for user: ${_user!.uid}");
       await _fetchUserData();
+      log("After _fetchUserData - _userModel profileImageUrl: ${_userModel?.profileImageUrl}");
       notifyListeners();
+      log("notifyListeners() called");
+    } else {
+      log("refreshUserData called but _user is null");
     }
   }
 

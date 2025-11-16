@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:get/get.dart';
+import 'dart:developer' as developer;
 import '../providers/auth_provider.dart';
 import '../services/supabase_service.dart';
 import '../models/user_model.dart';
@@ -23,6 +24,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isUploading = false;
+  bool _isLoggingOut = false;
   bool _isEditingPersonal = false;
   final _personalFormKey = GlobalKey<FormState>();
   final TextEditingController _addressController = TextEditingController();
@@ -30,6 +32,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _alternateMobileController =
       TextEditingController();
   final TextEditingController _bloodGroupController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Refresh user data when screen loads to ensure we have latest profileImageUrl
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.user != null) {
+        developer.log('ProfileScreen initState - refreshing user data');
+        authProvider.refreshUserData();
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -42,6 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _pickAndUploadImage(ImageSource source) async {
     try {
+      developer.log('Starting image pick from source: $source');
       final XFile? image = await _picker.pickImage(
         source: source,
         maxWidth: 800,
@@ -50,49 +66,109 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
       if (image != null) {
+        developer.log('Image picked successfully: ${image.path}');
         setState(() {
           _isUploading = true;
         });
 
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final userId = authProvider.user?.uid;
+        developer.log('User ID: $userId');
 
         if (userId != null) {
-          final File imageFile = File(image.path);
-          final bytes = await imageFile.readAsBytes();
+          try {
+            final File imageFile = File(image.path);
+            developer.log('Reading image file bytes...');
+            final bytes = await imageFile.readAsBytes();
+            developer.log('Image bytes read: ${bytes.length} bytes');
 
-          final imageUrl = await SupabaseService.uploadProfileImage(
-            userId,
-            bytes,
-          );
-
-          if (imageUrl.isNotEmpty) {
-            // Refresh user data to get updated profile image
-            await authProvider.refreshUserData();
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Profile image updated successfully!'),
-                backgroundColor: Colors.green,
-              ),
+            developer.log('Uploading image to Supabase...');
+            final imageUrl = await SupabaseService.uploadProfileImage(
+              userId,
+              bytes,
             );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Failed to upload image. Please try again.'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            developer.log('Upload response - Image URL: $imageUrl');
+
+            if (imageUrl.isNotEmpty) {
+              developer.log(
+                'Image uploaded successfully, refreshing user data...',
+              );
+              developer.log('Uploaded image URL: $imageUrl');
+
+              // Wait a bit for Firestore to update
+              await Future.delayed(const Duration(milliseconds: 500));
+
+              // Refresh user data to get updated profile image
+              await authProvider.refreshUserData();
+              developer.log('User data refreshed successfully');
+              developer.log(
+                'User model profileImageUrl after refresh: ${authProvider.userModel?.profileImageUrl}',
+              );
+
+              // Verify the URL was saved correctly
+              final verifyDoc = await FirebaseFirestore.instance
+                  .collection(AppConstants.usersCollection)
+                  .doc(userId)
+                  .get();
+              if (verifyDoc.exists) {
+                final data = verifyDoc.data();
+                developer.log(
+                  'Firestore profileImageUrl: ${data?['profileImageUrl']}',
+                );
+              }
+
+              if (mounted) {
+                // Force UI rebuild
+                setState(() {});
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Profile image updated successfully!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            } else {
+              developer.log('ERROR: Image URL is empty after upload');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Failed to upload image. Please try again.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+          } catch (uploadError) {
+            developer.log('ERROR during image upload process: $uploadError');
+            developer.log('ERROR stack trace: ${StackTrace.current}');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Upload error: ${uploadError.toString()}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
           }
+        } else {
+          developer.log('ERROR: User ID is null');
         }
+      } else {
+        developer.log('No image selected by user');
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    } catch (e, stackTrace) {
+      developer.log('ERROR in _pickAndUploadImage: $e');
+      developer.log('ERROR stack trace: $stackTrace');
+      print('ERROR in _pickAndUploadImage: $e');
+      print('ERROR stack trace: $stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       setState(() {
         _isUploading = false;
@@ -177,14 +253,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 user.profileImageUrl!.isNotEmpty
                             ? CachedNetworkImage(
                                 imageUrl: user.profileImageUrl!,
+                                width: 120.w,
+                                height: 120.w,
                                 fit: BoxFit.cover,
-                                placeholder: (context, url) =>
-                                    const CircularProgressIndicator(),
-                                errorWidget: (context, url, error) => Icon(
-                                  Icons.person,
-                                  size: 60.r,
-                                  color: Colors.grey,
-                                ),
+                                placeholder: (context, url) {
+                                  developer.log(
+                                    'Loading profile image from: $url',
+                                  );
+                                  return const CircularProgressIndicator();
+                                },
+                                errorWidget: (context, url, error) {
+                                  developer.log(
+                                    'Error loading profile image: $error',
+                                  );
+                                  developer.log('Image URL: $url');
+                                  return Icon(
+                                    Icons.person,
+                                    size: 60.r,
+                                    color: Colors.grey,
+                                  );
+                                },
                               )
                             : Icon(
                                 Icons.person,
@@ -512,7 +600,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const Divider(),
 
                         ListTile(
-                          leading: const Icon(Icons.security, color: Colors.blue),
+                          leading: const Icon(
+                            Icons.security,
+                            color: Colors.blue,
+                          ),
                           title: Text(
                             'Security',
                             style: getTextTheme().bodyMedium,
@@ -540,38 +631,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           onTap: () {
                             showDialog(
                               context: context,
-                              builder: (BuildContext context) {
-                                return AlertDialog(
-                                  title: Text(
-                                    'Logout',
-                                    style: getTextTheme().titleMedium,
-                                  ),
-                                  content: Text(
-                                    'Are you sure you want to logout?',
-                                    style: getTextTheme().bodyMedium,
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: Text(
-                                        'Cancel',
-                                        style: getTextTheme().labelLarge,
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: () async {
-                                        Navigator.pop(context);
-                                        await authProvider.logout();
-                                        if (context.mounted) {
-                                          Get.offAllNamed('/login_screen');
-                                        }
-                                      },
-                                      child: Text(
+                              barrierDismissible: !_isLoggingOut,
+                              builder: (BuildContext dialogContext) {
+                                return StatefulBuilder(
+                                  builder: (context, setDialogState) {
+                                    return AlertDialog(
+                                      title: Text(
                                         'Logout',
-                                        style: getTextTheme().labelLarge,
+                                        style: getTextTheme().titleMedium,
                                       ),
-                                    ),
-                                  ],
+                                      content: Text(
+                                        'Are you sure you want to logout?',
+                                        style: getTextTheme().bodyMedium,
+                                      ),
+                                      actions: [
+                                        if (!_isLoggingOut)
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(dialogContext),
+                                            child: Text(
+                                              'Cancel',
+                                              style: getTextTheme().labelLarge,
+                                            ),
+                                          ),
+                                        TextButton(
+                                          onPressed: _isLoggingOut
+                                              ? null
+                                              : () async {
+                                                  setDialogState(() {
+                                                    _isLoggingOut = true;
+                                                  });
+                                                  setState(() {
+                                                    _isLoggingOut = true;
+                                                  });
+                                                  try {
+                                                    await authProvider.logout();
+                                                    if (mounted) {
+                                                      Get.offAllNamed(
+                                                        '/login_screen',
+                                                      );
+                                                    }
+                                                  } catch (e) {
+                                                    developer.log(
+                                                      'Logout error: $e',
+                                                    );
+                                                    if (mounted) {
+                                                      setDialogState(() {
+                                                        _isLoggingOut = false;
+                                                      });
+                                                      setState(() {
+                                                        _isLoggingOut = false;
+                                                      });
+                                                      Navigator.pop(
+                                                        dialogContext,
+                                                      );
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        SnackBar(
+                                                          content: Text(
+                                                            'Logout failed: ${e.toString()}',
+                                                          ),
+                                                          backgroundColor:
+                                                              Colors.red,
+                                                        ),
+                                                      );
+                                                    }
+                                                  }
+                                                },
+                                          child: _isLoggingOut
+                                              ? SizedBox(
+                                                  width: 20.w,
+                                                  height: 20.h,
+                                                  child:
+                                                      const CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                )
+                                              : Text(
+                                                  'Logout',
+                                                  style:
+                                                      getTextTheme().labelLarge,
+                                                ),
+                                        ),
+                                      ],
+                                    );
+                                  },
                                 );
                               },
                             );

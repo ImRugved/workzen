@@ -6,8 +6,15 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/auth_provider.dart';
 import '../constants/const_textstyle.dart';
 
-class AppDrawer extends StatelessWidget {
+class AppDrawer extends StatefulWidget {
   const AppDrawer({Key? key}) : super(key: key);
+
+  @override
+  State<AppDrawer> createState() => _AppDrawerState();
+}
+
+class _AppDrawerState extends State<AppDrawer> {
+  bool _isLoggingOut = false;
 
   @override
   Widget build(BuildContext context) {
@@ -138,36 +145,7 @@ class AppDrawer extends StatelessWidget {
               Get.toNamed('/update_check_screen');
             },
           ),
-          _buildDrawerItem(context, 'Logout', Icons.logout, () async {
-            // Show confirmation dialog
-            bool? confirm = await showDialog<bool>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Logout'),
-                content: const Text('Are you sure you want to logout?'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Cancel'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    child: const Text('Logout'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                    ),
-                  ),
-                ],
-              ),
-            );
-
-            if (confirm == true) {
-              await authProvider.logout();
-              if (context.mounted) {
-                Get.offAllNamed('/login_screen');
-              }
-            }
-          }),
+          _buildLogoutItem(context, authProvider),
         ],
       ),
     );
@@ -186,6 +164,118 @@ class AppDrawer extends StatelessWidget {
         style: getTextTheme().bodyMedium?.copyWith(fontWeight: FontWeight.w600),
       ),
       onTap: onTap,
+    );
+  }
+
+  Widget _buildLogoutItem(BuildContext context, AuthProvider authProvider) {
+    return ListTile(
+      leading: Icon(Icons.logout, color: Colors.indigo, size: 22.r),
+      title: Text(
+        'Logout',
+        style: getTextTheme().bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+      ),
+      trailing: _isLoggingOut
+          ? SizedBox(
+              width: 20.w,
+              height: 20.h,
+              child: const CircularProgressIndicator(
+                strokeWidth: 2,
+              ),
+            )
+          : null,
+      enabled: !_isLoggingOut,
+      onTap: () async {
+        // Show confirmation dialog
+        bool? confirm = await showDialog<bool>(
+          context: context,
+          barrierDismissible: !_isLoggingOut,
+          builder: (dialogContext) {
+            return StatefulBuilder(
+              builder: (context, setDialogState) {
+                return AlertDialog(
+                  title: const Text('Logout'),
+                  content: const Text('Are you sure you want to logout?'),
+                  actions: [
+                    if (!_isLoggingOut)
+                      TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                    ElevatedButton(
+                      onPressed: _isLoggingOut
+                          ? null
+                          : () async {
+                              setDialogState(() {
+                                _isLoggingOut = true;
+                              });
+                              setState(() {
+                                _isLoggingOut = true;
+                              });
+                              Navigator.of(dialogContext).pop(true);
+                              try {
+                                await authProvider.logout();
+                                if (mounted) {
+                                  Get.offAllNamed('/login_screen');
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  setState(() {
+                                    _isLoggingOut = false;
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Logout failed: ${e.toString()}'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                      ),
+                      child: _isLoggingOut
+                          ? SizedBox(
+                              width: 20.w,
+                              height: 20.h,
+                              child: const CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text('Logout'),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+
+        if (confirm == true && !_isLoggingOut) {
+          setState(() {
+            _isLoggingOut = true;
+          });
+          try {
+            await authProvider.logout();
+            if (mounted) {
+              Get.offAllNamed('/login_screen');
+            }
+          } catch (e) {
+            if (mounted) {
+              setState(() {
+                _isLoggingOut = false;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Logout failed: ${e.toString()}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        }
+      },
     );
   }
 }
