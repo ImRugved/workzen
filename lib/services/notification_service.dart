@@ -7,6 +7,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:workzen/app_constants.dart';
 import 'package:workzen/providers/auth_provider.dart' as auth;
+import 'package:workzen/utils/logger.dart';
 
 class PushNotificationsService {
   final GetStorage box = GetStorage();
@@ -19,7 +20,7 @@ class PushNotificationsService {
   // Initialize notification permissions and settings after login
   Future<void> initAfterLogin() async {
     try {
-      log('Initializing notification service after login');
+      logDebug('Initializing notification service after login');
 
       // Firebase Messaging Permission Configuration
       NotificationSettings settings = await _firebaseMessaging
@@ -37,7 +38,7 @@ class PushNotificationsService {
       String? token;
       try {
         token = await _firebaseMessaging.getToken();
-        log("FCM token obtained: $token");
+        logDebug("FCM token obtained: $token");
 
         if (token != null) {
           // Save token to local storage
@@ -46,11 +47,13 @@ class PushNotificationsService {
           // Update token in Firestore and Realtime Database
           await _updateFCMToken(token);
         } else {
-          log("FCM token is null, skipping token operations");
+          logDebug("FCM token is null, skipping token operations");
         }
       } catch (tokenError) {
-        log("Error getting FCM token: $tokenError");
-        log("Continuing without FCM token - push notifications may not work");
+        logDebug("Error getting FCM token: $tokenError");
+        logDebug(
+          "Continuing without FCM token - push notifications may not work",
+        );
         // Don't rethrow - allow app to continue without FCM
       }
 
@@ -58,21 +61,21 @@ class PushNotificationsService {
       try {
         _firebaseMessaging.onTokenRefresh.listen(
           (newToken) {
-            log("FCM token refreshed: $newToken");
+            logDebug("FCM token refreshed: $newToken");
             _updateFCMToken(newToken);
           },
           onError: (error) {
-            log("Error in token refresh listener: $error");
+            logDebug("Error in token refresh listener: $error");
           },
         );
       } catch (listenerError) {
-        log("Error setting up token refresh listener: $listenerError");
+        logDebug("Error setting up token refresh listener: $listenerError");
       }
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        log('User granted notification permission');
+        logDebug('User granted notification permission');
       } else {
-        log('User declined or has not accepted notification permission');
+        logDebug('User declined or has not accepted notification permission');
       }
 
       // Flutter Local Notifications Initialization
@@ -102,17 +105,17 @@ class PushNotificationsService {
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
       FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
 
-      log('Notification service initialized successfully after login');
+      logDebug('Notification service initialized successfully after login');
     } catch (e) {
-      log('Error initializing notification service after login: $e');
-      log('App will continue without full notification functionality');
+      logDebug('Error initializing notification service after login: $e');
+      logDebug('App will continue without full notification functionality');
       // Don't rethrow - allow app to continue
     }
   }
 
   Future<void> _updateFCMToken(String? token) async {
     if (token == null || token.isEmpty) {
-      log('Cannot update FCM token: Token is empty');
+      logDebug('Cannot update FCM token: Token is empty');
       return;
     }
 
@@ -123,7 +126,7 @@ class PushNotificationsService {
       // Check if user is logged in
       if (currentUser != null) {
         String userId = currentUser.uid;
-        log('Updating FCM token for user $userId: $token');
+        logDebug('Updating FCM token for user $userId: $token');
 
         // Update in Firestore only
         try {
@@ -131,30 +134,30 @@ class PushNotificationsService {
               .collection(AppConstants.usersCollection)
               .doc(userId)
               .update({'fcmToken': token});
-          log('FCM token updated successfully in Firestore');
+          logDebug('FCM token updated successfully in Firestore');
         } catch (firestoreError) {
-          log('Error updating FCM token in Firestore: $firestoreError');
+          logDebug('Error updating FCM token in Firestore: $firestoreError');
 
           // Handle specific Firestore errors
           if (firestoreError.toString().contains('permission-denied')) {
-            log(
+            logDebug(
               'Permission denied for Firestore token update - rules may need time to propagate',
             );
           } else if (firestoreError.toString().contains('not-found')) {
-            log('User document not found in Firestore for token update');
+            logDebug('User document not found in Firestore for token update');
           }
         }
       } else {
-        log('Cannot update FCM token: User not logged in');
+        logDebug('Cannot update FCM token: User not logged in');
       }
     } catch (e) {
-      log('Error updating FCM token: $e');
+      logDebug('Error updating FCM token: $e');
     }
   }
 
   // Handle foreground messages
   void _handleForegroundMessage(RemoteMessage message) {
-    log('Received foreground message: ${message.messageId}');
+    logDebug('Received foreground message: ${message.messageId}');
 
     // Show local notification for foreground messages
     _showLocalNotification(message);
@@ -162,7 +165,7 @@ class PushNotificationsService {
 
   // Handle message opened app
   void _handleMessageOpenedApp(RemoteMessage message) {
-    log('Message opened app: ${message.messageId}');
+    logDebug('Message opened app: ${message.messageId}');
 
     // Handle navigation based on message data
     _handleNotificationNavigation(message.data);
@@ -171,14 +174,25 @@ class PushNotificationsService {
   // Show local notification
   Future<void> _showLocalNotification(RemoteMessage message) async {
     try {
-      const AndroidNotificationDetails androidPlatformChannelSpecifics =
+      final String title = message.notification?.title ?? 'WorkZen';
+      final String body = message.notification?.body ?? 'You have a new notification';
+
+      final AndroidNotificationDetails androidPlatformChannelSpecifics =
           AndroidNotificationDetails(
             'workzen_channel',
             'WorkZen Notifications',
             channelDescription: 'Notifications for WorkZen app',
             importance: Importance.max,
             priority: Priority.high,
-            showWhen: false,
+            showWhen: true,
+            styleInformation: BigTextStyleInformation(
+              body,
+              htmlFormatBigText: true,
+              contentTitle: title,
+              htmlFormatContentTitle: true,
+              summaryText: 'WorkZen',
+              htmlFormatSummaryText: true,
+            ),
           );
 
       const DarwinNotificationDetails iOSPlatformChannelSpecifics =
@@ -188,20 +202,20 @@ class PushNotificationsService {
             presentSound: true,
           );
 
-      const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      final NotificationDetails platformChannelSpecifics = NotificationDetails(
         android: androidPlatformChannelSpecifics,
         iOS: iOSPlatformChannelSpecifics,
       );
 
       await flutterLocalNotificationsPlugin.show(
         message.hashCode,
-        message.notification?.title ?? 'WorkZen',
-        message.notification?.body ?? 'You have a new notification',
+        title,
+        body,
         platformChannelSpecifics,
         payload: message.data.toString(),
       );
     } catch (e) {
-      log('Error showing local notification: $e');
+      logDebug('Error showing local notification: $e');
     }
   }
 
@@ -225,13 +239,13 @@ class PushNotificationsService {
         }
       }
     } catch (e) {
-      log('Error handling notification navigation: $e');
+      logDebug('Error handling notification navigation: $e');
     }
   }
 
   // Handle notification tap
   static void onNotificationTap(NotificationResponse notificationResponse) {
-    log('Notification tapped: ${notificationResponse.payload}');
+    logDebug('Notification tapped: ${notificationResponse.payload}');
 
     // Handle notification tap navigation
     // You can parse the payload and navigate accordingly

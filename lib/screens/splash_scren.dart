@@ -2,6 +2,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
+import 'package:workzen/utils/logger.dart';
 import '../providers/auth_provider.dart';
 import '../constants/const_textstyle.dart';
 
@@ -58,15 +59,15 @@ class _SplashScreenState extends State<SplashScreen>
     // No need to update all users' tokens from splash screen
 
     if (mounted) {
-      log('Splash screen navigation check:');
-      log('- isLoggedIn: ${authProvider.isLoggedIn}');
-      log('- isAdmin: ${authProvider.isAdmin}');
-      log('- user: ${authProvider.user?.uid}');
-      log('- userModel: ${authProvider.userModel?.name}');
+      logDebug('Splash screen navigation check:');
+      logDebug('- isLoggedIn: ${authProvider.isLoggedIn}');
+      logDebug('- isAdmin: ${authProvider.isAdmin}');
+      logDebug('- user: ${authProvider.user?.uid}');
+      logDebug('- userModel: ${authProvider.userModel?.name}');
 
       if (authProvider.isLoggedIn && authProvider.userModel != null) {
         // User is logged in and user data is loaded
-        log('Navigating to dashboard - isAdmin: ${authProvider.isAdmin}');
+        logDebug('Navigating to dashboard - isAdmin: ${authProvider.isAdmin}');
 
         // Check security settings
         final securityProvider = Provider.of<SecurityProvider>(
@@ -101,7 +102,7 @@ class _SplashScreenState extends State<SplashScreen>
         }
       } else {
         // User is not logged in or user data not loaded, navigate to login screen
-        log(
+        logDebug(
           'User not logged in or data not loaded, navigating to login screen',
         );
         Navigator.of(context).pushReplacement(
@@ -109,7 +110,7 @@ class _SplashScreenState extends State<SplashScreen>
         );
       }
     } else {
-      log('Splash screen widget not mounted, skipping navigation');
+      logDebug('Splash screen widget not mounted, skipping navigation');
     }
   }
 

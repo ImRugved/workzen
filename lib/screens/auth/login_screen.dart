@@ -7,6 +7,7 @@ import '../../providers/security_provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../constants/const_textstyle.dart';
+import '../../constants/constant_snackbar.dart';
 import '../app_unlock_pin_setup_screen.dart';
 import '../app_unlock_screen.dart';
 import '../admin/dashboard/admin_dashboard_screen.dart';
@@ -31,6 +32,68 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
+  void _showForgotPasswordDialog(BuildContext context) {
+    final resetEmailController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Password'),
+        content: Form(
+          key: formKey,
+          child: CustomTextField(
+            controller: resetEmailController,
+            label: 'Please enter your email',
+            prefixIcon: Icons.email_outlined,
+            keyboardType: TextInputType.emailAddress,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your email';
+              }
+              if (!RegExp(
+                r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+              ).hasMatch(value)) {
+                return 'Please enter a valid email';
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                final authProvider = Provider.of<AuthProvider>(
+                  context,
+                  listen: false,
+                );
+                Navigator.pop(context);
+                final result = await authProvider.resetPassword(
+                  resetEmailController.text.trim(),
+                );
+                if (result['success']) {
+                  ConstantSnackbar.showSuccess(
+                    title: result['message'],
+                  );
+                } else {
+                  ConstantSnackbar.showError(
+                    title: result['error'],
+                  );
+                }
+              }
+            },
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -41,21 +104,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (success && mounted) {
         // Check security settings
-        final securityProvider = Provider.of<SecurityProvider>(context, listen: false);
+        final securityProvider = Provider.of<SecurityProvider>(
+          context,
+          listen: false,
+        );
         await securityProvider.initializeSecurity(authProvider.userModel!.id);
-        
+
         // Check if app unlock PIN exists (mandatory)
-        final hasPin = await securityProvider.hasAppUnlockPIN(authProvider.userModel!.id);
-        
+        final hasPin = await securityProvider.hasAppUnlockPIN(
+          authProvider.userModel!.id,
+        );
+
         final targetScreen = authProvider.isAdmin
             ? const AdminDashboardScreen()
             : const UserDashboardScreen();
-        
+
         if (!hasPin) {
           // PIN not set - show setup screen
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (context) => const AppUnlockPinSetupScreen(isFirstTime: true),
+              builder: (context) =>
+                  const AppUnlockPinSetupScreen(isFirstTime: true),
             ),
           );
         } else {
@@ -102,17 +171,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     'Attendance Management',
                     textAlign: TextAlign.center,
                     style: getTextTheme().headlineSmall?.copyWith(
-                          color: Colors.indigo,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      color: Colors.indigo,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   SizedBox(height: 8.h),
                   Text(
                     'Sign in to continue',
                     textAlign: TextAlign.center,
                     style: getTextTheme().bodyLarge?.copyWith(
-                          color: Colors.grey,
-                        ),
+                      color: Colors.grey,
+                    ),
                   ),
                   SizedBox(height: 48.h),
 
@@ -126,8 +195,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your email';
                       }
-                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                          .hasMatch(value)) {
+                      if (!RegExp(
+                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                      ).hasMatch(value)) {
                         return 'Please enter a valid email';
                       }
                       return null;
@@ -168,7 +238,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     isLoading: authProvider.isLoading,
                     onPressed: _login,
                   ),
-                  SizedBox(height: 16.h),
+
+                  // Forgot Password Button
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => _showForgotPasswordDialog(context),
+                      child: Text(
+                        'Forgot Password?',
+                        style: getTextTheme().bodyMedium?.copyWith(
+                          color: Colors.indigo,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
 
                   // Register Link
                   Row(
@@ -176,19 +260,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       Text(
                         "Don't have an account? ",
-                        style: getTextTheme()
-                            .bodyMedium
-                            ?.copyWith(color: Colors.grey),
+                        style: getTextTheme().bodyMedium?.copyWith(
+                          color: Colors.grey,
+                        ),
                       ),
                       TextButton(
                         onPressed: () {
                           Get.toNamed('/signup_screen');
                         },
-                        child: Text('Sign Up',
-                            style: getTextTheme().labelLarge?.copyWith(
-                                  color: Colors.indigo,
-                                  fontWeight: FontWeight.bold,
-                                )),
+                        child: Text(
+                          'Sign Up',
+                          style: getTextTheme().labelLarge?.copyWith(
+                            color: Colors.indigo,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ],
                   ),

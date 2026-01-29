@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import 'package:workzen/utils/logger.dart';
 import '../app_constants.dart';
 import '../models/request_model.dart';
 import '../models/user_model.dart';
@@ -119,7 +120,7 @@ class RequestProvider with ChangeNotifier {
         .orderBy('appliedOn', descending: true)
         .snapshots()
         .handleError((error) {
-          log('Error in getUserRequestsStream: $error');
+          logDebug('Error in getUserRequestsStream: $error');
           return <RequestModel>[];
         })
         .map((snapshot) {
@@ -131,7 +132,7 @@ class RequestProvider with ChangeNotifier {
                 )
                 .toList();
           } catch (e) {
-            log('Error parsing user request documents: $e');
+            logDebug('Error parsing user request documents: $e');
             return <RequestModel>[];
           }
         });
@@ -153,7 +154,7 @@ class RequestProvider with ChangeNotifier {
         .orderBy('appliedOn', descending: true)
         .snapshots()
         .handleError((error) {
-          log('Error in getAllRequestsStream: $error');
+          logDebug('Error in getAllRequestsStream: $error');
           return <RequestModel>[];
         })
         .map((snapshot) {
@@ -165,7 +166,7 @@ class RequestProvider with ChangeNotifier {
                 )
                 .toList();
           } catch (e) {
-            log('Error parsing request documents: $e');
+            logDebug('Error parsing request documents: $e');
             return <RequestModel>[];
           }
         });
@@ -205,7 +206,7 @@ class RequestProvider with ChangeNotifier {
           )
           .toList();
     } catch (e) {
-      log("Error fetching user requests: $e");
+      logDebug("Error fetching user requests: $e");
     }
 
     _isLoading = false;
@@ -235,12 +236,12 @@ class RequestProvider with ChangeNotifier {
           )
           .toList();
     } catch (e) {
-      log("Error fetching all requests: $e");
+      logDebug("Error fetching all requests: $e");
       _allRequests = [];
 
       if (e.toString().contains('permission-denied') ||
           e.toString().contains('PERMISSION_DENIED')) {
-        log("Permission denied error - user may not have admin access");
+        logDebug("Permission denied error - user may not have admin access");
       }
     }
 
@@ -272,7 +273,7 @@ class RequestProvider with ChangeNotifier {
       notifyListeners();
       return null;
     } catch (e) {
-      log('Error fetching leave balances: $e');
+      logDebug('Error fetching leave balances: $e');
       _isLoadingBalances = false;
       notifyListeners();
       return null;
@@ -359,7 +360,7 @@ class RequestProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      log(
+      logDebug(
         'Applying ${request.type} request for user ${request.userName} (${request.userId})',
       );
 
@@ -371,7 +372,9 @@ class RequestProvider with ChangeNotifier {
           .doc(request.id)
           .set(request.toJson());
 
-      log('${request.type} request saved to Firestore with ID: ${request.id}');
+      logDebug(
+        '${request.type} request saved to Firestore with ID: ${request.id}',
+      );
 
       // Fetch admins to notify
       QuerySnapshot adminSnapshot = await _firestore
@@ -379,14 +382,14 @@ class RequestProvider with ChangeNotifier {
           .where('isAdmin', isEqualTo: true)
           .get();
 
-      log(
+      logDebug(
         'Found ${adminSnapshot.docs.length} admin users to notify about ${request.type} request',
       );
 
       // Send notification to all admins
       for (var adminDoc in adminSnapshot.docs) {
         String adminId = adminDoc.id;
-        log('Preparing to notify admin: $adminId');
+        logDebug('Preparing to notify admin: $adminId');
 
         try {
           Map<String, dynamic> notificationData = {
@@ -410,7 +413,7 @@ class RequestProvider with ChangeNotifier {
                 .toString();
           }
 
-          log('Notification data: ${jsonEncode(notificationData)}');
+          logDebug('Notification data: ${jsonEncode(notificationData)}');
 
           bool notificationSent = await _fcmService.sendNotificationToUser(
             userId: adminId,
@@ -420,16 +423,16 @@ class RequestProvider with ChangeNotifier {
           );
 
           if (notificationSent) {
-            log(
+            logDebug(
               '${request.type} request notification sent successfully to admin: $adminId',
             );
           } else {
-            log(
+            logDebug(
               'Failed to send ${request.type} request notification to admin: $adminId',
             );
           }
         } catch (e) {
-          log('Error sending notification to admin: $e');
+          logDebug('Error sending notification to admin: $e');
         }
       }
 
@@ -437,7 +440,7 @@ class RequestProvider with ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      log("Error applying ${request.type} request: $e");
+      logDebug("Error applying ${request.type} request: $e");
       _isLoading = false;
       notifyListeners();
       return false;
@@ -453,10 +456,10 @@ class RequestProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      log(
+      logDebug(
         'Updating request status for request ID: ${request.id}, user: ${request.userName} (${request.userId})',
       );
-      log('New status: $status, Remark: $remark');
+      logDebug('New status: $status, Remark: $remark');
 
       // Update in user's requests subcollection
       await _firestore
@@ -471,7 +474,7 @@ class RequestProvider with ChangeNotifier {
         await _deductLeaveBalance(request);
       }
 
-      log('Request status updated in Firestore');
+      logDebug('Request status updated in Firestore');
 
       // Send notification to user
       try {
@@ -487,7 +490,7 @@ class RequestProvider with ChangeNotifier {
           'type': AppConstants.requestStatusUpdateNotification,
         };
 
-        log('Notification data: ${jsonEncode(notificationData)}');
+        logDebug('Notification data: ${jsonEncode(notificationData)}');
 
         String notificationBody;
         if (request.isLeaveRequest || request.isWFHRequest) {
@@ -506,23 +509,23 @@ class RequestProvider with ChangeNotifier {
         );
 
         if (notificationSent) {
-          log(
+          logDebug(
             'Request status notification sent successfully to user: ${request.userId}',
           );
         } else {
-          log(
+          logDebug(
             'Failed to send request status notification to user: ${request.userId}',
           );
         }
       } catch (e) {
-        log('Error sending notification: $e');
+        logDebug('Error sending notification: $e');
       }
 
       _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
-      log("Error updating request status: $e");
+      logDebug("Error updating request status: $e");
       _isLoading = false;
       notifyListeners();
       return false;
@@ -557,7 +560,7 @@ class RequestProvider with ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      log("Error deleting request: $e");
+      logDebug("Error deleting request: $e");
       _isLoading = false;
       notifyListeners();
       return false;
@@ -602,7 +605,7 @@ class RequestProvider with ChangeNotifier {
       // Get leave type from additional data
       final leaveType = request.additionalData?['leaveType'] as String?;
       if (leaveType == null) {
-        log('Leave type not found in request additional data');
+        logDebug('Leave type not found in request additional data');
         return;
       }
 
@@ -628,7 +631,7 @@ class RequestProvider with ChangeNotifier {
         final leaveDoc = await transaction.get(leaveRef);
 
         if (!leaveDoc.exists) {
-          log('Leave allocation not found for user ${request.userId}');
+          logDebug('Leave allocation not found for user ${request.userId}');
           return;
         }
 
@@ -636,7 +639,9 @@ class RequestProvider with ChangeNotifier {
         final leaveTypeData = data[leaveTypeField] as Map<String, dynamic>?;
 
         if (leaveTypeData == null) {
-          log('Leave type $leaveTypeField not found in user leave allocation');
+          logDebug(
+            'Leave type $leaveTypeField not found in user leave allocation',
+          );
           return;
         }
 
@@ -653,7 +658,9 @@ class RequestProvider with ChangeNotifier {
         final newBalance = currentBalance - daysToDeduct;
 
         if (newBalance < 0) {
-          log('Warning: Insufficient leave balance for user ${request.userId}');
+          logDebug(
+            'Warning: Insufficient leave balance for user ${request.userId}',
+          );
           // Continue anyway as admin has already approved
         }
 
@@ -666,12 +673,12 @@ class RequestProvider with ChangeNotifier {
           'updatedAt': FieldValue.serverTimestamp(),
         });
 
-        log(
+        logDebug(
           'Leave balance updated: $leaveTypeField - used: $newUsed, balance: $newBalance',
         );
       });
     } catch (e) {
-      log('Error deducting leave balance: $e');
+      logDebug('Error deducting leave balance: $e');
       // Don't throw error, just log it so approval still succeeds
     }
   }

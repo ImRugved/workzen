@@ -14,6 +14,9 @@ class UserModel {
   final String? role;
   final String userId;
   final bool? isCasualLeave;
+  final String? totalExperience;
+  final String? emergencyContactNumber;
+  final bool isSubAdmin;
 
   UserModel({
     required this.id,
@@ -28,6 +31,9 @@ class UserModel {
     this.joiningDate,
     this.role,
     this.isCasualLeave,
+    this.totalExperience,
+    this.emergencyContactNumber,
+    this.isSubAdmin = false,
     String? userId,
   }) : userId = userId ?? id;
 
@@ -74,6 +80,9 @@ class UserModel {
       joiningDate: _parseDateTime(json['joiningDate']),
       role: json['role'],
       isCasualLeave: json['isCasualLeave'],
+      totalExperience: json['totalExperience']?.toString(),
+      emergencyContactNumber: json['emergencyContactNumber']?.toString(),
+      isSubAdmin: json['isSubAdmin'] ?? false,
       userId: json['userId'],
     );
   }
@@ -92,6 +101,9 @@ class UserModel {
       'joiningDate': joiningDate,
       'role': role,
       'isCasualLeave': isCasualLeave,
+      'totalExperience': totalExperience,
+      'emergencyContactNumber': emergencyContactNumber,
+      'isSubAdmin': isSubAdmin,
       'userId': userId,
     };
   }

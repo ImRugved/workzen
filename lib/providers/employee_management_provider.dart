@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import '../models/employee_model.dart';
 import '../app_constants.dart';
+import '../utils/logger.dart';
+import 'user_provider.dart';
 
 class EmployeeManagementProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -11,12 +15,26 @@ class EmployeeManagementProvider with ChangeNotifier {
   bool _isLoading = false;
   String _searchQuery = '';
   String? _errorMessage;
+  bool _isSubAdminChecked = false;
 
   // Getters
   List<EmployeeModel> get employees => _filteredEmployees;
   bool get isLoading => _isLoading;
   String get searchQuery => _searchQuery;
   String? get errorMessage => _errorMessage;
+  bool get isSubAdminChecked => _isSubAdminChecked;
+
+  // Set sub admin checkbox state
+  void setSubAdminChecked(bool value) {
+    _isSubAdminChecked = value;
+    notifyListeners();
+  }
+
+  // Reset add employee form state
+  void resetAddEmployeeForm() {
+    _isSubAdminChecked = false;
+    notifyListeners();
+  }
 
   // Fetch all employees (non-admin users)
   Future<void> fetchAllEmployees() async {
@@ -90,6 +108,9 @@ class EmployeeManagementProvider with ChangeNotifier {
     required String employeeId,
     String? employeeIdValue,
     String? department,
+    String? role,
+    String? totalExperience,
+    String? emergencyContactNumber,
     DateTime? joiningDate,
     String? address,
     String? mobileNumber,
@@ -110,6 +131,18 @@ class EmployeeManagementProvider with ChangeNotifier {
 
       if (department != null) {
         updateData['department'] = department;
+      }
+
+      if (role != null) {
+        updateData['role'] = role;
+      }
+
+      if (totalExperience != null) {
+        updateData['totalExperience'] = totalExperience;
+      }
+
+      if (emergencyContactNumber != null) {
+        updateData['emergencyContactNumber'] = emergencyContactNumber;
       }
 
       if (joiningDate != null) {
@@ -153,6 +186,11 @@ class EmployeeManagementProvider with ChangeNotifier {
           _employees[employeeIndex] = _employees[employeeIndex].copyWith(
             employeeId: employeeIdValue ?? _employees[employeeIndex].employeeId,
             department: department ?? _employees[employeeIndex].department,
+            role: role ?? _employees[employeeIndex].role,
+            totalExperience:
+                totalExperience ?? _employees[employeeIndex].totalExperience,
+            emergencyContactNumber: emergencyContactNumber ??
+                _employees[employeeIndex].emergencyContactNumber,
             joiningDate: joiningDate ?? _employees[employeeIndex].joiningDate,
           );
 
@@ -211,6 +249,124 @@ class EmployeeManagementProvider with ChangeNotifier {
     _searchQuery = '';
     _filteredEmployees = List.from(_employees);
     notifyListeners();
+  }
+
+  // Add new employee
+  Future<Map<String, dynamic>> addEmployee({
+    required String name,
+    required String email,
+    required String mobileNumber,
+    String? department,
+    String? role,
+    String password = 'Welcome@2026',
+    bool isSubAdmin = false,
+  }) async {
+    FirebaseApp? secondaryApp;
+    try {
+      _setLoading(true);
+      _errorMessage = null;
+
+      // Create a secondary Firebase App to create new user without affecting admin session
+      secondaryApp = await Firebase.initializeApp(
+        name: 'SecondaryApp_${DateTime.now().millisecondsSinceEpoch}',
+        options: Firebase.app().options,
+      );
+
+      final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+
+      // Create new user account using secondary auth instance
+      UserCredential result = await secondaryAuth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      if (result.user == null) {
+        return {
+          'success': false,
+          'error': 'Failed to create user account',
+        };
+      }
+
+      final newUserId = result.user!.uid;
+
+      // Sign out from secondary auth and delete the secondary app
+      await secondaryAuth.signOut();
+      await secondaryApp.delete();
+      secondaryApp = null;
+
+      // Generate employee ID
+      final userProvider = UserProvider();
+      final employeeId = await userProvider.generateNextEmployeeId();
+
+      // Create user document in Firestore
+      final userData = {
+        'id': newUserId,
+        'userId': newUserId,
+        'name': name,
+        'email': email,
+        'mobileNumber': mobileNumber,
+        'department': department,
+        'role': role,
+        'employeeId': employeeId,
+        'isAdmin': false,
+        'isSubAdmin': isSubAdmin,
+        'isOnboarded': false,
+        'fcmToken': '',
+        'createdAt': FieldValue.serverTimestamp(),
+        'joiningDate': DateTime.now().toIso8601String(),
+      };
+
+      await _firestore
+          .collection(AppConstants.userCollection)
+          .doc(newUserId)
+          .set(userData);
+
+      logDebug('Employee created successfully: $name ($email)');
+
+      // Refresh the employee list
+      await fetchAllEmployees();
+
+      return {
+        'success': true,
+        'message': isSubAdmin ? 'Sub Admin added successfully' : 'Employee added successfully',
+        'employeeId': employeeId,
+      };
+    } on FirebaseAuthException catch (e) {
+      // Clean up secondary app if it exists
+      if (secondaryApp != null) {
+        try {
+          await secondaryApp.delete();
+        } catch (_) {}
+      }
+      logDebug('FirebaseAuthException adding employee: ${e.code} - ${e.message}');
+      String errorMessage = 'Failed to add employee.';
+      if (e.code == 'email-already-in-use') {
+        errorMessage = 'An account with this email already exists.';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'Invalid email address.';
+      } else if (e.code == 'weak-password') {
+        errorMessage = 'Password is too weak.';
+      }
+      return {
+        'success': false,
+        'error': errorMessage,
+      };
+    } catch (e) {
+      // Clean up secondary app if it exists
+      if (secondaryApp != null) {
+        try {
+          await secondaryApp.delete();
+        } catch (_) {}
+      }
+      logDebug('Error adding employee: $e');
+      _errorMessage = _getUserFriendlyErrorMessage(e);
+      return {
+        'success': false,
+        'error': _errorMessage ?? 'Failed to add employee. Please try again.',
+      };
+    } finally {
+      _setLoading(false);
+    }
   }
 
   // Refresh employee list

@@ -646,13 +646,13 @@ class _AdminHomeState extends State<AdminHome> {
       child: Padding(
         padding: EdgeInsets.all(12.w),
         child: provider.totalEmployees > 0
-            ? Column(
-                mainAxisSize: MainAxisSize.min,
+            ? Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Chart and Total in Center
                   SizedBox(
-                    width: 120.w,
-                    height: 120.h,
+                    width: 130.w,
+                    height: 130.h,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
@@ -694,8 +694,8 @@ class _AdminHomeState extends State<AdminHome> {
                                 ? AnimatedNumber(
                                     startValue:
                                         provider.totalEmployees.toDouble() / 2,
-                                    endValue: provider.totalEmployees
-                                        .toDouble(),
+                                    endValue:
+                                        provider.totalEmployees.toDouble(),
                                     duration: const Duration(seconds: 1),
                                     isFloatingPoint: false,
                                     style: getTextTheme().titleMedium?.copyWith(
@@ -722,14 +722,14 @@ class _AdminHomeState extends State<AdminHome> {
                       ],
                     ),
                   ),
-                  SizedBox(height: 8.h),
-                  // Legend below chart, wrapped in row
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 12.w,
-                    runSpacing: 8.h,
+                  SizedBox(width: 16.w),
+                  // Legend next to chart
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildLegendItem('Onboarded', ConstColors.successGreen),
+                      SizedBox(height: 12.h),
                       _buildLegendItem('Pending', ConstColors.warningAmber),
                     ],
                   ),
@@ -759,65 +759,61 @@ class _AdminHomeState extends State<AdminHome> {
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
       child: Padding(
-        padding: EdgeInsets.all(8.w),
+        padding: EdgeInsets.all(12.w),
         child: totalLeaves > 0
-            ? Column(
-                mainAxisSize: MainAxisSize.min,
+            ? Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Chart and Total in Center
                   SizedBox(
-                    width: 110.w,
-                    height: 110.h,
+                    width: 130.w,
+                    height: 130.h,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
                         PieChart(
                           PieChartData(
                             sectionsSpace: 2,
-                            centerSpaceRadius: 32.r,
+                            centerSpaceRadius: 35.r,
                             sections: [
                               if (plCount > 0)
                                 PieChartSectionData(
                                   value: plCount.toDouble(),
                                   title: '$plCount',
-                                  color: ConstColors
-                                      .infoBlue, // Same as user home (blue)
-                                  radius: 28.r,
-                                  titleStyle: getTextTheme().bodySmall
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: ConstColors.white,
-                                        fontSize: 11.sp,
-                                      ),
+                                  color: ConstColors.infoBlue,
+                                  radius: 30.r,
+                                  titleStyle:
+                                      getTextTheme().bodySmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: ConstColors.white,
+                                    fontSize: 11.sp,
+                                  ),
                                 ),
                               if (slCount > 0)
                                 PieChartSectionData(
                                   value: slCount.toDouble(),
                                   title: '$slCount',
-                                  color: ConstColors
-                                      .successGreen, // Same as user home (green)
-                                  radius: 28.r,
-                                  titleStyle: getTextTheme().bodySmall
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: ConstColors.white,
-                                        fontSize: 11.sp,
-                                      ),
+                                  color: ConstColors.successGreen,
+                                  radius: 30.r,
+                                  titleStyle:
+                                      getTextTheme().bodySmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: ConstColors.white,
+                                    fontSize: 11.sp,
+                                  ),
                                 ),
                               if (clCount > 0)
                                 PieChartSectionData(
                                   value: clCount.toDouble(),
                                   title: '$clCount',
-                                  color: ConstColors
-                                      .inProgressOrange, // Same as user home (orange)
-                                  radius: 28.r,
-                                  titleStyle: getTextTheme().bodySmall
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: ConstColors.white,
-                                        fontSize: 11.sp,
-                                      ),
+                                  color: ConstColors.inProgressOrange,
+                                  radius: 30.r,
+                                  titleStyle:
+                                      getTextTheme().bodySmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: ConstColors.white,
+                                    fontSize: 11.sp,
+                                  ),
                                 ),
                             ],
                           ),
@@ -856,29 +852,21 @@ class _AdminHomeState extends State<AdminHome> {
                       ],
                     ),
                   ),
-                  SizedBox(height: 6.h),
-                  // Legend below chart, wrapped in row
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 4.w,
-                    runSpacing: 6.h,
+                  SizedBox(width: 16.w),
+                  // Legend next to chart
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (plCount > 0)
-                        _buildLegendItem(
-                          'Privilege Leave (PL)',
-                          ConstColors.infoBlue, // Same as user home (blue)
-                        ),
+                        _buildLegendItem('PL', ConstColors.infoBlue),
+                      if (plCount > 0 && (slCount > 0 || clCount > 0))
+                        SizedBox(height: 10.h),
                       if (slCount > 0)
-                        _buildLegendItem(
-                          'Sick Leave (SL)',
-                          ConstColors.successGreen, // Same as user home (green)
-                        ),
+                        _buildLegendItem('SL', ConstColors.successGreen),
+                      if (slCount > 0 && clCount > 0) SizedBox(height: 10.h),
                       if (clCount > 0)
-                        _buildLegendItem(
-                          'Casual Leave (CL)',
-                          ConstColors
-                              .inProgressOrange, // Same as user home (orange)
-                        ),
+                        _buildLegendItem('CL', ConstColors.inProgressOrange),
                     ],
                   ),
                 ],

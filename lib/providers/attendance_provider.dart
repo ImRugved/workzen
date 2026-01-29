@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
+import 'package:workzen/utils/logger.dart';
 import '../app_constants.dart';
 import '../models/attendance_model.dart';
 import '../models/leave_model.dart';
@@ -113,7 +114,7 @@ class AttendanceProvider with ChangeNotifier {
         attendanceQuery.docs.first.data() as Map<String, dynamic>,
       );
     } catch (e) {
-      print("Error fetching today's attendance: $e");
+      logDebug("Error fetching today's attendance: $e");
       if (notify) {
         _isLoading = false;
         notifyListeners();
@@ -172,7 +173,7 @@ class AttendanceProvider with ChangeNotifier {
 
       return null;
     } catch (e) {
-      print("Error checking leave for today: $e");
+      logDebug("Error checking leave for today: $e");
       return null;
     }
   }
@@ -253,7 +254,7 @@ class AttendanceProvider with ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      print("Error punching in: $e");
+      logDebug("Error punching in: $e");
       _isLoading = false;
       notifyListeners();
       return false;
@@ -305,7 +306,7 @@ class AttendanceProvider with ChangeNotifier {
 
       return true;
     } catch (e) {
-      print('Error punching out: $e');
+      logDebug('Error punching out: $e');
       return false;
     }
   }
@@ -381,7 +382,7 @@ class AttendanceProvider with ChangeNotifier {
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      print('Error getting all attendance: $e');
+      logDebug('Error getting all attendance: $e');
       return [];
     }
   }
@@ -411,7 +412,7 @@ class AttendanceProvider with ChangeNotifier {
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      print('Error getting user attendance: $e');
+      logDebug('Error getting user attendance: $e');
       return [];
     }
   }
@@ -457,7 +458,7 @@ class AttendanceProvider with ChangeNotifier {
 
       return true;
     } catch (e) {
-      print('Error marking absent: $e');
+      logDebug('Error marking absent: $e');
       return false;
     }
   }

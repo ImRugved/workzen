@@ -28,6 +28,10 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
   late TextEditingController _bloodGroupController;
   late TextEditingController _aadharController;
   late TextEditingController _panController;
+  late TextEditingController _employeeIdController;
+  late TextEditingController _roleController;
+  late TextEditingController _totalExperienceController;
+  late TextEditingController _emergencyContactController;
   DateTime? _selectedDate;
 
   // Extra user data from Firestore
@@ -46,6 +50,18 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     _bloodGroupController = TextEditingController();
     _aadharController = TextEditingController();
     _panController = TextEditingController();
+    _employeeIdController = TextEditingController(
+      text: widget.employee.employeeId ?? '',
+    );
+    _roleController = TextEditingController(
+      text: widget.employee.role ?? '',
+    );
+    _totalExperienceController = TextEditingController(
+      text: widget.employee.totalExperience ?? '',
+    );
+    _emergencyContactController = TextEditingController(
+      text: widget.employee.emergencyContactNumber ?? '',
+    );
     _selectedDate = widget.employee.joiningDate;
     _loadUserData();
   }
@@ -70,6 +86,13 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
           _aadharController.text = (_userData?['aadharNumber'] ?? '')
               .toString();
           _panController.text = (_userData?['panCardNumber'] ?? '').toString();
+          _totalExperienceController.text = (_userData?['totalExperience'] ?? '')
+              .toString();
+          _emergencyContactController.text =
+              (_userData?['emergencyContactNumber'] ?? '').toString();
+          _employeeIdController.text = (_userData?['employeeId'] ?? '')
+              .toString();
+          _roleController.text = (_userData?['role'] ?? '').toString();
           _isLoadingData = false;
         });
       }
@@ -90,6 +113,10 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     _bloodGroupController.dispose();
     _aadharController.dispose();
     _panController.dispose();
+    _employeeIdController.dispose();
+    _roleController.dispose();
+    _totalExperienceController.dispose();
+    _emergencyContactController.dispose();
     super.dispose();
   }
 
@@ -101,10 +128,21 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
 
     final success = await provider.updateEmployee(
       employeeId: widget.employee.id,
-      employeeIdValue: null, // Employee ID cannot be changed
+      employeeIdValue: _employeeIdController.text.trim().isEmpty
+          ? null
+          : _employeeIdController.text.trim(),
       department: _departmentController.text.trim().isEmpty
           ? null
           : _departmentController.text.trim(),
+      role: _roleController.text.trim().isEmpty
+          ? null
+          : _roleController.text.trim(),
+      totalExperience: _totalExperienceController.text.trim().isEmpty
+          ? null
+          : _totalExperienceController.text.trim(),
+      emergencyContactNumber: _emergencyContactController.text.trim().isEmpty
+          ? null
+          : _emergencyContactController.text.trim(),
       joiningDate: _selectedDate,
       // Don't update personal and contact info - user manages these
       address: null,
@@ -185,6 +223,13 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
                       .toString();
                   _panController.text = (_userData?['panCardNumber'] ?? '')
                       .toString();
+                  _employeeIdController.text = (_userData?['employeeId'] ?? '')
+                      .toString();
+                  _roleController.text = (_userData?['role'] ?? '').toString();
+                  _totalExperienceController.text =
+                      (_userData?['totalExperience'] ?? '').toString();
+                  _emergencyContactController.text =
+                      (_userData?['emergencyContactNumber'] ?? '').toString();
                 });
               },
               tooltip: 'Cancel',
@@ -436,16 +481,31 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
         padding: EdgeInsets.all(16.w),
         child: Column(
           children: [
-            _buildStaticDetailRow(
+            _buildDetailRow(
               'Employee ID',
-              widget.employee.employeeId ?? 'Not Set',
+              _employeeIdController,
               Icons.badge,
+              isEditable: true,
             ),
             Divider(height: 24.h),
             _buildDetailRow(
               'Department',
               _departmentController,
               Icons.work,
+              isEditable: true,
+            ),
+            Divider(height: 24.h),
+            _buildDetailRow(
+              'Role',
+              _roleController,
+              Icons.person_outline,
+              isEditable: true,
+            ),
+            Divider(height: 24.h),
+            _buildDetailRow(
+              'Total Experience',
+              _totalExperienceController,
+              Icons.timeline,
               isEditable: true,
             ),
             Divider(height: 24.h),
@@ -504,6 +564,14 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
                   ? 'Not Set'
                   : _alternateController.text,
               Icons.phone_android,
+            ),
+            Divider(height: 24.h),
+            _buildDetailRow(
+              'Emergency Contact',
+              _emergencyContactController,
+              Icons.emergency,
+              isEditable: true,
+              keyboardType: TextInputType.phone,
             ),
           ],
         ),

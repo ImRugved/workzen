@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:workzen/utils/logger.dart';
 import '../providers/user_provider.dart';
 
 class FCMService {
@@ -23,17 +24,19 @@ class FCMService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      log('Attempting to send notification to user: $userId');
+      logDebug('Attempting to send notification to user: $userId');
 
       // Get user's FCM token
       String? token = await _userProvider.getUserFcmToken(userId);
 
       if (token == null || token.isEmpty) {
-        log('FCM token not found for user: $userId');
+        logDebug('FCM token not found for user: $userId');
         return false;
       }
 
-      log('Found FCM token for user $userId: ${token.substring(0, 20)}...');
+      logDebug(
+        'Found FCM token for user $userId: ${token.substring(0, 20)}...',
+      );
 
       // Send notification
       bool success = await _sendWithServiceAccount(
@@ -44,14 +47,14 @@ class FCMService {
       );
 
       if (success) {
-        log('Notification sent successfully to user: $userId');
+        logDebug('Notification sent successfully to user: $userId');
       } else {
-        log('Failed to send notification to user: $userId');
+        logDebug('Failed to send notification to user: $userId');
       }
 
       return success;
     } catch (e) {
-      log('Error in sendNotificationToUser: $e');
+      logDebug('Error in sendNotificationToUser: $e');
       return false;
     }
   }
@@ -64,11 +67,11 @@ class FCMService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      log('Sending notification with service account method');
-      log('Token: $token');
-      log('Title: $title');
-      log('Body: $body');
-      log('Data: $data');
+      logDebug('Sending notification with service account method');
+      logDebug('Token: $token');
+      logDebug('Title: $title');
+      logDebug('Body: $body');
+      logDebug('Data: $data');
 
       // Use service account method
       final result = await _sendWithServiceAccount(
@@ -79,14 +82,14 @@ class FCMService {
       );
 
       if (result) {
-        log('Notification sent successfully with service account method');
+        logDebug('Notification sent successfully with service account method');
       } else {
-        log('Failed to send notification with service account method');
+        logDebug('Failed to send notification with service account method');
       }
 
       return result;
     } catch (e) {
-      log('Error sending notification: $e');
+      logDebug('Error sending notification: $e');
       return false;
     }
   }
@@ -99,14 +102,14 @@ class FCMService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      log(
+      logDebug(
         'Sending notification with service account to token: ${token.substring(0, 20)}...',
       );
 
       // Get access token
       final String? accessToken = await getAccessToken();
       if (accessToken == null) {
-        log('Failed to get access token');
+        logDebug('Failed to get access token');
         return false;
       }
 
@@ -129,7 +132,7 @@ class FCMService {
         },
       };
 
-      log('FCM message payload: ${jsonEncode(message)}');
+      logDebug('FCM message payload: ${jsonEncode(message)}');
 
       // Send the notification
       final response = await http.post(
@@ -143,14 +146,14 @@ class FCMService {
         body: jsonEncode(message),
       );
 
-      log('FCM response status: ${response.statusCode}');
-      log('FCM response body: ${response.body}');
+      logDebug('FCM response status: ${response.statusCode}');
+      logDebug('FCM response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        log('Notification sent successfully');
+        logDebug('Notification sent successfully');
         return true;
       } else {
-        log(
+        logDebug(
           'Failed to send notification. Status: ${response.statusCode}, Body: ${response.body}',
         );
 
@@ -158,14 +161,14 @@ class FCMService {
         if (response.body.contains('INVALID_ARGUMENT') ||
             response.body.contains('UNREGISTERED') ||
             response.body.contains('NOT_FOUND')) {
-          log('Invalid or unregistered token detected, cleaning up...');
+          logDebug('Invalid or unregistered token detected, cleaning up...');
           await cleanupInvalidToken(token);
         }
 
         return false;
       }
     } catch (e) {
-      log('Error in _sendWithServiceAccount: $e');
+      logDebug('Error in _sendWithServiceAccount: $e');
       return false;
     }
   }
@@ -173,7 +176,7 @@ class FCMService {
   // Clean up invalid FCM token
   Future<void> cleanupInvalidToken(String token) async {
     try {
-      log('Cleaning up invalid token: $token');
+      logDebug('Cleaning up invalid token: $token');
 
       // Find users with this token in Firestore
       final querySnapshot = await _firestore
@@ -182,39 +185,41 @@ class FCMService {
           .get();
 
       if (querySnapshot.docs.isNotEmpty) {
-        log('Found ${querySnapshot.docs.length} users with invalid token');
+        logDebug('Found ${querySnapshot.docs.length} users with invalid token');
 
         // Update each user document
         for (var doc in querySnapshot.docs) {
           final userId = doc.id;
-          log('Removing invalid token from user: $userId');
+          logDebug('Removing invalid token from user: $userId');
 
           // Remove token from Firestore only
           try {
             await _firestore.collection('users').doc(userId).update({
               'fcmToken': '',
             });
-            log('Invalid token removed from Firestore for user: $userId');
+            logDebug('Invalid token removed from Firestore for user: $userId');
           } catch (firestoreError) {
-            log(
+            logDebug(
               'Error removing token from Firestore for user $userId: $firestoreError',
             );
 
             // Handle specific Firestore errors
             if (firestoreError.toString().contains('permission-denied')) {
-              log(
+              logDebug(
                 'Permission denied for Firestore token cleanup - rules may need time to propagate',
               );
             } else if (firestoreError.toString().contains('not-found')) {
-              log('User document not found in Firestore for token cleanup');
+              logDebug(
+                'User document not found in Firestore for token cleanup',
+              );
             }
           }
         }
       } else {
-        log('No users found with this invalid token');
+        logDebug('No users found with this invalid token');
       }
     } catch (e) {
-      log('Error cleaning up invalid token: $e');
+      logDebug('Error cleaning up invalid token: $e');
     }
   }
 
@@ -245,7 +250,7 @@ class FCMService {
         client.close();
       }
     } catch (e) {
-      log('Error getting access token: $e');
+      logDebug('Error getting access token: $e');
       return null;
     }
   }

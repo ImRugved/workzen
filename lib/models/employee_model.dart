@@ -12,6 +12,9 @@ class EmployeeModel {
   final bool isOnboarded;
   final DateTime? createdAt;
   final String? fcmToken;
+  final String? totalExperience;
+  final String? emergencyContactNumber;
+  final bool isSubAdmin;
 
   EmployeeModel({
     required this.id,
@@ -25,6 +28,9 @@ class EmployeeModel {
     required this.isOnboarded,
     this.createdAt,
     this.fcmToken,
+    this.totalExperience,
+    this.emergencyContactNumber,
+    this.isSubAdmin = false,
   });
 
   // Factory constructor to create EmployeeModel from JSON
@@ -41,6 +47,9 @@ class EmployeeModel {
       isOnboarded: json['isOnboarded'] ?? false,
       createdAt: _parseDateTime(json['createdAt']),
       fcmToken: json['fcmToken'],
+      totalExperience: json['totalExperience']?.toString(),
+      emergencyContactNumber: json['emergencyContactNumber']?.toString(),
+      isSubAdmin: json['isSubAdmin'] ?? false,
     );
   }
 
@@ -78,6 +87,9 @@ class EmployeeModel {
       'isOnboarded': isOnboarded,
       'createdAt': createdAt?.toIso8601String(),
       'fcmToken': fcmToken,
+      'totalExperience': totalExperience,
+      'emergencyContactNumber': emergencyContactNumber,
+      'isSubAdmin': isSubAdmin,
     };
   }
 
@@ -94,6 +106,9 @@ class EmployeeModel {
     bool? isOnboarded,
     DateTime? createdAt,
     String? fcmToken,
+    String? totalExperience,
+    String? emergencyContactNumber,
+    bool? isSubAdmin,
   }) {
     return EmployeeModel(
       id: id ?? this.id,
@@ -107,6 +122,9 @@ class EmployeeModel {
       isOnboarded: isOnboarded ?? this.isOnboarded,
       createdAt: createdAt ?? this.createdAt,
       fcmToken: fcmToken ?? this.fcmToken,
+      totalExperience: totalExperience ?? this.totalExperience,
+      emergencyContactNumber: emergencyContactNumber ?? this.emergencyContactNumber,
+      isSubAdmin: isSubAdmin ?? this.isSubAdmin,
     );
   }
 

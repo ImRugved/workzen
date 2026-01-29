@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:workzen/utils/logger.dart';
 import '../app_constants.dart';
 import '../models/user_model.dart';
 import 'user_provider.dart';
@@ -44,26 +45,26 @@ class AuthProvider with ChangeNotifier {
 
       if (userDoc.exists) {
         Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
-        log("User data from Firestore - profileImageUrl: ${userData['profileImageUrl']}");
-        log("User data from Firestore - profileImageUrl type: ${userData['profileImageUrl'].runtimeType}");
-        log("User data from Firestore - all keys: ${userData.keys.toList()}");
+        logDebug("User data from Firestore - profileImageUrl: ${userData['profileImageUrl']}");
+        logDebug("User data from Firestore - profileImageUrl type: ${userData['profileImageUrl'].runtimeType}");
+        logDebug("User data from Firestore - all keys: ${userData.keys.toList()}");
         _userModel = UserModel.fromJson(userData);
-        log("User data fetched successfully: ${_userModel?.name}");
-        log("UserModel profileImageUrl after parsing: ${_userModel?.profileImageUrl}");
-        log("UserModel profileImageUrl type after parsing: ${_userModel?.profileImageUrl.runtimeType}");
+        logDebug("User data fetched successfully: ${_userModel?.name}");
+        logDebug("UserModel profileImageUrl after parsing: ${_userModel?.profileImageUrl}");
+        logDebug("UserModel profileImageUrl type after parsing: ${_userModel?.profileImageUrl.runtimeType}");
       } else {
-        log("User document does not exist in Firestore");
+        logDebug("User document does not exist in Firestore");
       }
     } catch (e) {
-      log("Error fetching user data: $e");
+      logDebug("Error fetching user data: $e");
 
       // Handle specific Firestore errors
       if (e.toString().contains('permission-denied')) {
-        log(
+        logDebug(
           'Permission denied for Firestore access - rules may need time to propagate',
         );
       } else if (e.toString().contains('not-found')) {
-        log('User document not found in Firestore');
+        logDebug('User document not found in Firestore');
       }
     }
   }
@@ -71,13 +72,13 @@ class AuthProvider with ChangeNotifier {
   // Public method to refresh user data
   Future<void> refreshUserData() async {
     if (_user != null) {
-      log("refreshUserData called for user: ${_user!.uid}");
+      logDebug("refreshUserData called for user: ${_user!.uid}");
       await _fetchUserData();
-      log("After _fetchUserData - _userModel profileImageUrl: ${_userModel?.profileImageUrl}");
+      logDebug("After _fetchUserData - _userModel profileImageUrl: ${_userModel?.profileImageUrl}");
       notifyListeners();
-      log("notifyListeners() called");
+      logDebug("notifyListeners() called");
     } else {
-      log("refreshUserData called but _user is null");
+      logDebug("refreshUserData called but _user is null");
     }
   }
 
@@ -100,7 +101,7 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      log("Login error: $e");
+      logDebug("Login error: $e");
       _isLoading = false;
       notifyListeners();
       return false;
@@ -155,7 +156,7 @@ class AuthProvider with ChangeNotifier {
             .set(newUser.toJson());
         print('User data saved to Firestore successfully');
       } catch (firestoreError) {
-        // log("Firestore error during signup: $firestoreError");
+        // logDebug("Firestore error during signup: $firestoreError");
 
         // Handle specific Firestore errors
         if (firestoreError.toString().contains('permission-denied')) {
@@ -181,18 +182,18 @@ class AuthProvider with ChangeNotifier {
         }
 
         // For other Firestore errors, still try to continue
-        //log('Continuing signup despite Firestore error');
+        //logDebug('Continuing signup despite Firestore error');
       }
 
       // FCM token already saved to Firestore above
-      // log('FCM token saved for new user: ${_user!.uid}');
+      // logDebug('FCM token saved for new user: ${_user!.uid}');
 
       _userModel = newUser;
       _isLoading = false;
       notifyListeners();
       return {'success': true, 'message': 'Account created successfully!'};
     } catch (e) {
-      // log("Signup error: $e");
+      // logDebug("Signup error: $e");
       _isLoading = false;
       notifyListeners();
 
@@ -219,7 +220,7 @@ class AuthProvider with ChangeNotifier {
   Future<void> logout() async {
     try {
       if (_user != null) {
-        // log('Logging out user: ${_user!.uid}');
+        // logDebug('Logging out user: ${_user!.uid}');
 
         // Only clear from local storage to force fresh token on next login
         await _storage.remove('fcmtoken');
@@ -227,22 +228,22 @@ class AuthProvider with ChangeNotifier {
         // Delete the FCM token from Firebase Messaging to ensure fresh token on next login
         try {
           await FirebaseMessaging.instance.deleteToken();
-          //  log('FCM token deleted from Firebase Messaging');
+          //  logDebug('FCM token deleted from Firebase Messaging');
         } catch (e) {
-          ////   log('Error deleting FCM token from Firebase Messaging: $e');
+          ////   logDebug('Error deleting FCM token from Firebase Messaging: $e');
         }
 
         // Keep the FCM token in Firestore and Realtime Database for the user
-        //  log('FCM token preserved in databases for user: ${_user!.uid}');
+        //  logDebug('FCM token preserved in databases for user: ${_user!.uid}');
       }
 
       await _auth.signOut();
       _user = null;
       _userModel = null;
       notifyListeners();
-      log('User logged out successfully');
+      logDebug('User logged out successfully');
     } catch (e) {
-      log("Logout error: $e");
+      logDebug("Logout error: $e");
     }
   }
 
@@ -253,7 +254,7 @@ class AuthProvider with ChangeNotifier {
         String? fcmToken = await FirebaseMessaging.instance.getToken();
 
         if (fcmToken != null && fcmToken.isNotEmpty) {
-          log('Fresh FCM token obtained: $fcmToken');
+          logDebug('Fresh FCM token obtained: $fcmToken');
           // Store in local storage for future use
           await _storage.write('fcmtoken', fcmToken);
           // Update in databases
@@ -262,18 +263,18 @@ class AuthProvider with ChangeNotifier {
           // Fallback to stored token
           String storedToken = _storage.read('fcmtoken') ?? '';
           if (storedToken.isNotEmpty) {
-            log('Using stored FCM token: $storedToken');
+            logDebug('Using stored FCM token: $storedToken');
             await updateFcmToken(storedToken);
           } else {
-            log('No FCM token available - notifications may not work');
+            logDebug('No FCM token available - notifications may not work');
           }
         }
       } catch (e) {
-        log('Error getting FCM token: $e');
+        logDebug('Error getting FCM token: $e');
         // Try fallback to stored token
         String storedToken = _storage.read('fcmtoken') ?? '';
         if (storedToken.isNotEmpty) {
-          log('Using stored FCM token as fallback: $storedToken');
+          logDebug('Using stored FCM token as fallback: $storedToken');
           await updateFcmToken(storedToken);
         }
       }
@@ -284,35 +285,35 @@ class AuthProvider with ChangeNotifier {
   Future<void> _getFreshFcmTokenAndUpdate() async {
     if (_user != null) {
       try {
-        log('Getting fresh FCM token for user login: ${_user!.uid}');
+        logDebug('Getting fresh FCM token for user login: ${_user!.uid}');
 
         // Force get a fresh FCM token from Firebase Messaging
         String? fcmToken = await FirebaseMessaging.instance.getToken();
 
         if (fcmToken != null && fcmToken.isNotEmpty) {
-          log('Fresh FCM token obtained for login: $fcmToken');
+          logDebug('Fresh FCM token obtained for login: $fcmToken');
           // Store in local storage
           await _storage.write('fcmtoken', fcmToken);
           // Update in databases immediately
           await updateFcmToken(fcmToken);
         } else {
-          log('Failed to get fresh FCM token - trying to delete token');
+          logDebug('Failed to get fresh FCM token - trying to delete token');
           // If we can't get a token, try to delete the old token
           await FirebaseMessaging.instance.deleteToken();
           // Try again after deletion
           fcmToken = await FirebaseMessaging.instance.getToken();
           if (fcmToken != null && fcmToken.isNotEmpty) {
-            log('Fresh FCM token obtained after deletion: $fcmToken');
+            logDebug('Fresh FCM token obtained after deletion: $fcmToken');
             await _storage.write('fcmtoken', fcmToken);
             await updateFcmToken(fcmToken);
           } else {
-            log(
+            logDebug(
               'Still no FCM token available after deletion - notifications may not work',
             );
           }
         }
       } catch (e) {
-        log('Error getting fresh FCM token for login: $e');
+        logDebug('Error getting fresh FCM token for login: $e');
         // As a last resort, clear any stored token to force refresh
         await _storage.remove('fcmtoken');
       }
@@ -322,11 +323,11 @@ class AuthProvider with ChangeNotifier {
   Future<bool> updateFcmToken(String token) async {
     try {
       if (_user == null) {
-        log('Cannot update FCM token: User not logged in');
+        logDebug('Cannot update FCM token: User not logged in');
         return false;
       }
 
-      log('Updating FCM token for user ${_user!.uid}: $token');
+      logDebug('Updating FCM token for user ${_user!.uid}: $token');
 
       // Update in Firestore with error handling
       try {
@@ -334,17 +335,17 @@ class AuthProvider with ChangeNotifier {
             .collection(AppConstants.usersCollection)
             .doc(_user!.uid)
             .update({'fcmToken': token});
-        log('FCM token updated successfully in Firestore');
+        logDebug('FCM token updated successfully in Firestore');
       } catch (firestoreError) {
-        log('Error updating FCM token in Firestore: $firestoreError');
+        logDebug('Error updating FCM token in Firestore: $firestoreError');
 
         // Handle specific Firestore errors
         if (firestoreError.toString().contains('permission-denied')) {
-          log(
+          logDebug(
             'Permission denied for Firestore token update - rules may need time to propagate',
           );
         } else if (firestoreError.toString().contains('not-found')) {
-          log('User document not found in Firestore for token update');
+          logDebug('User document not found in Firestore for token update');
         }
       }
 
@@ -362,7 +363,7 @@ class AuthProvider with ChangeNotifier {
 
       return true;
     } catch (e) {
-      log('Error updating FCM token: $e');
+      logDebug('Error updating FCM token: $e');
       return false;
     }
   }
@@ -379,10 +380,42 @@ class AuthProvider with ChangeNotifier {
         await _updateFcmToken();
       }
     } catch (e) {
-      log("Error checking auth state: $e");
+      logDebug("Error checking auth state: $e");
     }
 
     _isLoading = false;
     notifyListeners();
+  }
+
+  Future<Map<String, dynamic>> resetPassword(String email) async {
+    logDebug("resetPassword called with email: $email");
+    try {
+      logDebug("Calling sendPasswordResetEmail...");
+      await _auth.sendPasswordResetEmail(email: email);
+      logDebug("sendPasswordResetEmail completed successfully");
+      return {
+        'success': true,
+        'message': 'Password reset email sent successfully!',
+      };
+    } on FirebaseAuthException catch (e) {
+      logDebug("FirebaseAuthException: code=${e.code}, message=${e.message}");
+      String errorMessage = 'Failed to send reset email.';
+      if (e.code == 'user-not-found') {
+        errorMessage = 'No user found with this email address.';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'Invalid email address.';
+      }
+      return {
+        'success': false,
+        'error': errorMessage,
+      };
+    } catch (e) {
+      logDebug("Reset password error: $e");
+      logDebug("Error type: ${e.runtimeType}");
+      return {
+        'success': false,
+        'error': 'An error occurred. Please try again.',
+      };
+    }
   }
 }

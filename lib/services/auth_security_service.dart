@@ -1,6 +1,7 @@
 import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:workzen/utils/logger.dart';
 import '../app_constants.dart';
 
 class AuthSecurityService {
@@ -12,7 +13,7 @@ class AuthSecurityService {
     try {
       return await _localAuth.isDeviceSupported();
     } catch (e) {
-      log('Error checking device support: $e');
+      logDebug('Error checking device support: $e');
       return false;
     }
   }
@@ -22,7 +23,7 @@ class AuthSecurityService {
     try {
       return await _localAuth.getAvailableBiometrics();
     } catch (e) {
-      log('Error getting available biometrics: $e');
+      logDebug('Error getting available biometrics: $e');
       return [];
     }
   }
@@ -32,7 +33,7 @@ class AuthSecurityService {
     try {
       return await _localAuth.canCheckBiometrics;
     } catch (e) {
-      log('Error checking biometrics: $e');
+      logDebug('Error checking biometrics: $e');
       return false;
     }
   }
@@ -52,18 +53,18 @@ class AuthSecurityService {
       );
       return didAuthenticate;
     } catch (e) {
-      log('Error authenticating with biometrics: $e');
+      logDebug('Error authenticating with biometrics: $e');
       // Check error type and handle accordingly
       final errorString = e.toString().toLowerCase();
       if (errorString.contains('no biometric hardware') ||
           errorString.contains('notavailable')) {
-        log('No biometric hardware available');
+        logDebug('No biometric hardware available');
       } else if (errorString.contains('lockout') ||
           errorString.contains('temporarily locked')) {
-        log('Biometric temporarily locked out');
+        logDebug('Biometric temporarily locked out');
       } else if (errorString.contains('cancel') ||
           errorString.contains('user canceled')) {
-        log('User canceled authentication');
+        logDebug('User canceled authentication');
       }
       return false;
     }
@@ -84,7 +85,7 @@ class AuthSecurityService {
       }
       return null;
     } catch (e) {
-      log('Error getting security settings: $e');
+      logDebug('Error getting security settings: $e');
       return null;
     }
   }
@@ -103,7 +104,7 @@ class AuthSecurityService {
           .set(settings, SetOptions(merge: true));
       return true;
     } catch (e) {
-      log('Error saving security settings: $e');
+      logDebug('Error saving security settings: $e');
       return false;
     }
   }
@@ -122,7 +123,7 @@ class AuthSecurityService {
           }, SetOptions(merge: true));
       return true;
     } catch (e) {
-      log('Error updating biometric enabled: $e');
+      logDebug('Error updating biometric enabled: $e');
       return false;
     }
   }
@@ -143,7 +144,7 @@ class AuthSecurityService {
           }, SetOptions(merge: true));
       return true;
     } catch (e) {
-      log('Error saving app unlock PIN: $e');
+      logDebug('Error saving app unlock PIN: $e');
       return false;
     }
   }
@@ -157,7 +158,7 @@ class AuthSecurityService {
       }
       return false;
     } catch (e) {
-      log('Error verifying app unlock PIN: $e');
+      logDebug('Error verifying app unlock PIN: $e');
       return false;
     }
   }
@@ -168,7 +169,7 @@ class AuthSecurityService {
       final settings = await getSecuritySettings(userId);
       return settings != null && (settings['hasAppUnlockPin'] == true);
     } catch (e) {
-      log('Error checking app unlock PIN: $e');
+      logDebug('Error checking app unlock PIN: $e');
       return false;
     }
   }

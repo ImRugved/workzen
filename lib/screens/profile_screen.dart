@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:get/get.dart';
+import 'package:workzen/utils/logger.dart';
 import 'dart:developer' as developer;
 import '../providers/auth_provider.dart';
 import '../services/supabase_service.dart';
@@ -32,6 +33,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _alternateMobileController =
       TextEditingController();
   final TextEditingController _bloodGroupController = TextEditingController();
+  final TextEditingController _totalExperienceController =
+      TextEditingController();
+  final TextEditingController _emergencyContactController =
+      TextEditingController();
 
   @override
   void initState() {
@@ -40,7 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       if (authProvider.user != null) {
-        developer.log('ProfileScreen initState - refreshing user data');
+        logDebug('ProfileScreen initState - refreshing user data');
         authProvider.refreshUserData();
       }
     });
@@ -52,12 +57,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _mobileController.dispose();
     _alternateMobileController.dispose();
     _bloodGroupController.dispose();
+    _totalExperienceController.dispose();
+    _emergencyContactController.dispose();
     super.dispose();
   }
 
   Future<void> _pickAndUploadImage(ImageSource source) async {
     try {
-      developer.log('Starting image pick from source: $source');
+      logDebug('Starting image pick from source: $source');
       final XFile? image = await _picker.pickImage(
         source: source,
         maxWidth: 800,
@@ -66,42 +73,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
       if (image != null) {
-        developer.log('Image picked successfully: ${image.path}');
+        logDebug('Image picked successfully: ${image.path}');
         setState(() {
           _isUploading = true;
         });
 
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final userId = authProvider.user?.uid;
-        developer.log('User ID: $userId');
+        logDebug('User ID: $userId');
 
         if (userId != null) {
           try {
             final File imageFile = File(image.path);
-            developer.log('Reading image file bytes...');
+            logDebug('Reading image file bytes...');
             final bytes = await imageFile.readAsBytes();
-            developer.log('Image bytes read: ${bytes.length} bytes');
+            logDebug('Image bytes read: ${bytes.length} bytes');
 
-            developer.log('Uploading image to Supabase...');
+            logDebug('Uploading image to Supabase...');
             final imageUrl = await SupabaseService.uploadProfileImage(
               userId,
               bytes,
             );
-            developer.log('Upload response - Image URL: $imageUrl');
+            logDebug('Upload response - Image URL: $imageUrl');
 
             if (imageUrl.isNotEmpty) {
-              developer.log(
-                'Image uploaded successfully, refreshing user data...',
-              );
-              developer.log('Uploaded image URL: $imageUrl');
+              logDebug('Image uploaded successfully, refreshing user data...');
+              logDebug('Uploaded image URL: $imageUrl');
 
               // Wait a bit for Firestore to update
               await Future.delayed(const Duration(milliseconds: 500));
 
               // Refresh user data to get updated profile image
               await authProvider.refreshUserData();
-              developer.log('User data refreshed successfully');
-              developer.log(
+              logDebug('User data refreshed successfully');
+              logDebug(
                 'User model profileImageUrl after refresh: ${authProvider.userModel?.profileImageUrl}',
               );
 
@@ -112,7 +117,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   .get();
               if (verifyDoc.exists) {
                 final data = verifyDoc.data();
-                developer.log(
+                logDebug(
                   'Firestore profileImageUrl: ${data?['profileImageUrl']}',
                 );
               }
@@ -128,7 +133,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               }
             } else {
-              developer.log('ERROR: Image URL is empty after upload');
+              logDebug('ERROR: Image URL is empty after upload');
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -139,8 +144,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               }
             }
           } catch (uploadError) {
-            developer.log('ERROR during image upload process: $uploadError');
-            developer.log('ERROR stack trace: ${StackTrace.current}');
+            logDebug('ERROR during image upload process: $uploadError');
+            logDebug('ERROR stack trace: ${StackTrace.current}');
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -151,14 +156,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             }
           }
         } else {
-          developer.log('ERROR: User ID is null');
+          logDebug('ERROR: User ID is null');
         }
       } else {
-        developer.log('No image selected by user');
+        logDebug('No image selected by user');
       }
     } catch (e, stackTrace) {
-      developer.log('ERROR in _pickAndUploadImage: $e');
-      developer.log('ERROR stack trace: $stackTrace');
+      logDebug('ERROR in _pickAndUploadImage: $e');
+      logDebug('ERROR stack trace: $stackTrace');
       print('ERROR in _pickAndUploadImage: $e');
       print('ERROR stack trace: $stackTrace');
       if (mounted) {
@@ -257,16 +262,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 height: 120.w,
                                 fit: BoxFit.cover,
                                 placeholder: (context, url) {
-                                  developer.log(
-                                    'Loading profile image from: $url',
-                                  );
+                                  logDebug('Loading profile image from: $url');
                                   return const CircularProgressIndicator();
                                 },
                                 errorWidget: (context, url, error) {
-                                  developer.log(
+                                  logDebug(
                                     'Error loading profile image: $error',
                                   );
-                                  developer.log('Image URL: $url');
+                                  logDebug('Image URL: $url');
                                   return Icon(
                                     Icons.person,
                                     size: 60.r,
@@ -357,6 +360,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             .toString();
                                     _bloodGroupController.text =
                                         (data['bloodGroup'] ?? '').toString();
+                                    _totalExperienceController.text =
+                                        (data['totalExperience'] ?? '')
+                                            .toString();
+                                    _emergencyContactController.text =
+                                        (data['emergencyContactNumber'] ?? '')
+                                            .toString();
                                   } catch (_) {}
                                   setState(() {
                                     _isEditingPersonal = true;
@@ -481,6 +490,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     contentPadding: EdgeInsets.all(12.w),
                                   ),
                                 ),
+                                SizedBox(height: 12.h),
+                                Text(
+                                  'Total Experience',
+                                  style: getTextTheme().bodySmall,
+                                ),
+                                SizedBox(height: 6.h),
+                                TextFormField(
+                                  controller: _totalExperienceController,
+                                  decoration: InputDecoration(
+                                    hintText: 'e.g., 3 years 6 months',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8.r),
+                                    ),
+                                    contentPadding: EdgeInsets.all(12.w),
+                                  ),
+                                ),
+                                SizedBox(height: 12.h),
+                                Text(
+                                  'Emergency Contact Number',
+                                  style: getTextTheme().bodySmall,
+                                ),
+                                SizedBox(height: 6.h),
+                                TextFormField(
+                                  controller: _emergencyContactController,
+                                  keyboardType: TextInputType.phone,
+                                  decoration: InputDecoration(
+                                    hintText: 'Enter emergency contact number',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8.r),
+                                    ),
+                                    contentPadding: EdgeInsets.all(12.w),
+                                  ),
+                                ),
                                 SizedBox(height: 16.h),
                                 Row(
                                   children: [
@@ -506,6 +548,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                 'bloodGroup':
                                                     _bloodGroupController.text
                                                         .trim(),
+                                                'totalExperience':
+                                                    _totalExperienceController
+                                                        .text
+                                                        .trim(),
+                                                'emergencyContactNumber':
+                                                    _emergencyContactController
+                                                        .text
+                                                        .trim(),
                                               });
                                           if (mounted) {
                                             setState(() {
@@ -517,8 +567,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               SnackBar(
                                                 content: Text(
                                                   'Personal information updated',
-                                                  style:
-                                                      getTextTheme().bodyMedium,
+                                                  style: getTextTheme()
+                                                      .bodyMedium
+                                                      ?.copyWith(
+                                                        color: Colors.white,
+                                                      ),
                                                 ),
                                                 backgroundColor: Colors.green,
                                               ),
@@ -532,8 +585,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               SnackBar(
                                                 content: Text(
                                                   'Failed to update: $e',
-                                                  style:
-                                                      getTextTheme().bodyMedium,
+                                                  style: getTextTheme()
+                                                      .bodyMedium
+                                                      ?.copyWith(
+                                                        color: Colors.white,
+                                                      ),
                                                 ),
                                                 backgroundColor: Colors.red,
                                               ),
@@ -672,7 +728,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                       );
                                                     }
                                                   } catch (e) {
-                                                    developer.log(
+                                                    logDebug(
                                                       'Logout error: $e',
                                                     );
                                                     if (mounted) {
