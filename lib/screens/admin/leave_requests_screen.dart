@@ -4,6 +4,7 @@ import 'package:workzen/app_constants.dart';
 import 'package:provider/provider.dart';
 import '../../models/request_model.dart';
 import '../../providers/request_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/request_card.dart';
 import '../../constants/const_textstyle.dart';
 
@@ -265,9 +266,12 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
                         ),
                         itemCount: filteredRequests.length,
                         itemBuilder: (context, index) {
+                          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                          final isSubAdmin = authProvider.userModel?.isSubAdmin == true;
                           return RequestCard(
                             request: filteredRequests[index],
                             isAdmin: true,
+                            canApproveReject: !isSubAdmin,
                           );
                         },
                       );

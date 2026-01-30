@@ -81,7 +81,7 @@ class _SplashScreenState extends State<SplashScreen>
           authProvider.userModel!.id,
         );
 
-        final targetScreen = authProvider.isAdmin
+        final targetScreen = (authProvider.isAdmin || authProvider.userModel?.isSubAdmin == true)
             ? const AdminDashboardScreen()
             : const UserDashboardScreen();
 

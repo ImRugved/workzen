@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -178,12 +179,54 @@ class AttendanceProvider with ChangeNotifier {
     }
   }
 
+  // Calculate distance between two coordinates in meters using Haversine formula
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const double earthRadius = 6371000; // Earth's radius in meters
+    final double dLat = _degreesToRadians(lat2 - lat1);
+    final double dLon = _degreesToRadians(lon2 - lon1);
+    final double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degreesToRadians(lat1)) *
+            math.cos(_degreesToRadians(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  double _degreesToRadians(double degrees) {
+    return degrees * (math.pi / 180);
+  }
+
+  // Validate if user is within office location (20 meter tolerance)
+  bool _isWithinOfficeRange(double? userLat, double? userLng, double? officeLat, double? officeLng) {
+    if (userLat == null || userLng == null || officeLat == null || officeLng == null) {
+      return false;
+    }
+    final double distance = _calculateDistance(userLat, userLng, officeLat, officeLng);
+    logDebug('Distance from office: ${distance.toStringAsFixed(2)} meters');
+    return distance <= 20.0; // 20 meter tolerance
+  }
+
   // Punch in
-  Future<bool> punchIn(UserModel user) async {
+  Future<Map<String, dynamic>> punchIn(UserModel user, {double? latitude, double? longitude}) async {
     _isLoading = true;
     notifyListeners();
 
     try {
+      // Validate office location (fallback to default office coordinates)
+      final officeLat = user.officeLatitude ?? 18.5679456;
+      final officeLng = user.officeLongitude ?? 73.7686132;
+      if (latitude == null || longitude == null) {
+        _isLoading = false;
+        notifyListeners();
+        return {'success': false, 'error': 'Unable to get your location. Please enable location services.'};
+      }
+      if (!_isWithinOfficeRange(latitude, longitude, officeLat, officeLng)) {
+        _isLoading = false;
+        notifyListeners();
+        return {'success': false, 'error': 'You are not at the office location. Please punch in from the office.'};
+      }
+
       // Check if already punched in today
       AttendanceModel? todayAttendance = await getTodayAttendance(user.id);
 
@@ -192,11 +235,14 @@ class AttendanceProvider with ChangeNotifier {
       if (todayLeave != null) {
         _isLoading = false;
         notifyListeners();
-        return false; // Can't punch in if on leave
+        return {'success': false, 'error': 'on_leave'};
       }
 
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
+
+      // Build location map (latitude and longitude are guaranteed non-null here)
+      final locationMap = {'lat': latitude, 'lng': longitude};
 
       if (todayAttendance != null) {
         // Already has an attendance record for today
@@ -204,23 +250,25 @@ class AttendanceProvider with ChangeNotifier {
           // Already punched in
           _isLoading = false;
           notifyListeners();
-          return false;
+          return {'success': false, 'error': 'already_punched_in'};
         }
 
         // Update existing record with punch in time
+        final updateData = <String, dynamic>{
+          'punchInTime': now,
+          'status': AppConstants.statusPending,
+          'location': locationMap,
+        };
+
         await _firestore
             .collection(AppConstants.attendanceCollection)
             .doc(todayAttendance.id)
-            .update({
-              'punchInTime': now,
-              'status': AppConstants
-                  .statusPending, // Set status to pending until punch out
-            });
+            .update(updateData);
 
         todayAttendance = todayAttendance.copyWith(
           punchInTime: now,
-          status: AppConstants
-              .statusPending, // Set status to pending until punch out
+          status: AppConstants.statusPending,
+          location: locationMap,
         );
       } else {
         // Create new attendance record
@@ -232,8 +280,8 @@ class AttendanceProvider with ChangeNotifier {
           userName: user.name,
           date: today,
           punchInTime: now,
-          status: AppConstants
-              .statusPending, // Set status to pending until punch out
+          status: AppConstants.statusPending,
+          location: locationMap,
         );
 
         await _firestore
@@ -252,22 +300,32 @@ class AttendanceProvider with ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-      return true;
+      return {'success': true};
     } catch (e) {
       logDebug("Error punching in: $e");
       _isLoading = false;
       notifyListeners();
-      return false;
+      return {'success': false, 'error': 'Failed to punch in. Please try again.'};
     }
   }
 
   // Punch out
-  Future<bool> punchOut(UserModel user) async {
+  Future<Map<String, dynamic>> punchOut(UserModel user, {double? latitude, double? longitude}) async {
     try {
+      // Validate office location (fallback to default office coordinates)
+      final officeLat = user.officeLatitude ?? 18.5679456;
+      final officeLng = user.officeLongitude ?? 73.7686132;
+      if (latitude == null || longitude == null) {
+        return {'success': false, 'error': 'Unable to get your location. Please enable location services.'};
+      }
+      if (!_isWithinOfficeRange(latitude, longitude, officeLat, officeLng)) {
+        return {'success': false, 'error': 'You are not at the office location. Please punch out from the office.'};
+      }
+
       // Check if user is on leave today
       final leaveModel = await checkLeaveForToday(user.id);
       if (leaveModel != null) {
-        return false; // User is on leave, can't punch out
+        return {'success': false, 'error': 'on_leave'};
       }
 
       // Get today's attendance
@@ -275,20 +333,23 @@ class AttendanceProvider with ChangeNotifier {
 
       // Can only punch out if already punched in
       if (attendance == null || attendance.punchInTime == null) {
-        return false;
+        return {'success': false, 'error': 'not_punched_in'};
       }
 
       // Can't punch out if already punched out
       if (attendance.punchOutTime != null) {
-        return false;
+        return {'success': false, 'error': 'already_punched_out'};
       }
+
+      // Build location map (latitude and longitude are guaranteed non-null here)
+      final locationMap = {'lat': latitude, 'lng': longitude};
 
       // Update attendance with punch out time and set status to present
       final now = DateTime.now();
       final updatedAttendance = attendance.copyWith(
         punchOutTime: now,
-        status:
-            AppConstants.statusPresent, // Set status to present after punch out
+        status: AppConstants.statusPresent,
+        location: locationMap,
       );
 
       await _firestore
@@ -304,10 +365,10 @@ class AttendanceProvider with ChangeNotifier {
         '${user.name} has punched out at ${DateFormat('hh:mm a').format(now)}',
       );
 
-      return true;
+      return {'success': true};
     } catch (e) {
       logDebug('Error punching out: $e');
-      return false;
+      return {'success': false, 'error': 'Failed to punch out. Please try again.'};
     }
   }
 

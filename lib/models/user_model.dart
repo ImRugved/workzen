@@ -17,6 +17,8 @@ class UserModel {
   final String? totalExperience;
   final String? emergencyContactNumber;
   final bool isSubAdmin;
+  final double? officeLatitude;
+  final double? officeLongitude;
 
   UserModel({
     required this.id,
@@ -34,6 +36,8 @@ class UserModel {
     this.totalExperience,
     this.emergencyContactNumber,
     this.isSubAdmin = false,
+    this.officeLatitude,
+    this.officeLongitude,
     String? userId,
   }) : userId = userId ?? id;
 
@@ -83,6 +87,8 @@ class UserModel {
       totalExperience: json['totalExperience']?.toString(),
       emergencyContactNumber: json['emergencyContactNumber']?.toString(),
       isSubAdmin: json['isSubAdmin'] ?? false,
+      officeLatitude: (json['officeLatitude'] as num?)?.toDouble(),
+      officeLongitude: (json['officeLongitude'] as num?)?.toDouble(),
       userId: json['userId'],
     );
   }
@@ -104,6 +110,8 @@ class UserModel {
       'totalExperience': totalExperience,
       'emergencyContactNumber': emergencyContactNumber,
       'isSubAdmin': isSubAdmin,
+      'officeLatitude': officeLatitude,
+      'officeLongitude': officeLongitude,
       'userId': userId,
     };
   }

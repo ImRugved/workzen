@@ -67,6 +67,8 @@ dependencies:
   local_auth: ^2.3.0
   # Carousel slider
   carousel_slider: ^5.0.0
+  # Location
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:

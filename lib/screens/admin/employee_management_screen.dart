@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:workzen/constants/constant_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/employee_management_provider.dart';
 import '../../models/employee_model.dart';
 import '../../widgets/app_drawer.dart';
@@ -155,30 +156,31 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                       prefixIcon: Icons.badge_outlined,
                     ),
                     SizedBox(height: 12.h),
-                    // Sub Admin Checkbox
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: provider.isSubAdminChecked,
-                          onChanged: (value) {
-                            provider.setSubAdminChecked(value ?? false);
-                          },
-                          activeColor: ConstColors.primary,
-                        ),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              provider.setSubAdminChecked(
-                                  !provider.isSubAdminChecked);
+                    // Sub Admin Checkbox (only visible to admins, not subAdmins)
+                    if (Provider.of<AuthProvider>(context, listen: false).isAdmin)
+                      Row(
+                        children: [
+                          Checkbox(
+                            value: provider.isSubAdminChecked,
+                            onChanged: (value) {
+                              provider.setSubAdminChecked(value ?? false);
                             },
-                            child: Text(
-                              'Make this employee a Sub Admin',
-                              style: getTextTheme().bodyMedium,
+                            activeColor: ConstColors.primary,
+                          ),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                provider.setSubAdminChecked(
+                                    !provider.isSubAdminChecked);
+                              },
+                              child: Text(
+                                'Make this employee a Sub Admin',
+                                style: getTextTheme().bodyMedium,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
                     SizedBox(height: 12.h),
                     Container(
                       padding: EdgeInsets.all(10.w),

@@ -67,7 +67,7 @@ class _SignupScreenState extends State<SignupScreen> {
         // Check if app unlock PIN exists (mandatory)
         final hasPin = await securityProvider.hasAppUnlockPIN(authProvider.userModel!.id);
         
-        final targetScreen = authProvider.isAdmin
+        final targetScreen = (authProvider.isAdmin || authProvider.userModel?.isSubAdmin == true)
             ? const AdminDashboardScreen()
             : const UserDashboardScreen();
         

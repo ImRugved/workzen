@@ -314,6 +314,8 @@ class EmployeeManagementProvider with ChangeNotifier {
         'fcmToken': '',
         'createdAt': FieldValue.serverTimestamp(),
         'joiningDate': DateTime.now().toIso8601String(),
+        'officeLatitude': 18.5679456,
+        'officeLongitude': 73.7686132,
       };
 
       await _firestore

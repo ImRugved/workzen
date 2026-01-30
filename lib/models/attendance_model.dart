@@ -9,6 +9,7 @@ class AttendanceModel {
   final DateTime? punchOutTime;
   final String status; // "present", "absent", "half-day", "on-leave"
   final String? leaveId; // Reference to leave if on leave
+  final Map<String, double>? location; // {lat: ..., lng: ...}
 
   AttendanceModel({
     required this.id,
@@ -19,6 +20,7 @@ class AttendanceModel {
     this.punchOutTime,
     required this.status,
     this.leaveId,
+    this.location,
   });
 
   factory AttendanceModel.fromJson(Map<String, dynamic> json) {
@@ -35,6 +37,13 @@ class AttendanceModel {
           : null,
       status: json['status'] ?? 'absent',
       leaveId: json['leaveId'],
+      location: json['location'] != null
+          ? Map<String, double>.from(
+              (json['location'] as Map).map(
+                (key, value) => MapEntry(key.toString(), (value as num).toDouble()),
+              ),
+            )
+          : null,
     );
   }
 
@@ -48,6 +57,7 @@ class AttendanceModel {
       'punchOutTime': punchOutTime,
       'status': status,
       'leaveId': leaveId,
+      'location': location,
     };
   }
 
@@ -61,6 +71,7 @@ class AttendanceModel {
     DateTime? punchOutTime,
     String? status,
     String? leaveId,
+    Map<String, double>? location,
   }) {
     return AttendanceModel(
       id: id ?? this.id,
@@ -71,6 +82,7 @@ class AttendanceModel {
       punchOutTime: punchOutTime ?? this.punchOutTime,
       status: status ?? this.status,
       leaveId: leaveId ?? this.leaveId,
+      location: location ?? this.location,
     );
   }
 }

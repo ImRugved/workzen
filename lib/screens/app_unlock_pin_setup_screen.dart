@@ -90,7 +90,7 @@ class _AppUnlockPinSetupScreenState extends State<AppUnlockPinSetupScreen> {
       if (widget.isFirstTime) {
         // After first-time setup, go to unlock screen then dashboard
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        final targetScreen = authProvider.isAdmin
+        final targetScreen = (authProvider.isAdmin || authProvider.userModel?.isSubAdmin == true)
             ? const AdminDashboardScreen()
             : const UserDashboardScreen();
         

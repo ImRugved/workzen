@@ -115,7 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
           authProvider.userModel!.id,
         );
 
-        final targetScreen = authProvider.isAdmin
+        final targetScreen = (authProvider.isAdmin || authProvider.userModel?.isSubAdmin == true)
             ? const AdminDashboardScreen()
             : const UserDashboardScreen();
 

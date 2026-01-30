@@ -19,7 +19,7 @@ class _AppDrawerState extends State<AppDrawer> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final bool isAdmin = authProvider.isAdmin;
+    final bool isAdmin = authProvider.isAdmin || (authProvider.userModel?.isSubAdmin == true);
 
     return Drawer(
       child: Column(

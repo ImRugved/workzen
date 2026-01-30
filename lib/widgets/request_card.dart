@@ -11,8 +11,9 @@ import '../constants/constant_colors.dart';
 class RequestCard extends StatefulWidget {
   final RequestModel request;
   final bool isAdmin;
+  final bool canApproveReject;
 
-  const RequestCard({Key? key, required this.request, this.isAdmin = false})
+  const RequestCard({Key? key, required this.request, this.isAdmin = false, this.canApproveReject = true})
     : super(key: key);
 
   @override
@@ -179,8 +180,9 @@ class _RequestCardState extends State<RequestCard> {
               ),
             ],
 
-            // Admin action buttons (only for pending requests)
+            // Admin action buttons (only for pending requests, and only if user can approve/reject)
             if (widget.isAdmin &&
+                widget.canApproveReject &&
                 widget.request.status == AppConstants.statusPending)
               Padding(
                 padding: EdgeInsets.only(top: 16.0.h),

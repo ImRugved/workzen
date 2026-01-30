@@ -50,6 +50,8 @@ class AuthProvider with ChangeNotifier {
         logDebug("User data from Firestore - all keys: ${userData.keys.toList()}");
         _userModel = UserModel.fromJson(userData);
         logDebug("User data fetched successfully: ${_userModel?.name}");
+        logDebug("User role: ${_userModel?.isAdmin == true ? 'Admin' : _userModel?.isSubAdmin == true ? 'Sub Admin' : 'User'}");
+        logDebug("UserModel - id: ${_userModel?.id}, email: ${_userModel?.email}, employeeId: ${_userModel?.employeeId}, department: ${_userModel?.department}, role: ${_userModel?.role}, isAdmin: ${_userModel?.isAdmin}, isSubAdmin: ${_userModel?.isSubAdmin}, officeLatitude: ${_userModel?.officeLatitude}, officeLongitude: ${_userModel?.officeLongitude}");
         logDebug("UserModel profileImageUrl after parsing: ${_userModel?.profileImageUrl}");
         logDebug("UserModel profileImageUrl type after parsing: ${_userModel?.profileImageUrl.runtimeType}");
       } else {
@@ -357,6 +359,19 @@ class AuthProvider with ChangeNotifier {
           email: _userModel!.email,
           fcmToken: token,
           isAdmin: _userModel!.isAdmin,
+          profileImageUrl: _userModel!.profileImageUrl,
+          employeeId: _userModel!.employeeId,
+          department: _userModel!.department,
+          createdAt: _userModel!.createdAt,
+          joiningDate: _userModel!.joiningDate,
+          role: _userModel!.role,
+          isCasualLeave: _userModel!.isCasualLeave,
+          totalExperience: _userModel!.totalExperience,
+          emergencyContactNumber: _userModel!.emergencyContactNumber,
+          isSubAdmin: _userModel!.isSubAdmin,
+          officeLatitude: _userModel!.officeLatitude,
+          officeLongitude: _userModel!.officeLongitude,
+          userId: _userModel!.userId,
         );
         notifyListeners();
       }

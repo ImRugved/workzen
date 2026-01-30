@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:animated_number/animated_number.dart';
@@ -12,6 +14,7 @@ import '../../providers/request_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../constants/const_textstyle.dart';
+import '../../utils/logger.dart';
 
 class UserHome extends StatefulWidget {
   const UserHome({Key? key}) : super(key: key);
@@ -39,6 +42,7 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
       _initializeStream();
       _initializeNotifications();
       _loadLeaveBalances();
+      _requestLocationAndStore();
       // Animation will start after leave balances are loaded
     });
   }
@@ -110,6 +114,48 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
       await PushNotificationsService().initAfterLogin();
     } catch (e) {
       print('Error initializing notifications: $e');
+    }
+  }
+
+  Future<void> _requestLocationAndStore() async {
+    try {
+      // Check if location service is enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        logDebug('Location services are disabled.');
+        return;
+      }
+
+      // Check and request permission
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          logDebug('Location permission denied.');
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        logDebug('Location permission permanently denied.');
+        return;
+      }
+
+      // Get current position
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+
+      // Store in GetStorage
+      final storage = GetStorage();
+      await storage.write('latitude', position.latitude);
+      await storage.write('longitude', position.longitude);
+
+      logDebug('User Location - Latitude: ${position.latitude}, Longitude: ${position.longitude}');
+    } catch (e) {
+      logDebug('Error getting location: $e');
     }
   }
 

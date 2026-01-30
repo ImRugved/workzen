@@ -1,5 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/attendance_model.dart';
@@ -7,6 +11,8 @@ import '../../models/leave_model.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../constants/const_textstyle.dart';
+import '../../constants/constant_snackbar.dart';
+import '../../utils/logger.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({Key? key}) : super(key: key);
@@ -19,11 +25,96 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   bool _isLoading = false;
   AttendanceModel? _todayAttendance;
   LeaveModel? _todayLeave;
+  bool? _isAtOffice; // null = unknown, true = at office, false = not at office
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkOfficeLocation();
+    });
+  }
+
+  Future<void> _checkOfficeLocation() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.userModel;
+    if (user == null) return;
+
+    // Use user's office location or fallback to default office coordinates
+    final officeLat = user.officeLatitude ?? 18.5679456;
+    final officeLng = user.officeLongitude ?? 73.7686132;
+    logDebug('Office Location - Lat: $officeLat, Lng: $officeLng');
+
+    double? userLat;
+    double? userLng;
+
+    // Try to get fresh GPS location
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (serviceEnabled) {
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.whileInUse ||
+            permission == LocationPermission.always) {
+          Position position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+            ),
+          );
+          userLat = position.latitude;
+          userLng = position.longitude;
+
+          // Also update GetStorage
+          final storage = GetStorage();
+          await storage.write('latitude', userLat);
+          await storage.write('longitude', userLng);
+        }
+      }
+    } catch (e) {
+      logDebug('Error getting GPS in attendance screen: $e');
+    }
+
+    // Fallback to GetStorage if GPS failed
+    if (userLat == null || userLng == null) {
+      final storage = GetStorage();
+      userLat = storage.read('latitude');
+      userLng = storage.read('longitude');
+    }
+
+    if (userLat == null || userLng == null) {
+      logDebug('User location not available.');
+      if (mounted) setState(() => _isAtOffice = false);
+      return;
+    }
+
+    final distance = _calculateDistance(userLat, userLng, officeLat, officeLng);
+    logDebug(
+      'Attendance screen - Distance from office: ${distance.toStringAsFixed(2)} meters',
+    );
+    if (mounted) setState(() => _isAtOffice = distance <= 20.0);
+  }
+
+  double _calculateDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const double earthRadius = 6371000;
+    final double dLat = _degreesToRadians(lat2 - lat1);
+    final double dLon = _degreesToRadians(lon2 - lon1);
+    final double a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degreesToRadians(lat1)) *
+            math.cos(_degreesToRadians(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  double _degreesToRadians(double degrees) {
+    return degrees * (math.pi / 180);
   }
 
   Future<void> _loadData() async {
@@ -34,8 +125,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     });
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final attendanceProvider =
-        Provider.of<AttendanceProvider>(context, listen: false);
+    final attendanceProvider = Provider.of<AttendanceProvider>(
+      context,
+      listen: false,
+    );
 
     if (authProvider.userModel != null) {
       try {
@@ -69,56 +162,49 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     });
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final attendanceProvider =
-        Provider.of<AttendanceProvider>(context, listen: false);
+    final attendanceProvider = Provider.of<AttendanceProvider>(
+      context,
+      listen: false,
+    );
 
     if (authProvider.userModel != null) {
       try {
-        bool success =
-            await attendanceProvider.punchIn(authProvider.userModel!);
+        // Read location from GetStorage
+        final storage = GetStorage();
+        final double? lat = storage.read('latitude');
+        final double? lng = storage.read('longitude');
+        logDebug('Punch In - Latitude: $lat, Longitude: $lng');
 
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Successfully punched in'),
-              backgroundColor: Colors.green,
-            ),
-          );
+        final result = await attendanceProvider.punchIn(
+          authProvider.userModel!,
+          latitude: lat,
+          longitude: lng,
+        );
+
+        if (result['success'] == true) {
+          ConstantSnackbar.showSuccess(title: 'Successfully punched in');
 
           // Reload data
           await _loadData();
         } else {
-          if (_todayLeave != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                    'You are on leave today (${DateFormat('dd MMM yyyy').format(_todayLeave!.fromDate)})'),
-                backgroundColor: Colors.orange,
-              ),
+          final error = result['error'] ?? '';
+          if (error == 'on_leave') {
+            ConstantSnackbar.show(
+              title:
+                  'You are on leave today${_todayLeave != null ? ' (${DateFormat('dd MMM yyyy').format(_todayLeave!.fromDate)})' : ''}',
+              backgroundColor: Colors.orange,
             );
-          } else if (_todayAttendance?.punchInTime != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('You have already punched in today'),
-                backgroundColor: Colors.orange,
-              ),
+          } else if (error == 'already_punched_in') {
+            ConstantSnackbar.show(
+              title: 'You have already punched in today',
+              backgroundColor: Colors.orange,
             );
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Failed to punch in. Please try again.'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            ConstantSnackbar.showError(title: error);
           }
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ConstantSnackbar.showError(title: 'Error: $e');
       }
     }
 
@@ -137,56 +223,48 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     });
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final attendanceProvider =
-        Provider.of<AttendanceProvider>(context, listen: false);
+    final attendanceProvider = Provider.of<AttendanceProvider>(
+      context,
+      listen: false,
+    );
 
     if (authProvider.userModel != null) {
       try {
-        bool success =
-            await attendanceProvider.punchOut(authProvider.userModel!);
+        // Read location from GetStorage
+        final storage = GetStorage();
+        final double? lat = storage.read('latitude');
+        final double? lng = storage.read('longitude');
+        logDebug('Punch Out - Latitude: $lat, Longitude: $lng');
 
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Successfully punched out'),
-              backgroundColor: Colors.green,
-            ),
-          );
+        final result = await attendanceProvider.punchOut(
+          authProvider.userModel!,
+          latitude: lat,
+          longitude: lng,
+        );
+
+        if (result['success'] == true) {
+          ConstantSnackbar.showSuccess(title: 'Successfully punched out');
 
           // Reload data
           await _loadData();
         } else {
-          if (_todayAttendance == null ||
-              _todayAttendance?.punchInTime == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('You need to punch in first'),
-                backgroundColor: Colors.orange,
-              ),
+          final error = result['error'] ?? '';
+          if (error == 'not_punched_in') {
+            ConstantSnackbar.show(
+              title: 'You need to punch in first',
+              backgroundColor: Colors.orange,
             );
-          } else if (_todayAttendance?.punchOutTime != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('You have already punched out today'),
-                backgroundColor: Colors.orange,
-              ),
+          } else if (error == 'already_punched_out') {
+            ConstantSnackbar.show(
+              title: 'You have already punched out today',
+              backgroundColor: Colors.orange,
             );
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Failed to punch out. Please try again.'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            ConstantSnackbar.showError(title: error);
           }
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ConstantSnackbar.showError(title: 'Error: $e');
       }
     }
 
@@ -206,7 +284,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Attendance',
+          'Attendance Screen',
           style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
         ),
         actions: [
@@ -231,17 +309,54 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       borderRadius: BorderRadius.circular(12.r),
                     ),
                     child: Padding(
-                      padding: EdgeInsets.all(16.w),
+                      padding: EdgeInsets.all(10.w),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            today,
-                            style: getTextTheme().titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  today,
+                                  style: getTextTheme().titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16.sp,
+                                  ),
+                                ),
+                              ),
+                              if (_isAtOffice != null)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 12.r,
+                                      height: 12.r,
+                                      decoration: BoxDecoration(
+                                        color: _isAtOffice!
+                                            ? Colors.green
+                                            : Colors.red,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    SizedBox(width: 6.w),
+                                    Text(
+                                      _isAtOffice!
+                                          ? 'At Office'
+                                          : 'Not at Office',
+                                      style: getTextTheme().labelSmall
+                                          ?.copyWith(
+                                            color: _isAtOffice!
+                                                ? Colors.green
+                                                : Colors.red,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                            ],
                           ),
-                          SizedBox(height: 8.h),
+
                           Text(
                             'Current Time: $time',
                             style: getTextTheme().bodyMedium?.copyWith(
@@ -252,7 +367,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       ),
                     ),
                   ),
-                  SizedBox(height: 24.h),
+                  SizedBox(height: 15.h),
 
                   // Status card
                   Card(
@@ -261,7 +376,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       borderRadius: BorderRadius.circular(12.r),
                     ),
                     child: Padding(
-                      padding: EdgeInsets.all(16.w),
+                      padding: EdgeInsets.all(10.w),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -269,9 +384,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                             'Today\'s Status',
                             style: getTextTheme().titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
+                              fontSize: 16.sp,
                             ),
                           ),
-                          SizedBox(height: 16.h),
+                          SizedBox(height: 10.h),
                           if (_todayLeave != null)
                             _buildStatusRow(
                               'On Leave',
@@ -314,15 +430,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       children: [
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: (_todayAttendance?.punchInTime == null &&
+                            onPressed:
+                                (_todayAttendance?.punchInTime == null &&
                                     !_isLoading)
                                 ? _punchIn
                                 : null,
                             icon: Icon(Icons.login, size: 20.r),
-                            label: Text('Punch In', style: getTextTheme().labelLarge),
+                            label: Text(
+                              'Punch In',
+                              style: getTextTheme().labelLarge,
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green,
-                              padding: EdgeInsets.symmetric(vertical: 16.h),
+                              padding: EdgeInsets.symmetric(vertical: 10.h),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10.r),
                               ),
@@ -332,16 +452,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         SizedBox(width: 16.w),
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: (_todayAttendance?.punchInTime != null &&
+                            onPressed:
+                                (_todayAttendance?.punchInTime != null &&
                                     _todayAttendance?.punchOutTime == null &&
                                     !_isLoading)
                                 ? _punchOut
                                 : null,
                             icon: Icon(Icons.logout, size: 20.r),
-                            label: Text('Punch Out', style: getTextTheme().labelLarge),
+                            label: Text(
+                              'Punch Out',
+                              style: getTextTheme().labelLarge,
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.orange,
-                              padding: EdgeInsets.symmetric(vertical: 16.h),
+                              padding: EdgeInsets.symmetric(vertical: 10.h),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10.r),
                               ),
@@ -361,11 +485,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.info,
-                            color: Colors.blue,
-                            size: 24.r,
-                          ),
+                          Icon(Icons.info, color: Colors.blue, size: 24.r),
                           SizedBox(width: 16.w),
                           Expanded(
                             child: Text(
@@ -385,7 +505,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   Widget _buildStatusRow(
-      String title, String subtitle, Color color, IconData icon) {
+    String title,
+    String subtitle,
+    Color color,
+    IconData icon,
+  ) {
     return Row(
       children: [
         Container(
@@ -394,11 +518,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             color: color.withOpacity(0.1),
             shape: BoxShape.circle,
           ),
-          child: Icon(
-            icon,
-            color: color,
-            size: 24.r,
-          ),
+          child: Icon(icon, color: color, size: 24.r),
         ),
         SizedBox(width: 16.w),
         Expanded(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:animated_number/animated_number.dart';
@@ -15,6 +17,7 @@ import '../../widgets/dot_indicator.dart';
 import '../../app_constants.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_colors.dart';
+import '../../utils/logger.dart';
 
 class AdminHome extends StatefulWidget {
   const AdminHome({Key? key}) : super(key: key);
@@ -34,6 +37,7 @@ class _AdminHomeState extends State<AdminHome> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeData();
       _initializeNotifications();
+      _requestLocationAndStore();
     });
   }
 
@@ -63,6 +67,46 @@ class _AdminHomeState extends State<AdminHome> {
     }
   }
 
+  Future<void> _requestLocationAndStore() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        logDebug('Location services are disabled.');
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          logDebug('Location permission denied.');
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        logDebug('Location permission permanently denied.');
+        return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+
+      final storage = GetStorage();
+      await storage.write('latitude', position.latitude);
+      await storage.write('longitude', position.longitude);
+
+      logDebug(
+        'Admin Location - Latitude: ${position.latitude}, Longitude: ${position.longitude}',
+      );
+    } catch (e) {
+      logDebug('Error getting location: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
@@ -72,7 +116,7 @@ class _AdminHomeState extends State<AdminHome> {
       appBar: AppBar(
         title: Text(
           'Admin Dashboard Panel',
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+          style: getTextTheme().titleMedium?.copyWith(color: Colors.white),
         ),
         actions: [
           IconButton(
@@ -152,7 +196,7 @@ class _AdminHomeState extends State<AdminHome> {
                     .length;
 
                 return SingleChildScrollView(
-                  padding: EdgeInsets.all(16.w),
+                  padding: EdgeInsets.all(10.w),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -176,7 +220,7 @@ class _AdminHomeState extends State<AdminHome> {
                             ),
                           ],
                         ),
-                        padding: EdgeInsets.all(20.w),
+                        padding: EdgeInsets.all(15.w),
                         child: Row(
                           children: [
                             CircleAvatar(
@@ -225,7 +269,7 @@ class _AdminHomeState extends State<AdminHome> {
                           ],
                         ),
                       ),
-                      SizedBox(height: 24.h),
+                      SizedBox(height: 20.h),
 
                       // Employee Statistics Section with Carousel
                       _buildSectionHeader(
@@ -520,7 +564,7 @@ class _AdminHomeState extends State<AdminHome> {
     if (_currentCarouselIndex == 0) {
       return 'Onboarding Overview';
     } else {
-      return 'Request Overview';
+      return 'Leave Request Overview';
     }
   }
 
@@ -609,7 +653,7 @@ class _AdminHomeState extends State<AdminHome> {
           width: double.infinity,
           child: CarouselSlider(
             options: CarouselOptions(
-              height: 200.h, // Reduced height for smaller card
+              height: 160.h,
               autoPlay:
                   carouselItems.length >
                   1, // Only auto-play if more than one item
@@ -644,28 +688,28 @@ class _AdminHomeState extends State<AdminHome> {
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
       child: Padding(
-        padding: EdgeInsets.all(12.w),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
         child: provider.totalEmployees > 0
             ? Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Chart and Total in Center
                   SizedBox(
-                    width: 130.w,
-                    height: 130.h,
+                    width: 120.w,
+                    height: 110.h,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
                         PieChart(
                           PieChartData(
                             sectionsSpace: 2,
-                            centerSpaceRadius: 35.r,
+                            centerSpaceRadius: 28.r,
                             sections: [
                               PieChartSectionData(
                                 value: provider.onboardedEmployees.toDouble(),
                                 title: '${provider.onboardedEmployees}',
                                 color: ConstColors.successGreen,
-                                radius: 30.r,
+                                radius: 25.r,
                                 titleStyle: getTextTheme().bodySmall?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: ConstColors.white,
@@ -676,7 +720,7 @@ class _AdminHomeState extends State<AdminHome> {
                                 value: provider.pendingEmployees.toDouble(),
                                 title: '${provider.pendingEmployees}',
                                 color: ConstColors.warningAmber,
-                                radius: 30.r,
+                                radius: 25.r,
                                 titleStyle: getTextTheme().bodySmall?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: ConstColors.white,
@@ -694,8 +738,8 @@ class _AdminHomeState extends State<AdminHome> {
                                 ? AnimatedNumber(
                                     startValue:
                                         provider.totalEmployees.toDouble() / 2,
-                                    endValue:
-                                        provider.totalEmployees.toDouble(),
+                                    endValue: provider.totalEmployees
+                                        .toDouble(),
                                     duration: const Duration(seconds: 1),
                                     isFloatingPoint: false,
                                     style: getTextTheme().titleMedium?.copyWith(
@@ -736,7 +780,7 @@ class _AdminHomeState extends State<AdminHome> {
                 ],
               )
             : Padding(
-                padding: EdgeInsets.all(40.w),
+                padding: EdgeInsets.all(20.w),
                 child: Text(
                   'No employee data available',
                   style: getTextTheme().bodyMedium?.copyWith(
@@ -755,124 +799,160 @@ class _AdminHomeState extends State<AdminHome> {
     int clCount,
     int totalLeaves,
   ) {
+    // Count how many distinct leave types have requests
+    final activeTypes = [
+      if (plCount > 0)
+        {
+          'label': 'Privilege Leave (PL)',
+          'short': 'PL',
+          'count': plCount,
+          'color': ConstColors.infoBlue,
+        },
+      if (slCount > 0)
+        {
+          'label': 'Sick Leave (SL)',
+          'short': 'SL',
+          'count': slCount,
+          'color': ConstColors.successGreen,
+        },
+      if (clCount > 0)
+        {
+          'label': 'Casual Leave (CL)',
+          'short': 'CL',
+          'count': clCount,
+          'color': ConstColors.inProgressOrange,
+        },
+    ];
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
       child: Padding(
-        padding: EdgeInsets.all(12.w),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
         child: totalLeaves > 0
-            ? Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Chart and Total in Center
-                  SizedBox(
-                    width: 130.w,
-                    height: 130.h,
-                    child: Stack(
-                      alignment: Alignment.center,
+            ? activeTypes.length == 1
+                  // Single leave type — show a clean stat layout instead of pie chart
+                  ? _buildSingleLeaveTypeLayout(activeTypes.first)
+                  // Multiple leave types — show pie chart
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        PieChart(
-                          PieChartData(
-                            sectionsSpace: 2,
-                            centerSpaceRadius: 35.r,
-                            sections: [
-                              if (plCount > 0)
-                                PieChartSectionData(
-                                  value: plCount.toDouble(),
-                                  title: '$plCount',
-                                  color: ConstColors.infoBlue,
-                                  radius: 30.r,
-                                  titleStyle:
-                                      getTextTheme().bodySmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: ConstColors.white,
-                                    fontSize: 11.sp,
-                                  ),
+                        // Chart and Total in Center
+                        SizedBox(
+                          width: 120.w,
+                          height: 110.h,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              PieChart(
+                                PieChartData(
+                                  sectionsSpace: 2,
+                                  centerSpaceRadius: 28.r,
+                                  sections: [
+                                    if (plCount > 0)
+                                      PieChartSectionData(
+                                        value: plCount.toDouble(),
+                                        title: '$plCount',
+                                        color: ConstColors.infoBlue,
+                                        radius: 25.r,
+                                        titleStyle: getTextTheme().bodySmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: ConstColors.white,
+                                              fontSize: 11.sp,
+                                            ),
+                                      ),
+                                    if (slCount > 0)
+                                      PieChartSectionData(
+                                        value: slCount.toDouble(),
+                                        title: '$slCount',
+                                        color: ConstColors.successGreen,
+                                        radius: 25.r,
+                                        titleStyle: getTextTheme().bodySmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: ConstColors.white,
+                                              fontSize: 11.sp,
+                                            ),
+                                      ),
+                                    if (clCount > 0)
+                                      PieChartSectionData(
+                                        value: clCount.toDouble(),
+                                        title: '$clCount',
+                                        color: ConstColors.inProgressOrange,
+                                        radius: 25.r,
+                                        titleStyle: getTextTheme().bodySmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: ConstColors.white,
+                                              fontSize: 11.sp,
+                                            ),
+                                      ),
+                                  ],
                                 ),
-                              if (slCount > 0)
-                                PieChartSectionData(
-                                  value: slCount.toDouble(),
-                                  title: '$slCount',
-                                  color: ConstColors.successGreen,
-                                  radius: 30.r,
-                                  titleStyle:
-                                      getTextTheme().bodySmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: ConstColors.white,
-                                    fontSize: 11.sp,
+                              ),
+                              // Total Count in Center
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  isAnimated
+                                      ? AnimatedNumber(
+                                          startValue:
+                                              totalLeaves.toDouble() / 2,
+                                          endValue: totalLeaves.toDouble(),
+                                          duration: const Duration(seconds: 1),
+                                          isFloatingPoint: false,
+                                          style: getTextTheme().titleMedium
+                                              ?.copyWith(
+                                                color: ConstColors.primary,
+                                              ),
+                                        )
+                                      : Text(
+                                          totalLeaves.toString(),
+                                          style: getTextTheme().titleMedium
+                                              ?.copyWith(
+                                                color: ConstColors.primary,
+                                              ),
+                                        ),
+                                  SizedBox(height: 2.h),
+                                  Text(
+                                    'Total',
+                                    style: getTextTheme().labelSmall?.copyWith(
+                                      fontWeight: FontWeight.w500,
+                                      color: ConstColors.textColorLight,
+                                      fontSize: 9.sp,
+                                    ),
                                   ),
-                                ),
-                              if (clCount > 0)
-                                PieChartSectionData(
-                                  value: clCount.toDouble(),
-                                  title: '$clCount',
-                                  color: ConstColors.inProgressOrange,
-                                  radius: 30.r,
-                                  titleStyle:
-                                      getTextTheme().bodySmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: ConstColors.white,
-                                    fontSize: 11.sp,
-                                  ),
-                                ),
+                                ],
+                              ),
                             ],
                           ),
                         ),
-                        // Total Count in Center
+                        SizedBox(width: 16.w),
+                        // Legend next to chart
                         Column(
-                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            isAnimated
-                                ? AnimatedNumber(
-                                    startValue: totalLeaves.toDouble() / 2,
-                                    endValue: totalLeaves.toDouble(),
-                                    duration: const Duration(seconds: 1),
-                                    isFloatingPoint: false,
-                                    style: getTextTheme().titleMedium?.copyWith(
-                                      color: ConstColors.primary,
-                                    ),
-                                  )
-                                : Text(
-                                    totalLeaves.toString(),
-                                    style: getTextTheme().titleMedium?.copyWith(
-                                      color: ConstColors.primary,
-                                    ),
-                                  ),
-                            SizedBox(height: 2.h),
-                            Text(
-                              'Total',
-                              style: getTextTheme().labelSmall?.copyWith(
-                                fontWeight: FontWeight.w500,
-                                color: ConstColors.textColorLight,
-                                fontSize: 9.sp,
+                            if (plCount > 0)
+                              _buildLegendItem('PL', ConstColors.infoBlue),
+                            if (plCount > 0 && (slCount > 0 || clCount > 0))
+                              SizedBox(height: 10.h),
+                            if (slCount > 0)
+                              _buildLegendItem('SL', ConstColors.successGreen),
+                            if (slCount > 0 && clCount > 0)
+                              SizedBox(height: 10.h),
+                            if (clCount > 0)
+                              _buildLegendItem(
+                                'CL',
+                                ConstColors.inProgressOrange,
                               ),
-                            ),
                           ],
                         ),
                       ],
-                    ),
-                  ),
-                  SizedBox(width: 16.w),
-                  // Legend next to chart
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (plCount > 0)
-                        _buildLegendItem('PL', ConstColors.infoBlue),
-                      if (plCount > 0 && (slCount > 0 || clCount > 0))
-                        SizedBox(height: 10.h),
-                      if (slCount > 0)
-                        _buildLegendItem('SL', ConstColors.successGreen),
-                      if (slCount > 0 && clCount > 0) SizedBox(height: 10.h),
-                      if (clCount > 0)
-                        _buildLegendItem('CL', ConstColors.inProgressOrange),
-                    ],
-                  ),
-                ],
-              )
+                    )
             : Padding(
-                padding: EdgeInsets.all(40.w),
+                padding: EdgeInsets.all(20.w),
                 child: Text(
                   'No leave requests available',
                   style: getTextTheme().bodyMedium?.copyWith(
@@ -881,6 +961,110 @@ class _AdminHomeState extends State<AdminHome> {
                 ),
               ),
       ),
+    );
+  }
+
+  // Layout for when only a single leave type has pending requests
+  Widget _buildSingleLeaveTypeLayout(Map<String, dynamic> leaveType) {
+    final String label = leaveType['label'] as String;
+    final String shortLabel = leaveType['short'] as String;
+    final int count = leaveType['count'] as int;
+    final Color color = leaveType['color'] as Color;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Colored circle with count
+        Container(
+          width: 90.w,
+          height: 90.h,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [color, color.withOpacity(0.7)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                isAnimated
+                    ? AnimatedNumber(
+                        startValue: count.toDouble() / 2,
+                        endValue: count.toDouble(),
+                        duration: const Duration(seconds: 1),
+                        isFloatingPoint: false,
+                        style: getTextTheme().headlineSmall?.copyWith(
+                          color: ConstColors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : Text(
+                        count.toString(),
+                        style: getTextTheme().headlineSmall?.copyWith(
+                          color: ConstColors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                Text(
+                  'Pending',
+                  style: getTextTheme().labelSmall?.copyWith(
+                    color: ConstColors.white.withOpacity(0.9),
+                    fontSize: 9.sp,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(width: 20.w),
+        // Leave type info
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              shortLabel,
+              style: getTextTheme().titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            SizedBox(height: 4.h),
+            Text(
+              label,
+              style: getTextTheme().bodySmall?.copyWith(
+                color: ConstColors.textColorLight,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20.r),
+                border: Border.all(color: color.withOpacity(0.3)),
+              ),
+              child: Text(
+                '$count pending request${count > 1 ? 's' : ''}',
+                style: getTextTheme().labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
