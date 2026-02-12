@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/security_provider.dart';
 import '../../widgets/custom_button.dart';
-import '../../widgets/custom_text_field.dart';
+import '../../constants/constant_textfield.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_snackbar.dart';
 import '../app_unlock_pin_setup_screen.dart';
@@ -42,11 +42,11 @@ class _LoginScreenState extends State<LoginScreen> {
         title: const Text('Reset Password'),
         content: Form(
           key: formKey,
-          child: CustomTextField(
+          child: ConstTextField(
             controller: resetEmailController,
-            label: 'Please enter your email',
-            prefixIcon: Icons.email_outlined,
-            keyboardType: TextInputType.emailAddress,
+            customText: 'Please enter your email',
+            prefixIcon: Icon(Icons.email_outlined, size: 20.r),
+            keyoardType: TextInputType.emailAddress,
             validator: (value) {
               if (value == null || value.isEmpty) {
                 return 'Please enter your email';
@@ -186,11 +186,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   SizedBox(height: 48.h),
 
                   // Email Field
-                  CustomTextField(
+                  ConstTextField(
                     controller: _emailController,
-                    label: 'Email',
-                    prefixIcon: Icons.email_outlined,
-                    keyboardType: TextInputType.emailAddress,
+                    customText: 'Email',
+                    prefixIcon: Icon(Icons.email_outlined, size: 20.r),
+                    keyoardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your email';
@@ -206,12 +206,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   SizedBox(height: 16.h),
 
                   // Password Field
-                  CustomTextField(
+                  ConstTextField(
                     controller: _passwordController,
-                    label: 'Password',
-                    prefixIcon: Icons.lock_outline,
-                    obscureText: !_isPasswordVisible,
-                    suffixIcon: IconButton(
+                    customText: 'Password',
+                    prefixIcon: Icon(Icons.lock_outline, size: 20.r),
+                    obsercureText: !_isPasswordVisible,
+                    iconss: IconButton(
                       icon: Icon(
                         _isPasswordVisible
                             ? Icons.visibility_off

@@ -84,7 +84,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               // Main content area
               Expanded(
                 child: Padding(
-                  padding: EdgeInsets.all(16.w),
+                  padding: EdgeInsets.all(10.w),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -255,20 +255,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             onChanged: (bool? value) {
               provider.toggleUserSelection(user.userId);
             },
-            secondary: CircleAvatar(
-              backgroundImage:
-                  (user.profileImageUrl != null &&
-                      user.profileImageUrl!.isNotEmpty)
-                  ? NetworkImage(user.profileImageUrl!)
-                  : null,
-              child:
-                  (user.profileImageUrl == null ||
-                      user.profileImageUrl!.isEmpty)
-                  ? Text(
-                      user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
-                    )
-                  : null,
-            ),
+            secondary: _buildUserAvatar(user),
           ),
         );
       },
@@ -371,30 +358,32 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
   }
 
   Widget _buildOnboardButton(OnboardingProvider provider) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: provider.selectedUserIds.isEmpty || provider.isLoading
-            ? null
-            : () => _showOnboardingBottomSheet(provider),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blue,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-        ),
-        child: provider.isLoading
-            ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+    return SafeArea(
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: provider.selectedUserIds.isEmpty || provider.isLoading
+              ? null
+              : () => _showOnboardingBottomSheet(provider),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+          child: provider.isLoading
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : Text(
+                  'Onboard Users (${provider.selectedUserIds.length})',
+                  style: const TextStyle(fontSize: 16),
                 ),
-              )
-            : Text(
-                'Onboard Users (${provider.selectedUserIds.length})',
-                style: const TextStyle(fontSize: 16),
-              ),
+        ),
       ),
     );
   }
@@ -644,27 +633,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                                       const SizedBox(width: 12),
 
                                       // User avatar
-                                      CircleAvatar(
-                                        radius: 20,
-                                        backgroundColor: Colors.blue.shade100,
-                                        backgroundImage:
-                                            user.profileImageUrl != null
-                                            ? NetworkImage(
-                                                user.profileImageUrl!,
-                                              )
-                                            : null,
-                                        child: user.profileImageUrl == null
-                                            ? Text(
-                                                user.name.isNotEmpty
-                                                    ? user.name[0].toUpperCase()
-                                                    : 'U',
-                                                style: TextStyle(
-                                                  color: Colors.blue.shade800,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              )
-                                            : null,
-                                      ),
+                                      _buildUserAvatar(user, radius: 20),
                                       const SizedBox(width: 12),
 
                                       // User info
@@ -929,25 +898,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
           // User Info Section
           Row(
             children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundImage:
-                    (user.profileImageUrl != null &&
-                        user.profileImageUrl!.isNotEmpty)
-                    ? NetworkImage(user.profileImageUrl!)
-                    : null,
-                child:
-                    (user.profileImageUrl == null ||
-                        user.profileImageUrl!.isEmpty)
-                    ? Text(
-                        user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )
-                    : null,
-              ),
+              _buildUserAvatar(user, radius: 24),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1559,5 +1510,72 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
         'EMPLOYEE ONBOARDING - Auto-synced sliders: PL=$avgPL, SL=$avgSL, CL=$avgCL',
       );
     }
+  }
+
+  /// Builds a user avatar with error handling for network images
+  Widget _buildUserAvatar(UserModel user, {double radius = 20}) {
+    final hasProfileImage =
+        user.profileImageUrl != null && user.profileImageUrl!.isNotEmpty;
+
+    if (!hasProfileImage) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Colors.blue.shade100,
+        child: Text(
+          user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+          style: TextStyle(
+            fontSize: radius * 0.8,
+            fontWeight: FontWeight.bold,
+            color: Colors.blue.shade800,
+          ),
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.blue.shade100,
+      child: ClipOval(
+        child: Image.network(
+          user.profileImageUrl!,
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: SizedBox(
+                width: radius,
+                height: radius,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!
+                      : null,
+                ),
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              width: radius * 2,
+              height: radius * 2,
+              color: Colors.blue.shade100,
+              child: Center(
+                child: Text(
+                  user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                  style: TextStyle(
+                    fontSize: radius * 0.8,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade800,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 }

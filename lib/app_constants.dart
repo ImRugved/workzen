@@ -38,6 +38,7 @@ class AppConstants {
   static const String usersCollection = "users";
   static const String notificationsCollection = "notifications";
   static const String leavesCollection = "leaves";
+  static const String departmentsCollection = "departments";
 
   // Leave types
   static const String leaveTypePL = "pl"; // Privilege Leave / Paid Leave

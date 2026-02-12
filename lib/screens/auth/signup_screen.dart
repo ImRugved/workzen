@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/security_provider.dart';
 import '../../widgets/custom_button.dart';
-import '../../widgets/custom_text_field.dart';
+import '../../constants/constant_textfield.dart';
 import '../../constants/const_textstyle.dart';
 import '../app_unlock_pin_setup_screen.dart';
 import '../app_unlock_screen.dart';
@@ -151,10 +151,10 @@ class _SignupScreenState extends State<SignupScreen> {
                   SizedBox(height: 32.h),
 
                   // Name Field
-                  CustomTextField(
+                  ConstTextField(
                     controller: _nameController,
-                    label: 'Full Name',
-                    prefixIcon: Icons.person_outline,
+                    customText: 'Full Name',
+                    prefixIcon: Icon(Icons.person_outline, size: 20.r),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your name';
@@ -165,11 +165,11 @@ class _SignupScreenState extends State<SignupScreen> {
                   SizedBox(height: 16.h),
 
                   // Email Field
-                  CustomTextField(
+                  ConstTextField(
                     controller: _emailController,
-                    label: 'Email',
-                    prefixIcon: Icons.email_outlined,
-                    keyboardType: TextInputType.emailAddress,
+                    customText: 'Email',
+                    prefixIcon: Icon(Icons.email_outlined, size: 20.r),
+                    keyoardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your email';
@@ -185,12 +185,12 @@ class _SignupScreenState extends State<SignupScreen> {
                   SizedBox(height: 16.h),
 
                   // Password Field
-                  CustomTextField(
+                  ConstTextField(
                     controller: _passwordController,
-                    label: 'Password',
-                    prefixIcon: Icons.lock_outline,
-                    obscureText: !_isPasswordVisible,
-                    suffixIcon: IconButton(
+                    customText: 'Password',
+                    prefixIcon: Icon(Icons.lock_outline, size: 20.r),
+                    obsercureText: !_isPasswordVisible,
+                    iconss: IconButton(
                       icon: Icon(
                         _isPasswordVisible
                             ? Icons.visibility_off
@@ -212,12 +212,12 @@ class _SignupScreenState extends State<SignupScreen> {
                   SizedBox(height: 16.h),
 
                   // Confirm Password Field
-                  CustomTextField(
+                  ConstTextField(
                     controller: _confirmPasswordController,
-                    label: 'Confirm Password',
-                    prefixIcon: Icons.lock_outline,
-                    obscureText: !_isConfirmPasswordVisible,
-                    suffixIcon: IconButton(
+                    customText: 'Confirm Password',
+                    prefixIcon: Icon(Icons.lock_outline, size: 20.r),
+                    obsercureText: !_isConfirmPasswordVisible,
+                    iconss: IconButton(
                       icon: Icon(
                         _isConfirmPasswordVisible
                             ? Icons.visibility_off
@@ -239,11 +239,10 @@ class _SignupScreenState extends State<SignupScreen> {
                   SizedBox(height: 16.h),
 
                   // Secret Code Field (for admin)
-                  CustomTextField(
+                  ConstTextField(
                     controller: _secretCodeController,
-                    label: 'Secret Code (optional for admin)',
-                    prefixIcon: Icons.key_outlined,
-                    helperText: 'Leave empty for regular user',
+                    customText: 'Secret Code (optional for admin)',
+                    prefixIcon: Icon(Icons.key_outlined, size: 20.r),
                   ),
                   SizedBox(height: 24.h),
 

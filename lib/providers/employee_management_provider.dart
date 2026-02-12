@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../models/employee_model.dart';
+import '../models/department_model.dart';
 import '../app_constants.dart';
 import '../utils/logger.dart';
 import 'user_provider.dart';
@@ -12,17 +13,27 @@ class EmployeeManagementProvider with ChangeNotifier {
 
   List<EmployeeModel> _employees = [];
   List<EmployeeModel> _filteredEmployees = [];
+  List<DepartmentModel> _departments = [];
   bool _isLoading = false;
   String _searchQuery = '';
   String? _errorMessage;
   bool _isSubAdminChecked = false;
+  bool _isAddingNewDept = false;
+  bool _isAddingNewRole = false;
+  String? _selectedDepartment;
+  String? _selectedRole;
 
   // Getters
   List<EmployeeModel> get employees => _filteredEmployees;
+  List<DepartmentModel> get departments => _departments;
   bool get isLoading => _isLoading;
   String get searchQuery => _searchQuery;
   String? get errorMessage => _errorMessage;
   bool get isSubAdminChecked => _isSubAdminChecked;
+  bool get isAddingNewDept => _isAddingNewDept;
+  bool get isAddingNewRole => _isAddingNewRole;
+  String? get selectedDepartment => _selectedDepartment;
+  String? get selectedRole => _selectedRole;
 
   // Set sub admin checkbox state
   void setSubAdminChecked(bool value) {
@@ -33,6 +44,32 @@ class EmployeeManagementProvider with ChangeNotifier {
   // Reset add employee form state
   void resetAddEmployeeForm() {
     _isSubAdminChecked = false;
+    _isAddingNewDept = false;
+    _isAddingNewRole = false;
+    _selectedDepartment = null;
+    _selectedRole = null;
+    notifyListeners();
+  }
+
+  void setSelectedDepartment(String? value) {
+    _selectedDepartment = value;
+    _selectedRole = null;
+    _isAddingNewRole = false;
+    notifyListeners();
+  }
+
+  void setSelectedRole(String? value) {
+    _selectedRole = value;
+    notifyListeners();
+  }
+
+  void setIsAddingNewDept(bool value) {
+    _isAddingNewDept = value;
+    notifyListeners();
+  }
+
+  void setIsAddingNewRole(bool value) {
+    _isAddingNewRole = value;
     notifyListeners();
   }
 
@@ -189,7 +226,8 @@ class EmployeeManagementProvider with ChangeNotifier {
             role: role ?? _employees[employeeIndex].role,
             totalExperience:
                 totalExperience ?? _employees[employeeIndex].totalExperience,
-            emergencyContactNumber: emergencyContactNumber ??
+            emergencyContactNumber:
+                emergencyContactNumber ??
                 _employees[employeeIndex].emergencyContactNumber,
             joiningDate: joiningDate ?? _employees[employeeIndex].joiningDate,
           );
@@ -275,16 +313,11 @@ class EmployeeManagementProvider with ChangeNotifier {
       final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
 
       // Create new user account using secondary auth instance
-      UserCredential result = await secondaryAuth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      UserCredential result = await secondaryAuth
+          .createUserWithEmailAndPassword(email: email, password: password);
 
       if (result.user == null) {
-        return {
-          'success': false,
-          'error': 'Failed to create user account',
-        };
+        return {'success': false, 'error': 'Failed to create user account'};
       }
 
       final newUserId = result.user!.uid;
@@ -330,7 +363,9 @@ class EmployeeManagementProvider with ChangeNotifier {
 
       return {
         'success': true,
-        'message': isSubAdmin ? 'Sub Admin added successfully' : 'Employee added successfully',
+        'message': isSubAdmin
+            ? 'Sub Admin added successfully'
+            : 'Employee added successfully',
         'employeeId': employeeId,
       };
     } on FirebaseAuthException catch (e) {
@@ -340,7 +375,9 @@ class EmployeeManagementProvider with ChangeNotifier {
           await secondaryApp.delete();
         } catch (_) {}
       }
-      logDebug('FirebaseAuthException adding employee: ${e.code} - ${e.message}');
+      logDebug(
+        'FirebaseAuthException adding employee: ${e.code} - ${e.message}',
+      );
       String errorMessage = 'Failed to add employee.';
       if (e.code == 'email-already-in-use') {
         errorMessage = 'An account with this email already exists.';
@@ -349,10 +386,7 @@ class EmployeeManagementProvider with ChangeNotifier {
       } else if (e.code == 'weak-password') {
         errorMessage = 'Password is too weak.';
       }
-      return {
-        'success': false,
-        'error': errorMessage,
-      };
+      return {'success': false, 'error': errorMessage};
     } catch (e) {
       // Clean up secondary app if it exists
       if (secondaryApp != null) {
@@ -374,6 +408,224 @@ class EmployeeManagementProvider with ChangeNotifier {
   // Refresh employee list
   Future<void> refreshEmployees() async {
     await fetchAllEmployees();
+    await fetchDepartments();
+  }
+
+  // --- Department and Role Management ---
+
+  // Fetch all departments
+  Future<void> fetchDepartments() async {
+    try {
+      _setLoading(true);
+      _errorMessage = null;
+
+      final snapshot = await _firestore
+          .collection(AppConstants.departmentsCollection)
+          .orderBy('name')
+          .get();
+
+      _departments = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+
+        // Handle Firestore Timestamp to DateTime
+        if (data['createdAt'] is Timestamp) {
+          data['createdAt'] = (data['createdAt'] as Timestamp)
+              .toDate()
+              .toIso8601String();
+        }
+
+        return DepartmentModel.fromJson(data);
+      }).toList();
+
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to fetch departments: $e';
+      logDebug('Error fetching departments: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Add new department(s)
+  Future<bool> addDepartments(String names) async {
+    try {
+      _setLoading(true);
+      final departmentNames = names
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      if (departmentNames.isEmpty) return false;
+
+      final batch = _firestore.batch();
+      for (final name in departmentNames) {
+        final docRef = _firestore
+            .collection(AppConstants.departmentsCollection)
+            .doc();
+        final department = DepartmentModel(
+          id: docRef.id,
+          name: name,
+          roles: [],
+          createdAt: DateTime.now(),
+        );
+        batch.set(docRef, {
+          ...department.toJson(),
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+      await fetchDepartments();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Failed to add department(s): $e';
+      logDebug('Error adding departments: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Add role(s) to a department
+  Future<bool> addRolesToDepartment(
+    String departmentId,
+    String roleNames,
+  ) async {
+    try {
+      _setLoading(true);
+      final roles = roleNames
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      if (roles.isEmpty) return false;
+
+      await _firestore
+          .collection(AppConstants.departmentsCollection)
+          .doc(departmentId)
+          .update({'roles': FieldValue.arrayUnion(roles)});
+
+      await fetchDepartments();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Failed to add role(s): $e';
+      logDebug('Error adding roles: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Remove a role from a department
+  Future<bool> removeRoleFromDepartment(
+    String departmentId,
+    String roleName,
+  ) async {
+    try {
+      _setLoading(true);
+
+      await _firestore
+          .collection(AppConstants.departmentsCollection)
+          .doc(departmentId)
+          .update({
+            'roles': FieldValue.arrayRemove([roleName]),
+          });
+
+      await fetchDepartments();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Failed to remove role: $e';
+      logDebug('Error removing role: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Delete a department
+  Future<bool> deleteDepartment(String departmentId) async {
+    try {
+      _setLoading(true);
+
+      await _firestore
+          .collection(AppConstants.departmentsCollection)
+          .doc(departmentId)
+          .delete();
+
+      await fetchDepartments();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Failed to delete department: $e';
+      logDebug('Error deleting department: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Update department name
+  Future<bool> updateDepartmentName(
+    String departmentId,
+    String newName,
+  ) async {
+    try {
+      _setLoading(true);
+
+      await _firestore
+          .collection(AppConstants.departmentsCollection)
+          .doc(departmentId)
+          .update({'name': newName});
+
+      await fetchDepartments();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Failed to update department: $e';
+      logDebug('Error updating department: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Update role name in a department
+  Future<bool> updateRoleName(
+    String departmentId,
+    String oldRoleName,
+    String newRoleName,
+  ) async {
+    try {
+      _setLoading(true);
+
+      // Get the department's current roles
+      final dept = _departments.firstWhere(
+        (d) => d.id == departmentId,
+        orElse: () => DepartmentModel(id: '', name: '', roles: []),
+      );
+
+      if (dept.id.isEmpty) return false;
+
+      // Create updated roles list
+      final updatedRoles = dept.roles.map((role) {
+        return role == oldRoleName ? newRoleName : role;
+      }).toList();
+
+      await _firestore
+          .collection(AppConstants.departmentsCollection)
+          .doc(departmentId)
+          .update({'roles': updatedRoles});
+
+      await fetchDepartments();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Failed to update role: $e';
+      logDebug('Error updating role: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
   }
 
   // Private helper methods

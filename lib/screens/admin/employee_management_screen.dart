@@ -4,14 +4,12 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:workzen/constants/constant_colors.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/employee_management_provider.dart';
 import '../../models/employee_model.dart';
 import '../../widgets/app_drawer.dart';
-import '../../widgets/custom_text_field.dart';
 import '../../constants/const_textstyle.dart';
-import '../../constants/constant_snackbar.dart';
 import 'employee_details_screen.dart';
+import 'add_employee_screen.dart';
 
 class EmployeeManagementScreen extends StatefulWidget {
   const EmployeeManagementScreen({Key? key}) : super(key: key);
@@ -26,12 +24,6 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   String? _selectedFilter;
 
   // Controllers for add employee dialog
-  final _addEmployeeFormKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _mobileController = TextEditingController();
-  final _departmentController = TextEditingController();
-  final _roleController = TextEditingController();
 
   @override
   void initState() {
@@ -41,271 +33,21 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         context,
         listen: false,
       ).fetchAllEmployees();
+      Provider.of<EmployeeManagementProvider>(
+        context,
+        listen: false,
+      ).fetchDepartments();
     });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _nameController.dispose();
-    _emailController.dispose();
-    _mobileController.dispose();
-    _departmentController.dispose();
-    _roleController.dispose();
     super.dispose();
   }
 
-  void _showAddEmployeeBottomSheet() {
-    // Clear previous values and reset form state
-    _nameController.clear();
-    _emailController.clear();
-    _mobileController.clear();
-    _departmentController.clear();
-    _roleController.clear();
-    Provider.of<EmployeeManagementProvider>(context, listen: false)
-        .resetAddEmployeeForm();
-
-    Get.bottomSheet(
-      Consumer<EmployeeManagementProvider>(
-        builder: (context, provider, child) {
-          return Container(
-            padding: EdgeInsets.all(16.w),
-            decoration: BoxDecoration(
-              color: ConstColors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
-            ),
-            child: SingleChildScrollView(
-              child: Form(
-                key: _addEmployeeFormKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Handle bar
-                    Center(
-                      child: Container(
-                        width: 40.w,
-                        height: 4.h,
-                        margin: EdgeInsets.only(bottom: 16.h),
-                        decoration: BoxDecoration(
-                          color: ConstColors.grey,
-                          borderRadius: BorderRadius.circular(2.r),
-                        ),
-                      ),
-                    ),
-                    // Title
-                    Text(
-                      'Add New Employee',
-                      style: getTextTheme().titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 20.h),
-                    CustomTextField(
-                      controller: _nameController,
-                      label: 'Full Name',
-                      prefixIcon: Icons.person_outline,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter employee name';
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 12.h),
-                    CustomTextField(
-                      controller: _emailController,
-                      label: 'Email',
-                      prefixIcon: Icons.email_outlined,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter email';
-                        }
-                        if (!RegExp(
-                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                        ).hasMatch(value)) {
-                          return 'Please enter a valid email';
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 12.h),
-                    CustomTextField(
-                      controller: _mobileController,
-                      label: 'Mobile Number',
-                      prefixIcon: Icons.phone_outlined,
-                      keyboardType: TextInputType.phone,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter mobile number';
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 12.h),
-                    CustomTextField(
-                      controller: _departmentController,
-                      label: 'Department',
-                      prefixIcon: Icons.work_outline,
-                    ),
-                    SizedBox(height: 12.h),
-                    CustomTextField(
-                      controller: _roleController,
-                      label: 'Role',
-                      prefixIcon: Icons.badge_outlined,
-                    ),
-                    SizedBox(height: 12.h),
-                    // Sub Admin Checkbox (only visible to admins, not subAdmins)
-                    if (Provider.of<AuthProvider>(context, listen: false).isAdmin)
-                      Row(
-                        children: [
-                          Checkbox(
-                            value: provider.isSubAdminChecked,
-                            onChanged: (value) {
-                              provider.setSubAdminChecked(value ?? false);
-                            },
-                            activeColor: ConstColors.primary,
-                          ),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () {
-                                provider.setSubAdminChecked(
-                                    !provider.isSubAdminChecked);
-                              },
-                              child: Text(
-                                'Make this employee a Sub Admin',
-                                style: getTextTheme().bodyMedium,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    SizedBox(height: 12.h),
-                    Container(
-                      padding: EdgeInsets.all(10.w),
-                      decoration: BoxDecoration(
-                        color: ConstColors.infoBlue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8.r),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.info_outline,
-                            size: 18.r,
-                            color: ConstColors.infoBlue,
-                          ),
-                          SizedBox(width: 8.w),
-                          Expanded(
-                            child: Text(
-                              'Default password: Welcome@2026',
-                              style: getTextTheme().bodyMedium?.copyWith(
-                                color: ConstColors.infoBlue,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 20.h),
-                    // Buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              provider.resetAddEmployeeForm();
-                              Get.back();
-                            },
-                            style: OutlinedButton.styleFrom(
-                              padding: EdgeInsets.symmetric(vertical: 14.h),
-                              side: BorderSide(color: ConstColors.grey),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10.r),
-                              ),
-                            ),
-                            child: Text(
-                              'Cancel',
-                              style: getTextTheme().bodyMedium?.copyWith(
-                                color: ConstColors.textColorLight,
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: provider.isLoading
-                                ? null
-                                : () async {
-                                    if (_addEmployeeFormKey.currentState!
-                                        .validate()) {
-                                      final result = await provider.addEmployee(
-                                        name: _nameController.text.trim(),
-                                        email: _emailController.text.trim(),
-                                        mobileNumber:
-                                            _mobileController.text.trim(),
-                                        department: _departmentController.text
-                                                .trim()
-                                                .isEmpty
-                                            ? null
-                                            : _departmentController.text.trim(),
-                                        role: _roleController.text.trim().isEmpty
-                                            ? null
-                                            : _roleController.text.trim(),
-                                        isSubAdmin: provider.isSubAdminChecked,
-                                      );
-
-                                      provider.resetAddEmployeeForm();
-                                      Get.back();
-
-                                      if (result['success']) {
-                                        ConstantSnackbar.showSuccess(
-                                          title: result['message'],
-                                        );
-                                      } else {
-                                        ConstantSnackbar.showError(
-                                          title: result['error'],
-                                        );
-                                      }
-                                    }
-                                  },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: ConstColors.primary,
-                              padding: EdgeInsets.symmetric(vertical: 14.h),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10.r),
-                              ),
-                            ),
-                            child: provider.isLoading
-                                ? SizedBox(
-                                    width: 20.w,
-                                    height: 20.h,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: ConstColors.white,
-                                    ),
-                                  )
-                                : Text(
-                                    'Add Employee',
-                                    style: getTextTheme().bodyMedium?.copyWith(
-                                      color: ConstColors.white,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 16.h),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-      isScrollControlled: true,
-    );
+  void _navigateToAddEmployee() {
+    Get.to(() => const AddEmployeeScreen());
   }
 
   @override
@@ -335,30 +77,25 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       ),
       drawer: const AppDrawer(),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddEmployeeBottomSheet,
+        onPressed: _navigateToAddEmployee,
         backgroundColor: ConstColors.primary,
-        //  icon: Icon(Icons.person_add, color: ConstColors.white),
-        // label: Text(
-        //   'Add Employee',
-        //   style: getTextTheme().labelMedium?.copyWith(
-        //         color: ConstColors.white,
-        //       ),
-        // ),
         child: Icon(Icons.person_add, color: ConstColors.white),
       ),
       body: Consumer<EmployeeManagementProvider>(
         builder: (context, provider, child) {
-          return Column(
-            children: [
-              // Search and Filter Section
-              _buildSearchAndFilterSection(provider),
+          return SafeArea(
+            child: Column(
+              children: [
+                // Search and Filter Section
+                _buildSearchAndFilterSection(provider),
 
-              // Statistics Section
-              _buildStatisticsSection(provider),
+                // Statistics Section
+                _buildStatisticsSection(provider),
 
-              // Employee List
-              Expanded(child: _buildEmployeeList(provider)),
-            ],
+                // Employee List
+                Expanded(child: _buildEmployeeList(provider)),
+              ],
+            ),
           );
         },
       ),

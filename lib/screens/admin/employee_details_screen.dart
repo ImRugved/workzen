@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -7,7 +8,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/employee_management_provider.dart';
 import '../../models/employee_model.dart';
 import '../../constants/const_textstyle.dart';
+import '../../constants/constant_textfield.dart';
 import '../../app_constants.dart';
+import '../../models/department_model.dart';
 
 class EmployeeDetailsScreen extends StatefulWidget {
   final EmployeeModel employee;
@@ -53,9 +56,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     _employeeIdController = TextEditingController(
       text: widget.employee.employeeId ?? '',
     );
-    _roleController = TextEditingController(
-      text: widget.employee.role ?? '',
-    );
+    _roleController = TextEditingController(text: widget.employee.role ?? '');
     _totalExperienceController = TextEditingController(
       text: widget.employee.totalExperience ?? '',
     );
@@ -64,6 +65,14 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     );
     _selectedDate = widget.employee.joiningDate;
     _loadUserData();
+
+    // Fetch departments for editing
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<EmployeeManagementProvider>(
+        context,
+        listen: false,
+      ).fetchDepartments();
+    });
   }
 
   Future<void> _loadUserData() async {
@@ -86,8 +95,8 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
           _aadharController.text = (_userData?['aadharNumber'] ?? '')
               .toString();
           _panController.text = (_userData?['panCardNumber'] ?? '').toString();
-          _totalExperienceController.text = (_userData?['totalExperience'] ?? '')
-              .toString();
+          _totalExperienceController.text =
+              (_userData?['totalExperience'] ?? '').toString();
           _emergencyContactController.text =
               (_userData?['emergencyContactNumber'] ?? '').toString();
           _employeeIdController.text = (_userData?['employeeId'] ?? '')
@@ -238,61 +247,63 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
       ),
       body: _isLoadingData
           ? Center(child: CircularProgressIndicator(color: Colors.indigo))
-          : SingleChildScrollView(
-              padding: EdgeInsets.all(16.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Profile Section
-                  _buildProfileSection(),
-                  SizedBox(height: 24.h),
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(16.w),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Profile Section
+                    _buildProfileSection(),
+                    SizedBox(height: 24.h),
 
-                  // Personal Information
-                  _buildSectionTitle('Personal Information'),
-                  SizedBox(height: 12.h),
-                  _buildPersonalInfoCard(),
-                  SizedBox(height: 24.h),
+                    // Personal Information
+                    _buildSectionTitle('Personal Information'),
+                    SizedBox(height: 12.h),
+                    _buildPersonalInfoCard(),
+                    SizedBox(height: 24.h),
 
-                  // Work Information
-                  _buildSectionTitle('Work Information'),
-                  SizedBox(height: 12.h),
-                  _buildWorkInfoCard(),
-                  SizedBox(height: 24.h),
+                    // Work Information
+                    _buildSectionTitle('Work Information'),
+                    SizedBox(height: 12.h),
+                    _buildWorkInfoCard(),
+                    SizedBox(height: 24.h),
 
-                  // Contact Information
-                  _buildSectionTitle('Contact Information'),
-                  SizedBox(height: 12.h),
-                  _buildContactInfoCard(),
-                  SizedBox(height: 24.h),
+                    // Contact Information
+                    _buildSectionTitle('Contact Information'),
+                    SizedBox(height: 12.h),
+                    _buildContactInfoCard(),
+                    SizedBox(height: 24.h),
 
-                  // Admin Only Fields
-                  _buildSectionTitle('Document Information (Admin Only)'),
-                  SizedBox(height: 12.h),
-                  _buildDocumentInfoCard(),
-                  SizedBox(height: 24.h),
+                    // Admin Only Fields
+                    _buildSectionTitle('Document Information (Admin Only)'),
+                    SizedBox(height: 12.h),
+                    _buildDocumentInfoCard(),
+                    SizedBox(height: 24.h),
 
-                  // Save Button
-                  if (_isEditing)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50.h,
-                      child: ElevatedButton(
-                        onPressed: _saveChanges,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.indigo,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.r),
+                    // Save Button
+                    if (_isEditing)
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50.h,
+                        child: ElevatedButton(
+                          onPressed: _saveChanges,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.indigo,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.r),
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          'Save Changes',
-                          style: getTextTheme().titleMedium?.copyWith(
-                            color: Colors.white,
+                          child: Text(
+                            'Save Changes',
+                            style: getTextTheme().titleMedium?.copyWith(
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
     );
@@ -488,18 +499,178 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
               isEditable: true,
             ),
             Divider(height: 24.h),
-            _buildDetailRow(
-              'Department',
-              _departmentController,
-              Icons.work,
-              isEditable: true,
+            // Department Selection
+            Consumer<EmployeeManagementProvider>(
+              builder: (context, provider, child) {
+                if (_isEditing) {
+                  if (provider.departments.isEmpty) {
+                    return Row(
+                      children: [
+                        Icon(Icons.work, size: 20.r, color: Colors.orange),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Text(
+                            'Please add departments first from Add Employee screen',
+                            style: getTextTheme().bodyMedium?.copyWith(
+                              color: Colors.orange.shade800,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.work, size: 20.r, color: Colors.indigo),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value:
+                              provider.departments.any(
+                                (d) => d.name == _departmentController.text,
+                              )
+                              ? _departmentController.text
+                              : null,
+                          decoration: InputDecoration(
+                            labelText: 'Department',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8.r),
+                            ),
+                          ),
+                          items: provider.departments.map((dept) {
+                            return DropdownMenuItem(
+                              value: dept.name,
+                              child: Text(dept.name),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _departmentController.text = value ?? '';
+                              _roleController.clear();
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(
+                      child: _buildStaticDetailRow(
+                        'Department',
+                        _departmentController.text.isEmpty
+                            ? 'Not Set'
+                            : _departmentController.text,
+                        Icons.work,
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.edit, size: 18.r, color: Colors.indigo),
+                      onPressed: () {
+                        setState(() {
+                          _isEditing = true;
+                        });
+                      },
+                      tooltip: 'Edit Work Info',
+                    ),
+                  ],
+                );
+              },
             ),
             Divider(height: 24.h),
-            _buildDetailRow(
-              'Role',
-              _roleController,
-              Icons.person_outline,
-              isEditable: true,
+            // Role Selection
+            Consumer<EmployeeManagementProvider>(
+              builder: (context, provider, child) {
+                if (_isEditing) {
+                  final selectedDept = provider.departments.firstWhere(
+                    (d) => d.name == _departmentController.text,
+                    orElse: () => DepartmentModel(id: '', name: '', roles: []),
+                  );
+
+                  if (_departmentController.text.isEmpty) {
+                    return Row(
+                      children: [
+                        Icon(Icons.person_outline, size: 20.r, color: Colors.orange),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Text(
+                            'Please select a department first',
+                            style: getTextTheme().bodyMedium?.copyWith(
+                              color: Colors.orange.shade800,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  if (selectedDept.roles.isEmpty) {
+                    return Row(
+                      children: [
+                        Icon(Icons.person_outline, size: 20.r, color: Colors.orange),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Text(
+                            'No roles available for this department. Please add roles first',
+                            style: getTextTheme().bodyMedium?.copyWith(
+                              color: Colors.orange.shade800,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.person_outline,
+                        size: 20.r,
+                        color: Colors.indigo,
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value:
+                              selectedDept.roles.contains(_roleController.text)
+                              ? _roleController.text
+                              : null,
+                          decoration: InputDecoration(
+                            labelText: 'Role',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8.r),
+                            ),
+                          ),
+                          items: selectedDept.roles.map((role) {
+                            return DropdownMenuItem(
+                              value: role,
+                              child: Text(role),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _roleController.text = value ?? '';
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                return _buildStaticDetailRow(
+                  'Role',
+                  _roleController.text.isEmpty
+                      ? 'Not Set'
+                      : _roleController.text,
+                  Icons.person_outline,
+                );
+              },
             ),
             Divider(height: 24.h),
             _buildDetailRow(
@@ -572,6 +743,16 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
               Icons.emergency,
               isEditable: true,
               keyboardType: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(10),
+              ],
+              validator: (value) {
+                if (value != null && value.isNotEmpty && value.length != 10) {
+                  return 'Please enter a valid 10-digit number';
+                }
+                return null;
+              },
             ),
           ],
         ),
@@ -661,6 +842,8 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     bool isEditable = false,
     int maxLines = 1,
     TextInputType? keyboardType,
+    String? Function(String?)? validator,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -669,22 +852,13 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
         SizedBox(width: 12.w),
         Expanded(
           child: _isEditing && isEditable
-              ? TextField(
+              ? ConstTextField(
                   controller: controller,
-                  maxLines: maxLines,
-                  keyboardType: keyboardType,
-                  decoration: InputDecoration(
-                    labelText: label,
-                    labelStyle: getTextTheme().bodyMedium,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8.r),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12.w,
-                      vertical: 8.h,
-                    ),
-                  ),
-                  style: getTextTheme().bodyLarge,
+                  customText: label,
+                  maxline: maxLines,
+                  keyoardType: keyboardType ?? TextInputType.text,
+                  validator: validator,
+                  inputFormatters: inputFormatters,
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
