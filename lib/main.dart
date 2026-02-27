@@ -16,6 +16,7 @@ import 'providers/user_provider.dart';
 import 'providers/onboarding_provider.dart';
 import 'providers/employee_management_provider.dart';
 import 'providers/security_provider.dart';
+import 'providers/dashboard_provider.dart';
 import 'services/fcm_service.dart';
 import 'services/notification_service.dart';
 
@@ -50,6 +51,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => OnboardingProvider()),
         ChangeNotifierProvider(create: (_) => EmployeeManagementProvider()),
         ChangeNotifierProvider(create: (_) => SecurityProvider()),
+        ChangeNotifierProvider(create: (_) => DashboardProvider()),
       ],
       child: const MyApp(),
     ),
@@ -73,7 +75,7 @@ class MyApp extends StatelessWidget {
       minTextAdapt: true,
       splitScreenMode: true,
       child: GetMaterialApp(
-        title: 'WorkZen',
+        title: 'SeenWork',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           primarySwatch: Colors.indigo,

@@ -21,6 +21,11 @@ class AttendanceProvider with ChangeNotifier {
   List<AttendanceModel> _allAttendance = [];
   bool _isLoading = false;
 
+  // Today's attendance screen state
+  AttendanceModel? _todayAttendance;
+  LeaveModel? _todayLeave;
+  bool? _isAtOffice;
+
   // Stream controllers
   Stream<List<AttendanceModel>>? _userAttendanceStream;
   Stream<List<AttendanceModel>>? _allAttendanceStream;
@@ -28,10 +33,46 @@ class AttendanceProvider with ChangeNotifier {
   List<AttendanceModel> get userAttendance => _userAttendance;
   List<AttendanceModel> get allAttendance => _allAttendance;
   bool get isLoading => _isLoading;
+  AttendanceModel? get todayAttendance => _todayAttendance;
+  LeaveModel? get todayLeave => _todayLeave;
+  bool? get isAtOffice => _isAtOffice;
   Stream<List<AttendanceModel>>? get userAttendanceStream =>
       _userAttendanceStream;
   Stream<List<AttendanceModel>>? get allAttendanceStream =>
       _allAttendanceStream;
+
+  // Load today's attendance and leave data for the attendance screen
+  Future<void> loadTodayData(String userId) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      _todayAttendance = await getTodayAttendance(userId, notify: false);
+      _todayLeave = await checkLeaveForToday(userId);
+    } catch (e) {
+      logDebug('Error loading today data: $e');
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  // Check if user is within office range and update state
+  void checkOfficeStatus(double? userLat, double? userLng, UserModel user) {
+    final officeLat = user.officeLatitude ?? 18.5679456;
+    final officeLng = user.officeLongitude ?? 73.7686132;
+
+    if (userLat == null || userLng == null) {
+      _isAtOffice = false;
+      notifyListeners();
+      return;
+    }
+
+    final distance = _calculateDistance(userLat, userLng, officeLat, officeLng);
+    logDebug('Distance from office: ${distance.toStringAsFixed(2)} meters');
+    _isAtOffice = distance <= 20.0;
+    notifyListeners();
+  }
 
   // Get real-time stream of user attendance
   Stream<List<AttendanceModel>> getUserAttendanceStream(String userId) {

@@ -23,14 +23,15 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final onboardingProvider = Provider.of<OnboardingProvider>(
         context,
         listen: false,
       );
       final userProvider = Provider.of<UserProvider>(context, listen: false);
+      // Load leave defaults from Firestore before loading users
+      await onboardingProvider.loadLeaveDefaults();
       onboardingProvider.loadUsers(userProvider);
-      // No auto-sync on load - admin manually selects users first
     });
   }
 
@@ -396,9 +397,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       final currentMonth = DateTime.now().month;
       final currentMonthLeaves = provider.calculateProRatedLeaves(
         joiningMonth: currentMonth,
-        privilegeLeaves: 12, // Use default values
-        sickLeaves: 6,
-        casualLeaves: 5,
+        privilegeLeaves: provider.privilegeLeaves,
+        sickLeaves: provider.sickLeaves,
+        casualLeaves: provider.casualLeaves,
       );
 
       return Container(
@@ -457,10 +458,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             final joiningMonth = joiningDate.month;
             final calculatedLeaves = provider.calculateProRatedLeaves(
               joiningMonth: joiningMonth,
-              privilegeLeaves:
-                  12, // Use default values for individual calculations
-              sickLeaves: 6,
-              casualLeaves: 5,
+              privilegeLeaves: provider.privilegeLeaves,
+              sickLeaves: provider.sickLeaves,
+              casualLeaves: provider.casualLeaves,
             );
 
             return Padding(

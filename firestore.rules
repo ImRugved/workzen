@@ -42,6 +42,14 @@ service cloud.firestore {
     }
     
     // ============================================
+    // DEPARTMENTS COLLECTION
+    // ============================================
+    match /departments/{departmentId} {
+      // All authenticated users can read departments
+      allow read: if request.auth != null;
+    }
+
+    // ============================================
     // ATTENDANCE COLLECTION
     // ============================================
     match /attendance/{document} {

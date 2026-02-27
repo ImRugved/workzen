@@ -1,13 +1,9 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../../models/attendance_model.dart';
-import '../../models/leave_model.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../constants/const_textstyle.dart';
@@ -22,38 +18,43 @@ class AttendanceScreen extends StatefulWidget {
 }
 
 class _AttendanceScreenState extends State<AttendanceScreen> {
-  bool _isLoading = false;
-  AttendanceModel? _todayAttendance;
-  LeaveModel? _todayLeave;
-  bool? _isAtOffice; // null = unknown, true = at office, false = not at office
-
   @override
   void initState() {
     super.initState();
-    _loadData();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkOfficeLocation();
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final attendanceProvider = Provider.of<AttendanceProvider>(
+        context,
+        listen: false,
+      );
+      final user = authProvider.userModel;
+      if (user != null) {
+        attendanceProvider.loadTodayData(user.id);
+        _checkOfficeLocation();
+      }
     });
   }
 
   Future<void> _checkOfficeLocation() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final attendanceProvider = Provider.of<AttendanceProvider>(
+      context,
+      listen: false,
+    );
     final user = authProvider.userModel;
     if (user == null) return;
-
-    // Use user's office location or fallback to default office coordinates
-    final officeLat = user.officeLatitude ?? 18.5679456;
-    final officeLng = user.officeLongitude ?? 73.7686132;
-    logDebug('Office Location - Lat: $officeLat, Lng: $officeLng');
 
     double? userLat;
     double? userLng;
 
-    // Try to get fresh GPS location
+    // Try to get fresh GPS location (request permission if needed)
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (serviceEnabled) {
         LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
         if (permission == LocationPermission.whileInUse ||
             permission == LocationPermission.always) {
           Position position = await Geolocator.getCurrentPosition(
@@ -64,7 +65,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           userLat = position.latitude;
           userLng = position.longitude;
 
-          // Also update GetStorage
           final storage = GetStorage();
           await storage.write('latitude', userLat);
           await storage.write('longitude', userLng);
@@ -81,117 +81,99 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       userLng = storage.read('longitude');
     }
 
-    if (userLat == null || userLng == null) {
-      logDebug('User location not available.');
-      if (mounted) setState(() => _isAtOffice = false);
-      return;
+    attendanceProvider.checkOfficeStatus(userLat, userLng, user);
+  }
+
+  /// Ensures location services are enabled and permission is granted.
+  /// Returns the current [Position] or null if location couldn't be obtained.
+  Future<Position?> _getLocationWithPermission() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      ConstantSnackbar.showError(
+        title: 'Location services are disabled. Please enable GPS.',
+      );
+      await Geolocator.openLocationSettings();
+      return null;
     }
 
-    final distance = _calculateDistance(userLat, userLng, officeLat, officeLng);
-    logDebug(
-      'Attendance screen - Distance from office: ${distance.toStringAsFixed(2)} meters',
-    );
-    if (mounted) setState(() => _isAtOffice = distance <= 20.0);
-  }
-
-  double _calculateDistance(
-    double lat1,
-    double lon1,
-    double lat2,
-    double lon2,
-  ) {
-    const double earthRadius = 6371000;
-    final double dLat = _degreesToRadians(lat2 - lat1);
-    final double dLon = _degreesToRadians(lon2 - lon1);
-    final double a =
-        math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(_degreesToRadians(lat1)) *
-            math.cos(_degreesToRadians(lat2)) *
-            math.sin(dLon / 2) *
-            math.sin(dLon / 2);
-    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    return earthRadius * c;
-  }
-
-  double _degreesToRadians(double degrees) {
-    return degrees * (math.pi / 180);
-  }
-
-  Future<void> _loadData() async {
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final attendanceProvider = Provider.of<AttendanceProvider>(
-      context,
-      listen: false,
-    );
-
-    if (authProvider.userModel != null) {
-      try {
-        // Get today's attendance
-        _todayAttendance = await attendanceProvider.getTodayAttendance(
-          authProvider.userModel!.id,
-          notify: false,
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        ConstantSnackbar.showError(
+          title: 'Location permission denied. Please grant permission.',
         );
-
-        // Check if on leave today
-        _todayLeave = await attendanceProvider.checkLeaveForToday(
-          authProvider.userModel!.id,
-        );
-      } catch (e) {
-        print("Error loading attendance data: $e");
+        return null;
       }
     }
 
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+    if (permission == LocationPermission.deniedForever) {
+      ConstantSnackbar.showError(
+        title:
+            'Location permission permanently denied. Please enable it from app settings.',
+      );
+      await Geolocator.openAppSettings();
+      return null;
+    }
+
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      final storage = GetStorage();
+      await storage.write('latitude', position.latitude);
+      await storage.write('longitude', position.longitude);
+      return position;
+    } catch (e) {
+      logDebug('Error getting current position: $e');
+      ConstantSnackbar.showError(title: 'Failed to get location. Try again.');
+      return null;
     }
   }
 
   Future<void> _punchIn() async {
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final attendanceProvider = Provider.of<AttendanceProvider>(
       context,
       listen: false,
     );
 
+    final position = await _getLocationWithPermission();
+    if (position == null) return;
+
+    // Update office status immediately with fresh location
+    if (authProvider.userModel != null) {
+      attendanceProvider.checkOfficeStatus(
+        position.latitude,
+        position.longitude,
+        authProvider.userModel!,
+      );
+    }
+
     if (authProvider.userModel != null) {
       try {
-        // Read location from GetStorage
-        final storage = GetStorage();
-        final double? lat = storage.read('latitude');
-        final double? lng = storage.read('longitude');
-        logDebug('Punch In - Latitude: $lat, Longitude: $lng');
+        logDebug(
+          'Punch In - Latitude: ${position.latitude}, Longitude: ${position.longitude}',
+        );
 
         final result = await attendanceProvider.punchIn(
           authProvider.userModel!,
-          latitude: lat,
-          longitude: lng,
+          latitude: position.latitude,
+          longitude: position.longitude,
         );
 
         if (result['success'] == true) {
           ConstantSnackbar.showSuccess(title: 'Successfully punched in');
-
-          // Reload data
-          await _loadData();
+          await attendanceProvider.loadTodayData(authProvider.userModel!.id);
         } else {
           final error = result['error'] ?? '';
           if (error == 'on_leave') {
+            final todayLeave = attendanceProvider.todayLeave;
             ConstantSnackbar.show(
               title:
-                  'You are on leave today${_todayLeave != null ? ' (${DateFormat('dd MMM yyyy').format(_todayLeave!.fromDate)})' : ''}',
+                  'You are on leave today${todayLeave != null ? ' (${DateFormat('dd MMM yyyy').format(todayLeave.fromDate)})' : ''}',
               backgroundColor: Colors.orange,
             );
           } else if (error == 'already_punched_in') {
@@ -207,46 +189,42 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         ConstantSnackbar.showError(title: 'Error: $e');
       }
     }
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
 
   Future<void> _punchOut() async {
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final attendanceProvider = Provider.of<AttendanceProvider>(
       context,
       listen: false,
     );
 
+    final position = await _getLocationWithPermission();
+    if (position == null) return;
+
+    // Update office status immediately with fresh location
+    if (authProvider.userModel != null) {
+      attendanceProvider.checkOfficeStatus(
+        position.latitude,
+        position.longitude,
+        authProvider.userModel!,
+      );
+    }
+
     if (authProvider.userModel != null) {
       try {
-        // Read location from GetStorage
-        final storage = GetStorage();
-        final double? lat = storage.read('latitude');
-        final double? lng = storage.read('longitude');
-        logDebug('Punch Out - Latitude: $lat, Longitude: $lng');
+        logDebug(
+          'Punch Out - Latitude: ${position.latitude}, Longitude: ${position.longitude}',
+        );
 
         final result = await attendanceProvider.punchOut(
           authProvider.userModel!,
-          latitude: lat,
-          longitude: lng,
+          latitude: position.latitude,
+          longitude: position.longitude,
         );
 
         if (result['success'] == true) {
           ConstantSnackbar.showSuccess(title: 'Successfully punched out');
-
-          // Reload data
-          await _loadData();
+          await attendanceProvider.loadTodayData(authProvider.userModel!.id);
         } else {
           final error = result['error'] ?? '';
           if (error == 'not_punched_in') {
@@ -267,12 +245,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         ConstantSnackbar.showError(title: 'Error: $e');
       }
     }
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
 
   @override
@@ -290,217 +262,239 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         actions: [
           IconButton(
             icon: Icon(Icons.refresh, size: 24.r),
-            onPressed: _loadData,
+            onPressed: () {
+              final authProvider = Provider.of<AuthProvider>(
+                context,
+                listen: false,
+              );
+              final attendanceProvider = Provider.of<AttendanceProvider>(
+                context,
+                listen: false,
+              );
+              if (authProvider.userModel != null) {
+                attendanceProvider.loadTodayData(authProvider.userModel!.id);
+                _checkOfficeLocation();
+              }
+            },
             tooltip: 'Refresh',
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: EdgeInsets.all(16.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Date and time card
-                  Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.r),
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.all(10.w),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  today,
-                                  style: getTextTheme().titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16.sp,
-                                  ),
-                                ),
-                              ),
-                              if (_isAtOffice != null)
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      width: 12.r,
-                                      height: 12.r,
-                                      decoration: BoxDecoration(
-                                        color: _isAtOffice!
-                                            ? Colors.green
-                                            : Colors.red,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                    SizedBox(width: 6.w),
-                                    Text(
-                                      _isAtOffice!
-                                          ? 'At Office'
-                                          : 'Not at Office',
-                                      style: getTextTheme().labelSmall
-                                          ?.copyWith(
-                                            color: _isAtOffice!
-                                                ? Colors.green
-                                                : Colors.red,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                            ],
-                          ),
+      body: Consumer<AttendanceProvider>(
+        builder: (context, attendanceProvider, _) {
+          if (attendanceProvider.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-                          Text(
-                            'Current Time: $time',
-                            style: getTextTheme().bodyMedium?.copyWith(
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+          final todayAttendance = attendanceProvider.todayAttendance;
+          final todayLeave = attendanceProvider.todayLeave;
+          final isAtOffice = attendanceProvider.isAtOffice;
+
+          return SingleChildScrollView(
+            padding: EdgeInsets.all(16.w),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Date and time card
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
                   ),
-                  SizedBox(height: 15.h),
-
-                  // Status card
-                  Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.r),
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.all(10.w),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Today\'s Status',
-                            style: getTextTheme().titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16.sp,
-                            ),
-                          ),
-                          SizedBox(height: 10.h),
-                          if (_todayLeave != null)
-                            _buildStatusRow(
-                              'On Leave',
-                              'You are on approved leave today',
-                              Colors.blue,
-                              Icons.event_busy,
-                            )
-                          else if (_todayAttendance == null)
-                            _buildStatusRow(
-                              'Not Checked In',
-                              'You haven\'t punched in today',
-                              Colors.grey,
-                              Icons.pending_actions,
-                            )
-                          else if (_todayAttendance!.punchInTime != null &&
-                              _todayAttendance!.punchOutTime == null)
-                            _buildStatusRow(
-                              'Checked In',
-                              'Punched in at ${DateFormat('hh:mm a').format(_todayAttendance!.punchInTime!)}',
-                              Colors.green,
-                              Icons.login,
-                            )
-                          else if (_todayAttendance!.punchInTime != null &&
-                              _todayAttendance!.punchOutTime != null)
-                            _buildStatusRow(
-                              'Checked Out',
-                              'Punched out at ${DateFormat('hh:mm a').format(_todayAttendance!.punchOutTime!)}',
-                              Colors.orange,
-                              Icons.logout,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 32.h),
-
-                  // Punch buttons
-                  if (_todayLeave == null) // Only show buttons if not on leave
-                    Row(
+                  child: Padding(
+                    padding: EdgeInsets.all(10.w),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed:
-                                (_todayAttendance?.punchInTime == null &&
-                                    !_isLoading)
-                                ? _punchIn
-                                : null,
-                            icon: Icon(Icons.login, size: 20.r),
-                            label: Text(
-                              'Punch In',
-                              style: getTextTheme().labelLarge,
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              padding: EdgeInsets.symmetric(vertical: 10.h),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10.r),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                today,
+                                style: getTextTheme().titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16.sp,
+                                ),
                               ),
+                            ),
+                            if (isAtOffice != null)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 12.r,
+                                    height: 12.r,
+                                    decoration: BoxDecoration(
+                                      color: isAtOffice
+                                          ? Colors.green
+                                          : Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  SizedBox(width: 6.w),
+                                  Text(
+                                    isAtOffice
+                                        ? 'At Office'
+                                        : 'Not at Office',
+                                    style: getTextTheme().labelSmall?.copyWith(
+                                      color: isAtOffice
+                                          ? Colors.green
+                                          : Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                        Text(
+                          'Current Time: $time',
+                          style: getTextTheme().bodyMedium?.copyWith(
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(height: 15.h),
+
+                // Status card
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(10.w),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Today\'s Status',
+                          style: getTextTheme().titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16.sp,
+                          ),
+                        ),
+                        SizedBox(height: 10.h),
+                        if (todayLeave != null)
+                          _buildStatusRow(
+                            'On Leave',
+                            'You are on approved leave today',
+                            Colors.blue,
+                            Icons.event_busy,
+                          )
+                        else if (todayAttendance == null)
+                          _buildStatusRow(
+                            'Not Checked In',
+                            'You haven\'t punched in today',
+                            Colors.grey,
+                            Icons.pending_actions,
+                          )
+                        else if (todayAttendance.punchInTime != null &&
+                            todayAttendance.punchOutTime == null)
+                          _buildStatusRow(
+                            'Checked In',
+                            'Punched in at ${DateFormat('hh:mm a').format(todayAttendance.punchInTime!)}',
+                            Colors.green,
+                            Icons.login,
+                          )
+                        else if (todayAttendance.punchInTime != null &&
+                            todayAttendance.punchOutTime != null)
+                          _buildStatusRow(
+                            'Checked Out',
+                            'Punched out at ${DateFormat('hh:mm a').format(todayAttendance.punchOutTime!)}',
+                            Colors.orange,
+                            Icons.logout,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(height: 32.h),
+
+                // Punch buttons
+                if (todayLeave == null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed:
+                              (todayAttendance?.punchInTime == null &&
+                                  !attendanceProvider.isLoading)
+                              ? _punchIn
+                              : null,
+                          icon: Icon(Icons.login, size: 20.r),
+                          label: Text(
+                            'Punch In',
+                            style: getTextTheme().labelLarge,
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            padding: EdgeInsets.symmetric(vertical: 10.h),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10.r),
                             ),
                           ),
                         ),
+                      ),
+                      SizedBox(width: 16.w),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed:
+                              (todayAttendance?.punchInTime != null &&
+                                  todayAttendance?.punchOutTime == null &&
+                                  !attendanceProvider.isLoading)
+                              ? _punchOut
+                              : null,
+                          icon: Icon(Icons.logout, size: 20.r),
+                          label: Text(
+                            'Punch Out',
+                            style: getTextTheme().labelLarge,
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            padding: EdgeInsets.symmetric(vertical: 10.h),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10.r),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Container(
+                    padding: EdgeInsets.all(16.w),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10.r),
+                      border: Border.all(
+                        color: Colors.blue.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info, color: Colors.blue, size: 24.r),
                         SizedBox(width: 16.w),
                         Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed:
-                                (_todayAttendance?.punchInTime != null &&
-                                    _todayAttendance?.punchOutTime == null &&
-                                    !_isLoading)
-                                ? _punchOut
-                                : null,
-                            icon: Icon(Icons.logout, size: 20.r),
-                            label: Text(
-                              'Punch Out',
-                              style: getTextTheme().labelLarge,
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange,
-                              padding: EdgeInsets.symmetric(vertical: 10.h),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10.r),
-                              ),
+                          child: Text(
+                            'You are on approved leave from ${DateFormat('dd MMM').format(todayLeave.fromDate)} to ${DateFormat('dd MMM').format(todayLeave.toDate)}',
+                            style: getTextTheme().bodyMedium?.copyWith(
+                              color: Colors.blue,
                             ),
                           ),
                         ),
                       ],
-                    )
-                  else
-                    // Show leave message if on leave
-                    Container(
-                      padding: EdgeInsets.all(16.w),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10.r),
-                        border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.info, color: Colors.blue, size: 24.r),
-                          SizedBox(width: 16.w),
-                          Expanded(
-                            child: Text(
-                              'You are on approved leave from ${DateFormat('dd MMM').format(_todayLeave!.fromDate)} to ${DateFormat('dd MMM').format(_todayLeave!.toDate)}',
-                              style: getTextTheme().bodyMedium?.copyWith(
-                                color: Colors.blue,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
+          );
+        },
+      ),
     );
   }
 

@@ -23,6 +23,11 @@ class OnboardingProvider extends ChangeNotifier {
   int _casualLeaves = 5;
   bool _enableCasualLeaves = false;
 
+  // Stored defaults from Firestore (used by resetToDefaultLeaves and calculateLeaves)
+  int _defaultPL = 12;
+  int _defaultSL = 6;
+  int _defaultCL = 5;
+
   // Individual user leave configurations
   Map<String, Map<String, int>> _individualUserLeaves = {};
 
@@ -72,17 +77,34 @@ class OnboardingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Load leave defaults from Firestore settings
+  Future<void> loadLeaveDefaults() async {
+    try {
+      final doc = await _firestore
+          .collection(AppConstants.settingsCollection)
+          .doc(AppConstants.leaveDefaultsDoc)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data()!;
+        _privilegeLeaves = (data['privilegeLeaves'] ?? 12) as int;
+        _sickLeaves = (data['sickLeaves'] ?? 6) as int;
+        _casualLeaves = (data['casualLeaves'] ?? 5) as int;
+        _defaultPL = _privilegeLeaves;
+        _defaultSL = _sickLeaves;
+        _defaultCL = _casualLeaves;
+      }
+    } catch (e) {
+      debugPrint('Error loading leave defaults: $e');
+    }
+    notifyListeners();
+  }
+
   // Reset to default leave values
   void resetToDefaultLeaves() {
-    print(
-      'EMPLOYEE ONBOARDING - Resetting to default values: PL=12, SL=6, CL=5',
-    );
-    _privilegeLeaves = 12;
-    _sickLeaves = 6;
-    _casualLeaves = 5;
-    print(
-      'EMPLOYEE ONBOARDING - After reset: PL=$_privilegeLeaves, SL=$_sickLeaves, CL=$_casualLeaves',
-    );
+    _privilegeLeaves = _defaultPL;
+    _sickLeaves = _defaultSL;
+    _casualLeaves = _defaultCL;
     notifyListeners();
   }
 
@@ -195,10 +217,10 @@ class OnboardingProvider extends ChangeNotifier {
     final remainingMonths = calculateRemainingMonths(joiningDate);
     final userLeaves = getIndividualUserLeaves(userId);
 
-    // Use original default values for calculation (not modified by auto-sync)
-    const int originalPL = 12;
-    const int originalSL = 6;
-    const int originalCL = 5;
+    // Use stored defaults from Firestore (falls back to 12/6/5 if not loaded)
+    final int originalPL = _defaultPL;
+    final int originalSL = _defaultSL;
+    final int originalCL = _defaultCL;
 
     print('EMPLOYEE ONBOARDING - User: ${user.name}');
     print('EMPLOYEE ONBOARDING - Joining Date: $joiningDate');
@@ -214,38 +236,19 @@ class OnboardingProvider extends ChangeNotifier {
 
     // For full year (12 remaining months), use full default allocation
     if (remainingMonths >= 12) {
-      print('EMPLOYEE ONBOARDING - Using full year allocation');
       finalPL = originalPL;
       finalSL = originalSL;
       casualLeaves = originalCL;
     } else {
-      print('EMPLOYEE ONBOARDING - Using pro-rated calculation');
+      // Pro-rated calculation based on remaining months
       finalPL = (originalPL * remainingMonths / 12).round();
 
-      // SL calculation: 12 months = 6 SL, 6-11 months = 3 SL, 4-5 months = 2 SL, 3 months or less = 1 SL
-      if (remainingMonths >= 12) {
-        finalSL = 6;
-      } else if (remainingMonths >= 6) {
-        finalSL = 3;
-      } else if (remainingMonths >= 4) {
-        finalSL = 2;
-      } else {
-        finalSL = 1; // 3 months or less = 1 SL
-      }
+      // SL pro-rated
+      finalSL = (originalSL * remainingMonths / 12).round();
+      if (finalSL < 1 && remainingMonths >= 1) finalSL = 1;
 
-      // CL calculation: 12 months = 5 CL, 9-11 months = 4 CL, 6-8 months = 2 CL, 4-5 months = 1 CL, 3 months or less = 0 CL
-      casualLeaves = 0;
-      if (remainingMonths >= 12) {
-        casualLeaves = 5;
-      } else if (remainingMonths >= 9) {
-        casualLeaves = 4;
-      } else if (remainingMonths >= 6) {
-        casualLeaves = 2;
-      } else if (remainingMonths >= 4) {
-        casualLeaves = 1;
-      } else {
-        casualLeaves = 0; // 3 months or less = 0 CL
-      }
+      // CL pro-rated
+      casualLeaves = (originalCL * remainingMonths / 12).round();
     }
 
     final finalCL = _enableCasualLeaves ? casualLeaves : 0;

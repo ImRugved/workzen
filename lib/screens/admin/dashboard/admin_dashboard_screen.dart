@@ -116,7 +116,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               BottomNavigationBarItem(
                 icon: Icon(Icons.science_outlined, size: 22.r),
                 activeIcon: Icon(Icons.science, size: 22.r),
-                label: 'Demo Page',
+                label: 'Admin Page',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.person_outline, size: 22.r),

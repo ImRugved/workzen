@@ -11,6 +11,7 @@ import '../services/supabase_service.dart';
 import '../models/user_model.dart';
 import 'dart:io';
 import '../constants/const_textstyle.dart';
+import '../constants/constant_textfield.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../app_constants.dart';
 import 'security_settings_screen.dart';
@@ -424,104 +425,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Address',
-                                  style: getTextTheme().bodySmall,
-                                ),
-                                SizedBox(height: 6.h),
-                                TextFormField(
+                                ConstTextField(
+                                  customText: 'Address',
                                   controller: _addressController,
-                                  decoration: InputDecoration(
-                                    hintText: 'Enter address',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8.r),
-                                    ),
-                                    contentPadding: EdgeInsets.all(12.w),
-                                  ),
-                                  maxLines: 2,
+                                  maxline: 2,
                                 ),
                                 SizedBox(height: 12.h),
-                                Text(
-                                  'Mobile Number',
-                                  style: getTextTheme().bodySmall,
-                                ),
-                                SizedBox(height: 6.h),
-                                TextFormField(
+                                ConstTextField(
+                                  customText: 'Mobile Number',
                                   controller: _mobileController,
-                                  keyboardType: TextInputType.phone,
-                                  decoration: InputDecoration(
-                                    hintText: 'Enter mobile number',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8.r),
-                                    ),
-                                    contentPadding: EdgeInsets.all(12.w),
-                                  ),
+                                  keyoardType: TextInputType.phone,
                                 ),
                                 SizedBox(height: 12.h),
-                                Text(
-                                  'Alternate Number',
-                                  style: getTextTheme().bodySmall,
-                                ),
-                                SizedBox(height: 6.h),
-                                TextFormField(
+                                ConstTextField(
+                                  customText: 'Alternate Number',
                                   controller: _alternateMobileController,
-                                  keyboardType: TextInputType.phone,
-                                  decoration: InputDecoration(
-                                    hintText: 'Enter alternate number',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8.r),
-                                    ),
-                                    contentPadding: EdgeInsets.all(12.w),
-                                  ),
+                                  keyoardType: TextInputType.phone,
                                 ),
                                 SizedBox(height: 12.h),
-                                Text(
-                                  'Blood Group',
-                                  style: getTextTheme().bodySmall,
-                                ),
-                                SizedBox(height: 6.h),
-                                TextFormField(
+                                ConstTextField(
+                                  customText: 'Blood Group',
                                   controller: _bloodGroupController,
-                                  decoration: InputDecoration(
-                                    hintText: 'Enter blood group',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8.r),
-                                    ),
-                                    contentPadding: EdgeInsets.all(12.w),
-                                  ),
                                 ),
                                 SizedBox(height: 12.h),
-                                Text(
-                                  'Total Experience',
-                                  style: getTextTheme().bodySmall,
-                                ),
-                                SizedBox(height: 6.h),
-                                TextFormField(
+                                ConstTextField(
+                                  customText: 'Total Experience',
                                   controller: _totalExperienceController,
-                                  decoration: InputDecoration(
-                                    hintText: 'e.g., 3 years 6 months',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8.r),
-                                    ),
-                                    contentPadding: EdgeInsets.all(12.w),
-                                  ),
                                 ),
                                 SizedBox(height: 12.h),
-                                Text(
-                                  'Emergency Contact Number',
-                                  style: getTextTheme().bodySmall,
-                                ),
-                                SizedBox(height: 6.h),
-                                TextFormField(
+                                ConstTextField(
+                                  customText: 'Emergency Contact Number',
                                   controller: _emergencyContactController,
-                                  keyboardType: TextInputType.phone,
-                                  decoration: InputDecoration(
-                                    hintText: 'Enter emergency contact number',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8.r),
-                                    ),
-                                    contentPadding: EdgeInsets.all(12.w),
-                                  ),
+                                  keyoardType: TextInputType.phone,
                                 ),
                                 SizedBox(height: 16.h),
                                 Row(

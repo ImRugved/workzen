@@ -48,22 +48,23 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
   Future<bool> _onWillPop(BuildContext context) async {
     return await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Exit App'),
-        content: const Text('Are you sure you want to exit?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('No'),
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Exit App'),
+            content: const Text('Are you sure you want to exit?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('No'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Yes'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Yes'),
-          ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 
   @override
@@ -115,7 +116,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
               BottomNavigationBarItem(
                 icon: Icon(Icons.science_outlined, size: 22.r),
                 activeIcon: Icon(Icons.science, size: 22.r),
-                label: 'Demo Page',
+                label: 'Summary',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.person_outline, size: 22.r),
