@@ -13,6 +13,7 @@ class UserModel {
   final DateTime? joiningDate;
   final String? role;
   final String userId;
+  final bool? isPrivilegeLeave;
   final bool? isCasualLeave;
   final String? totalExperience;
   final String? emergencyContactNumber;
@@ -32,6 +33,7 @@ class UserModel {
     this.createdAt,
     this.joiningDate,
     this.role,
+    this.isPrivilegeLeave,
     this.isCasualLeave,
     this.totalExperience,
     this.emergencyContactNumber,
@@ -83,6 +85,7 @@ class UserModel {
       createdAt: _parseDateTime(json['createdAt']),
       joiningDate: _parseDateTime(json['joiningDate']),
       role: json['role'],
+      isPrivilegeLeave: json['isPrivilegeLeave'],
       isCasualLeave: json['isCasualLeave'],
       totalExperience: json['totalExperience']?.toString(),
       emergencyContactNumber: json['emergencyContactNumber']?.toString(),
@@ -106,6 +109,7 @@ class UserModel {
       'createdAt': createdAt,
       'joiningDate': joiningDate,
       'role': role,
+      'isPrivilegeLeave': isPrivilegeLeave,
       'isCasualLeave': isCasualLeave,
       'totalExperience': totalExperience,
       'emergencyContactNumber': emergencyContactNumber,
