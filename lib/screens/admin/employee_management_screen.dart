@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:workzen/constants/constant_colors.dart';
 import '../../providers/employee_management_provider.dart';
+import '../../providers/onboarding_provider.dart';
 import '../../models/employee_model.dart';
 import '../../widgets/app_drawer.dart';
 import '../../constants/const_textstyle.dart';
@@ -50,6 +51,120 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
     Get.to(() => const AddEmployeeScreen());
   }
 
+  void _showRenewYearlyLeavesDialog() {
+    final nextYear = DateTime.now().year + 1;
+    final currentYear = DateTime.now().year;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Renew Yearly Leaves',
+          style: getTextTheme().titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'This will create leave allocations for $nextYear for all onboarded employees.',
+              style: getTextTheme().bodyMedium,
+            ),
+            SizedBox(height: 12.h),
+            Container(
+              padding: EdgeInsets.all(10.w),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Carry-forward rules:',
+                    style: getTextTheme().bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 4.h),
+                  Text(
+                    'PL: Unused balance from $currentYear carries forward',
+                    style: getTextTheme().bodySmall,
+                  ),
+                  Text(
+                    'SL: Fresh allocation (no carry forward)',
+                    style: getTextTheme().bodySmall,
+                  ),
+                  Text(
+                    'CL: Fresh allocation (no carry forward)',
+                    style: getTextTheme().bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _executeYearlyRenewal(nextYear);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ConstColors.primary,
+              foregroundColor: ConstColors.white,
+            ),
+            child: Text('Renew for $nextYear'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _executeYearlyRenewal(int year) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            SizedBox(width: 16.w),
+            Text('Renewing leaves for $year...'),
+          ],
+        ),
+      ),
+    );
+
+    final onboardingProvider = Provider.of<OnboardingProvider>(
+      context,
+      listen: false,
+    );
+    await onboardingProvider.loadLeaveDefaults();
+    final count = await onboardingProvider.renewYearlyLeaves(newYear: year);
+
+    if (mounted) {
+      Navigator.pop(context); // Close loading dialog
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            count > 0
+                ? 'Successfully renewed leaves for $count employee(s) for $year'
+                : 'No employees to renew (already renewed or none onboarded)',
+          ),
+          backgroundColor: count > 0 ? Colors.green : Colors.orange,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -63,6 +178,11 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         backgroundColor: ConstColors.primary,
         foregroundColor: ConstColors.textColorWhite,
         actions: [
+          IconButton(
+            icon: Icon(Icons.autorenew, size: 20.r),
+            onPressed: () => _showRenewYearlyLeavesDialog(),
+            tooltip: 'Renew Yearly Leaves',
+          ),
           IconButton(
             icon: Icon(Icons.refresh, size: 20.r),
             onPressed: () {

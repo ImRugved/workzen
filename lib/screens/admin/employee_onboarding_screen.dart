@@ -318,8 +318,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                 ),
               ),
 
-              // Casual Leave Checkbox
-              //   const SizedBox(height: 16),
+              // Leave Type Checkboxes
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -328,23 +327,47 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                 ),
                 child: Consumer<OnboardingProvider>(
                   builder: (context, provider, child) {
-                    return Row(
+                    return Column(
                       children: [
-                        Checkbox(
-                          value: provider.enableCasualLeaves,
-                          onChanged: (bool? value) {
-                            if (value != null) {
-                              provider.setEnableCasualLeaves(value);
-                            }
-                          },
-                          activeColor: Colors.blue,
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: provider.enablePrivilegeLeaves,
+                              onChanged: (bool? value) {
+                                if (value != null) {
+                                  provider.setEnablePrivilegeLeaves(value);
+                                }
+                              },
+                              activeColor: Colors.blue,
+                            ),
+                            const Text(
+                              'Enable Privilege Leave',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
-                        const Text(
-                          'Enable Casual Leave',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14,
-                          ),
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: provider.enableCasualLeaves,
+                              onChanged: (bool? value) {
+                                if (value != null) {
+                                  provider.setEnableCasualLeaves(value);
+                                }
+                              },
+                              activeColor: Colors.blue,
+                            ),
+                            const Text(
+                              'Enable Casual Leave',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     );
@@ -968,15 +991,17 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
           const SizedBox(height: 12),
 
           // Individual counters
-          _buildIndividualLeaveCounter(
-            'Privilege Leave (PL)',
-            user.userId,
-            'privilegeLeaves',
-            (int value) =>
-                provider.setIndividualUserPrivilegeLeaves(user.userId, value),
-            provider,
-          ),
-          const SizedBox(height: 12),
+          if (provider.enablePrivilegeLeaves) ...[
+            _buildIndividualLeaveCounter(
+              'Privilege Leave (PL)',
+              user.userId,
+              'privilegeLeaves',
+              (int value) =>
+                  provider.setIndividualUserPrivilegeLeaves(user.userId, value),
+              provider,
+            ),
+            const SizedBox(height: 12),
+          ],
 
           _buildIndividualLeaveCounter(
             'Sick Leave (SL)',
@@ -1107,16 +1132,17 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
   ) {
     return Column(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('PL:', style: TextStyle(fontSize: 12)),
-            Text(
-              '$finalPL days',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
+        if (provider.enablePrivilegeLeaves)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('PL:', style: TextStyle(fontSize: 12)),
+              Text(
+                '$finalPL days',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -1173,16 +1199,18 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          _buildIndividualLeaveCounter(
-            'Privilege Leave (PL)',
-            user.userId,
-            'privilegeLeaves',
-            (int value) {
-              provider.setIndividualUserPrivilegeLeaves(user.userId, value);
-            },
-            provider,
-          ),
-          const SizedBox(height: 4),
+          if (provider.enablePrivilegeLeaves) ...[
+            _buildIndividualLeaveCounter(
+              'Privilege Leave (PL)',
+              user.userId,
+              'privilegeLeaves',
+              (int value) {
+                provider.setIndividualUserPrivilegeLeaves(user.userId, value);
+              },
+              provider,
+            ),
+            const SizedBox(height: 4),
+          ],
           _buildIndividualLeaveCounter(
             'Sick Leave (SL)',
             user.userId,
@@ -1407,20 +1435,21 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
     return Column(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Privilege Leave:', style: TextStyle(fontSize: 12)),
-            Text(
-              '$finalPL days',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.green,
+        if (provider.enablePrivilegeLeaves)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Privilege Leave:', style: TextStyle(fontSize: 12)),
+              Text(
+                '$finalPL days',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [

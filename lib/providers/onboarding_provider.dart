@@ -19,14 +19,15 @@ class OnboardingProvider extends ChangeNotifier {
 
   // Leave configuration
   int _privilegeLeaves = 12;
-  int _sickLeaves = 6;
-  int _casualLeaves = 5;
+  int _sickLeaves = 10;
+  int _casualLeaves = 8;
+  bool _enablePrivilegeLeaves = false;
   bool _enableCasualLeaves = false;
 
   // Stored defaults from Firestore (used by resetToDefaultLeaves and calculateLeaves)
   int _defaultPL = 12;
-  int _defaultSL = 6;
-  int _defaultCL = 5;
+  int _defaultSL = 10;
+  int _defaultCL = 8;
 
   // Individual user leave configurations
   Map<String, Map<String, int>> _individualUserLeaves = {};
@@ -51,6 +52,7 @@ class OnboardingProvider extends ChangeNotifier {
   int get privilegeLeaves => _privilegeLeaves;
   int get sickLeaves => _sickLeaves;
   int get casualLeaves => _casualLeaves;
+  bool get enablePrivilegeLeaves => _enablePrivilegeLeaves;
   bool get enableCasualLeaves => _enableCasualLeaves;
   // Auto-sync status getter
   bool get hasAutoSynced => _hasAutoSynced;
@@ -72,6 +74,11 @@ class OnboardingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setEnablePrivilegeLeaves(bool value) {
+    _enablePrivilegeLeaves = value;
+    notifyListeners();
+  }
+
   void setEnableCasualLeaves(bool value) {
     _enableCasualLeaves = value;
     notifyListeners();
@@ -88,8 +95,8 @@ class OnboardingProvider extends ChangeNotifier {
       if (doc.exists) {
         final data = doc.data()!;
         _privilegeLeaves = (data['privilegeLeaves'] ?? 12) as int;
-        _sickLeaves = (data['sickLeaves'] ?? 6) as int;
-        _casualLeaves = (data['casualLeaves'] ?? 5) as int;
+        _sickLeaves = (data['sickLeaves'] ?? 10) as int;
+        _casualLeaves = (data['casualLeaves'] ?? 8) as int;
         _defaultPL = _privilegeLeaves;
         _defaultSL = _sickLeaves;
         _defaultCL = _casualLeaves;
@@ -251,6 +258,7 @@ class OnboardingProvider extends ChangeNotifier {
       casualLeaves = (originalCL * remainingMonths / 12).round();
     }
 
+    finalPL = _enablePrivilegeLeaves ? finalPL : 0;
     final finalCL = _enableCasualLeaves ? casualLeaves : 0;
 
     print(
@@ -456,7 +464,7 @@ class OnboardingProvider extends ChangeNotifier {
     // Example: If annual PL is 12 and joining in October (current month), remainingMonths = 2 (Nov, Dec)
     // Pro-rated PL = (12 / 12) * 2 = 2 leaves
     return {
-      'privilegeLeaves': remainingMonths > 0
+      'privilegeLeaves': _enablePrivilegeLeaves && pl > 0 && remainingMonths > 0
           ? ((pl / 12) * remainingMonths).round()
           : 0,
       'sickLeaves': remainingMonths > 0
@@ -514,6 +522,7 @@ class OnboardingProvider extends ChangeNotifier {
           'joiningYear': joiningDate.year,
           'employeeId': employeeId, // Add/update employeeId
           'role': user.role ?? 'employee', // Set role if not already set
+          'isPrivilegeLeave': _enablePrivilegeLeaves, // Set privilege leave preference
           'isCasualLeave': _enableCasualLeaves, // Set casual leave preference
         });
 
@@ -527,6 +536,7 @@ class OnboardingProvider extends ChangeNotifier {
           'joiningMonth': joiningMonth,
           'privilegeLeaves': {
             'allocated': leavesToSave['privilegeLeaves'],
+            'carryForward': 0,
             'used': 0,
             'balance': leavesToSave['privilegeLeaves'],
           },
@@ -738,6 +748,90 @@ class OnboardingProvider extends ChangeNotifier {
         'totalCLAllocated': 0,
         'utilizationPercentage': 0,
       };
+    }
+  }
+
+  /// Renew leaves for a new year for all onboarded users.
+  /// - PL: carry forward unused balance (no cap, no expiry) + fresh allocation
+  /// - SL: fresh allocation (no carry forward)
+  /// - CL: fresh allocation (no carry forward)
+  Future<int> renewYearlyLeaves({required int newYear}) async {
+    try {
+      final previousYear = newYear - 1;
+      int renewedCount = 0;
+
+      final usersSnapshot = await _firestore
+          .collection(AppConstants.usersCollection)
+          .where('isOnboarded', isEqualTo: true)
+          .get();
+
+      for (final userDoc in usersSnapshot.docs) {
+        // Check if new year doc already exists
+        final newYearDoc = await userDoc.reference
+            .collection('leaves')
+            .doc('annual_$newYear')
+            .get();
+
+        if (newYearDoc.exists) continue; // Already renewed
+
+        // Get previous year's leave data
+        final prevYearDoc = await userDoc.reference
+            .collection('leaves')
+            .doc('annual_$previousYear')
+            .get();
+
+        int carryForwardPL = 0;
+        if (prevYearDoc.exists) {
+          final prevData = prevYearDoc.data()!;
+          final plData = prevData['privilegeLeaves'] as Map<String, dynamic>?;
+          carryForwardPL = (plData?['balance'] as int?) ?? 0;
+        }
+
+        // Fresh annual allocation (full year for existing employees)
+        final freshPL = _defaultPL;
+        final freshSL = _defaultSL;
+        final freshCL = _defaultCL;
+
+        final totalPL = freshPL + carryForwardPL;
+
+        final leaveData = {
+          'year': newYear,
+          'joiningMonth': 1,
+          'privilegeLeaves': {
+            'allocated': freshPL,
+            'carryForward': carryForwardPL,
+            'used': 0,
+            'balance': totalPL,
+          },
+          'sickLeaves': {
+            'allocated': freshSL,
+            'used': 0,
+            'balance': freshSL,
+          },
+          'casualLeaves': {
+            'allocated': freshCL,
+            'used': 0,
+            'balance': freshCL,
+          },
+          'totalAllocated': totalPL + freshSL + freshCL,
+          'totalUsed': 0,
+          'totalBalance': totalPL + freshSL + freshCL,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        await userDoc.reference
+            .collection('leaves')
+            .doc('annual_$newYear')
+            .set(leaveData);
+
+        renewedCount++;
+      }
+
+      return renewedCount;
+    } catch (e) {
+      debugPrint('Error renewing yearly leaves: $e');
+      return 0;
     }
   }
 }
