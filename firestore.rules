@@ -50,6 +50,14 @@ service cloud.firestore {
     }
 
     // ============================================
+    // ORGANIZATION DETAILS (leave config, holiday calendar)
+    // ============================================
+    match /organization_details/{document=**} {
+      // All authenticated users (employees included) can read; writes fall to the admin rule below
+      allow read: if request.auth != null;
+    }
+
+    // ============================================
     // ATTENDANCE COLLECTION
     // ============================================
     match /attendance/{document} {

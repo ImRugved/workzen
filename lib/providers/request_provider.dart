@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:workzen/utils/logger.dart';
 import '../app_constants.dart';
+import '../constants/firestore_constants.dart';
 import '../models/request_model.dart';
 import '../models/user_model.dart';
 import '../services/fcm_service.dart';
@@ -260,7 +261,7 @@ class RequestProvider with ChangeNotifier {
           .collection(AppConstants.usersCollection)
           .doc(userId)
           .collection(AppConstants.leavesCollection)
-          .doc('annual_$currentYear')
+          .doc(FirestoreDocs.annualLeave(currentYear))
           .get();
 
       if (leaveDoc.exists) {
@@ -625,7 +626,7 @@ class RequestProvider with ChangeNotifier {
           .collection(AppConstants.usersCollection)
           .doc(request.userId)
           .collection(AppConstants.leavesCollection)
-          .doc('annual_$currentYear');
+          .doc(FirestoreDocs.annualLeave(currentYear));
 
       await _firestore.runTransaction((transaction) async {
         final leaveDoc = await transaction.get(leaveRef);

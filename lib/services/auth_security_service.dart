@@ -1,8 +1,8 @@
-import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:workzen/utils/logger.dart';
 import '../app_constants.dart';
+import '../constants/firestore_constants.dart';
 
 class AuthSecurityService {
   final LocalAuthentication _localAuth = LocalAuthentication();
@@ -46,10 +46,8 @@ class AuthSecurityService {
     try {
       final bool didAuthenticate = await _localAuth.authenticate(
         localizedReason: reason,
-        options: AuthenticationOptions(
-          biometricOnly: biometricOnly,
-          stickyAuth: true,
-        ),
+        biometricOnly: biometricOnly,
+        persistAcrossBackgrounding: true,
       );
       return didAuthenticate;
     } catch (e) {
@@ -76,8 +74,8 @@ class AuthSecurityService {
       final doc = await _firestore
           .collection(AppConstants.usersCollection)
           .doc(userId)
-          .collection('security')
-          .doc('settings')
+          .collection(FirestoreSubCollections.security)
+          .doc(FirestoreDocs.securitySettings)
           .get();
 
       if (doc.exists) {
@@ -99,8 +97,8 @@ class AuthSecurityService {
       await _firestore
           .collection(AppConstants.usersCollection)
           .doc(userId)
-          .collection('security')
-          .doc('settings')
+          .collection(FirestoreSubCollections.security)
+          .doc(FirestoreDocs.securitySettings)
           .set(settings, SetOptions(merge: true));
       return true;
     } catch (e) {
@@ -115,8 +113,8 @@ class AuthSecurityService {
       await _firestore
           .collection(AppConstants.usersCollection)
           .doc(userId)
-          .collection('security')
-          .doc('settings')
+          .collection(FirestoreSubCollections.security)
+          .doc(FirestoreDocs.securitySettings)
           .set({
             'biometricEnabled': enabled,
             'updatedAt': FieldValue.serverTimestamp(),
@@ -135,8 +133,8 @@ class AuthSecurityService {
       await _firestore
           .collection(AppConstants.usersCollection)
           .doc(userId)
-          .collection('security')
-          .doc('settings')
+          .collection(FirestoreSubCollections.security)
+          .doc(FirestoreDocs.securitySettings)
           .set({
             'appUnlockPin': pin,
             'hasAppUnlockPin': true,

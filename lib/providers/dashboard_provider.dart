@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../app_constants.dart';
+import '../constants/firestore_constants.dart';
+import 'package:uuid/uuid.dart';
+import '../models/holiday_model.dart';
 import '../models/leave_balance_model.dart';
 import 'employee_management_provider.dart';
 import 'onboarding_provider.dart';
@@ -26,7 +29,15 @@ class DashboardProvider with ChangeNotifier {
   bool _isLoadingLeaveConfig = false;
   bool _isSavingLeaveConfig = false;
 
+  // Holiday calendar state
+  List<HolidayModel> _holidays = [];
+  bool _isLoadingHolidays = true;
+  bool _isSavingHoliday = false;
+
   // Getters
+  List<HolidayModel> get holidays => _holidays;
+  bool get isLoadingHolidays => _isLoadingHolidays;
+  bool get isSavingHoliday => _isSavingHoliday;
   Map<String, dynamic> get leaveStats => _leaveStats;
   bool get isLoadingLeaveStats => _isLoadingLeaveStats;
   Map<String, LeaveBalanceModel> get employeeLeaves => _employeeLeaves;
@@ -55,9 +66,79 @@ class DashboardProvider with ChangeNotifier {
 
     await Future.wait([
       loadLeaveDefaults(),
+      loadHolidays(),
       _loadLeaveStatistics(onboardingProvider),
       _loadEmployeeLeaves(empProvider, onboardingProvider),
     ]);
+  }
+
+  CollectionReference<Map<String, dynamic>> get _holidayItems => _firestore
+      .collection(FirestoreCollections.organizationDetails)
+      .doc(FirestoreDocs.holidays)
+      .collection(FirestoreSubCollections.holidayItems);
+
+  // Load holidays from organization_details/holidays/items
+  Future<void> loadHolidays() async {
+    _isLoadingHolidays = true;
+    notifyListeners();
+
+    try {
+      final snapshot = await _holidayItems.get();
+      _holidays = snapshot.docs
+          .map((doc) => HolidayModel.fromJson({...doc.data(), 'id': doc.id}))
+          .toList()
+        ..sort((a, b) => a.date.compareTo(b.date));
+    } catch (e) {
+      debugPrint('Error loading holidays: $e');
+    }
+
+    _isLoadingHolidays = false;
+    notifyListeners();
+  }
+
+  Future<bool> addHoliday(
+    String name,
+    DateTime date, {
+    String? description,
+  }) async {
+    _isSavingHoliday = true;
+    notifyListeners();
+
+    try {
+      final holiday = HolidayModel(
+        id: const Uuid().v4(),
+        name: name,
+        date: date,
+        description: description,
+      );
+      await _holidayItems.doc(holiday.id).set({
+        ...holiday.toJson(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      _holidays = [..._holidays, holiday]
+        ..sort((a, b) => a.date.compareTo(b.date));
+      _isSavingHoliday = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error adding holiday: $e');
+      _isSavingHoliday = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> deleteHoliday(String holidayId) async {
+    try {
+      await _holidayItems.doc(holidayId).delete();
+      _holidays = _holidays.where((h) => h.id != holidayId).toList();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting holiday: $e');
+      return false;
+    }
   }
 
   // Load leave defaults from Firestore
@@ -67,8 +148,8 @@ class DashboardProvider with ChangeNotifier {
 
     try {
       final doc = await _firestore
-          .collection(AppConstants.settingsCollection)
-          .doc(AppConstants.leaveDefaultsDoc)
+          .collection(FirestoreCollections.organizationDetails)
+          .doc(FirestoreDocs.leaveConfig)
           .get();
 
       if (doc.exists) {
@@ -92,8 +173,8 @@ class DashboardProvider with ChangeNotifier {
 
     try {
       await _firestore
-          .collection(AppConstants.settingsCollection)
-          .doc(AppConstants.leaveDefaultsDoc)
+          .collection(FirestoreCollections.organizationDetails)
+          .doc(FirestoreDocs.leaveConfig)
           .set({
         'privilegeLeaves': pl,
         'sickLeaves': sl,
@@ -171,8 +252,8 @@ class DashboardProvider with ChangeNotifier {
       final docRef = _firestore
           .collection(AppConstants.usersCollection)
           .doc(employeeId)
-          .collection('leaves')
-          .doc('annual_$currentYear');
+          .collection(FirestoreSubCollections.leaves)
+          .doc(FirestoreDocs.annualLeave(currentYear));
 
       final doc = await docRef.get();
       if (!doc.exists) return;

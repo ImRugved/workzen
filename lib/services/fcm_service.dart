@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:developer';
+import 'package:workzen/constants/firestore_constants.dart';
 import 'package:flutter/services.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
@@ -180,7 +180,7 @@ class FCMService {
 
       // Find users with this token in Firestore
       final querySnapshot = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .where('fcmToken', isEqualTo: token)
           .get();
 
@@ -194,7 +194,7 @@ class FCMService {
 
           // Remove token from Firestore only
           try {
-            await _firestore.collection('users').doc(userId).update({
+            await _firestore.collection(FirestoreCollections.users).doc(userId).update({
               'fcmToken': '',
             });
             logDebug('Invalid token removed from Firestore for user: $userId');

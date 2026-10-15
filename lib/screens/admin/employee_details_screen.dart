@@ -10,6 +10,8 @@ import '../../models/employee_model.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_textfield.dart';
 import '../../app_constants.dart';
+import '../../constants/constant_snackbar.dart';
+import '../../constants/firestore_constants.dart';
 import '../../models/department_model.dart';
 
 class EmployeeDetailsScreen extends StatefulWidget {
@@ -39,6 +41,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
 
   // Extra user data from Firestore
   Map<String, dynamic>? _userData;
+  Map<String, dynamic>? _securityData; // users/{id}/security/settings
   bool _isLoadingData = true;
 
   @override
@@ -77,13 +80,18 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
 
   Future<void> _loadUserData() async {
     try {
-      final doc = await FirebaseFirestore.instance
+      final userRef = FirebaseFirestore.instance
           .collection(AppConstants.userCollection)
-          .doc(widget.employee.id)
+          .doc(widget.employee.id);
+      final doc = await userRef.get();
+      final securityDoc = await userRef
+          .collection(FirestoreSubCollections.security)
+          .doc(FirestoreDocs.securitySettings)
           .get();
 
       if (doc.exists) {
         setState(() {
+          _securityData = securityDoc.data();
           _userData = doc.data();
           _addressController.text = (_userData?['address'] ?? '').toString();
           _mobileController.text = (_userData?['mobileNumber'] ?? '')
@@ -257,6 +265,12 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
                     _buildProfileSection(),
                     SizedBox(height: 24.h),
 
+                    // Registered device (attendance device binding)
+                    _buildSectionTitle('Registered Device'),
+                    SizedBox(height: 12.h),
+                    _buildDeviceCard(),
+                    SizedBox(height: 24.h),
+
                     // Personal Information
                     _buildSectionTitle('Personal Information'),
                     SizedBox(height: 12.h),
@@ -422,6 +436,124 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     );
   }
 
+  Widget _buildDeviceCard() {
+    final deviceInfo = _securityData?[FirestoreFields.deviceInfo];
+    final isRegistered = deviceInfo is Map;
+
+    String registeredOn = '-';
+    if (isRegistered && deviceInfo['registeredAt'] is Timestamp) {
+      registeredOn = DateFormat(
+        'dd MMM yyyy, hh:mm a',
+      ).format((deviceInfo['registeredAt'] as Timestamp).toDate());
+    }
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+      child: Padding(
+        padding: EdgeInsets.all(16.w),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (isRegistered) ...[
+              _buildStaticDetailRow(
+                'Device',
+                '${deviceInfo['manufacturer'] ?? ''} ${deviceInfo['model'] ?? ''}'
+                    .trim(),
+                Icons.smartphone,
+              ),
+              _buildStaticDetailRow(
+                'OS',
+                '${deviceInfo['platform'] ?? ''} ${deviceInfo['osVersion'] ?? ''}'
+                    .trim(),
+                Icons.system_update,
+              ),
+              _buildStaticDetailRow(
+                'Registered on',
+                registeredOn,
+                Icons.event_available,
+              ),
+              SizedBox(height: 8.h),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _confirmResetDevice,
+                  icon: const Icon(Icons.phonelink_erase, color: Colors.red),
+                  label: const Text(
+                    'Reset Device',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.red),
+                  ),
+                ),
+              ),
+            ] else
+              Row(
+                children: [
+                  Icon(Icons.phonelink_off, size: 20.r, color: Colors.orange),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: Text(
+                      'No device registered yet. It is registered automatically when the employee logs in for the first time.',
+                      style: getTextTheme().bodyMedium?.copyWith(
+                        color: Colors.orange.shade800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Clears the binding so the employee's next login registers a new device
+  Future<void> _confirmResetDevice() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Reset Device?'),
+        content: Text(
+          '${widget.employee.name} will not be able to punch in or out until they log in again. Their next login will register that phone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(c, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Reset', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      final userRef = FirebaseFirestore.instance
+          .collection(AppConstants.userCollection)
+          .doc(widget.employee.id);
+      final batch = FirebaseFirestore.instance.batch();
+      batch.update(userRef, {FirestoreFields.isFirstLogin: false});
+      batch.set(
+        userRef
+            .collection(FirestoreSubCollections.security)
+            .doc(FirestoreDocs.securitySettings),
+        {FirestoreFields.deviceInfo: FieldValue.delete()},
+        SetOptions(merge: true),
+      );
+      await batch.commit();
+      await _loadUserData();
+      ConstantSnackbar.showSuccess(title: 'Device reset');
+    } catch (e) {
+      ConstantSnackbar.showError(title: 'Failed to reset device');
+    }
+  }
+
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
@@ -510,7 +642,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
                         SizedBox(width: 12.w),
                         Expanded(
                           child: Text(
-                            'Please add departments first from Add Employee screen',
+                            'Please add departments first from Admin Dashboard > Departments & Roles',
                             style: getTextTheme().bodyMedium?.copyWith(
                               color: Colors.orange.shade800,
                               fontStyle: FontStyle.italic,

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:workzen/utils/logger.dart';
 import '../app_constants.dart';
+import '../constants/firestore_constants.dart';
 import '../models/user_model.dart';
 
 class UserProvider extends ChangeNotifier {
@@ -190,7 +191,7 @@ class UserProvider extends ChangeNotifier {
   Future<String> generateNextEmployeeId() async {
     try {
       final QuerySnapshot querySnapshot = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .orderBy('employeeId', descending: true)
           .limit(1)
           .get();
@@ -234,8 +235,8 @@ class UserProvider extends ChangeNotifier {
       final leaveDoc = await _firestore
           .collection(AppConstants.usersCollection)
           .doc(userId)
-          .collection('leaves')
-          .doc('annual_$currentYear')
+          .collection(FirestoreSubCollections.leaves)
+          .doc(FirestoreDocs.annualLeave(currentYear))
           .get();
 
       return leaveDoc.exists;

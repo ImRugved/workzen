@@ -1,5 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/security_provider.dart';
 import '../providers/auth_provider.dart';
@@ -109,6 +111,89 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
         );
       }
     }
+  }
+
+  Widget _buildDeviceCard(Map<String, dynamic>? deviceInfo) {
+    final registeredAt = deviceInfo?['registeredAt'];
+    final device = '${deviceInfo?['manufacturer'] ?? ''} ${deviceInfo?['model'] ?? ''}'
+        .trim();
+    final os = '${deviceInfo?['platform'] ?? ''} ${deviceInfo?['osVersion'] ?? ''}'
+        .trim();
+
+    Widget row(IconData icon, String label, String value) {
+      return Padding(
+        padding: EdgeInsets.only(top: 8.h),
+        child: Row(
+          children: [
+            Icon(icon, size: 18.r, color: Colors.indigo),
+            SizedBox(width: 10.w),
+            Text('$label: ', style: getTextTheme().bodySmall),
+            Expanded(
+              child: Text(
+                value.isEmpty ? '-' : value,
+                style: getTextTheme().bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: EdgeInsets.all(16.w),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Registered Device',
+              style: getTextTheme().titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              'Attendance punch in and out works only from this device.',
+              style: getTextTheme().bodySmall?.copyWith(
+                color: Colors.grey[600],
+              ),
+            ),
+            if (deviceInfo == null) ...[
+              SizedBox(height: 12.h),
+              Row(
+                children: [
+                  Icon(Icons.phonelink_off, color: Colors.orange, size: 20.r),
+                  SizedBox(width: 8.w),
+                  Expanded(
+                    child: Text(
+                      'No device registered yet. It is registered when you log in.',
+                      style: getTextTheme().bodyMedium?.copyWith(
+                        color: Colors.orange.shade800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              row(Icons.smartphone, 'Device', device),
+              row(Icons.system_update, 'OS', os),
+              row(
+                Icons.event_available,
+                'Registered on',
+                registeredAt is Timestamp
+                    ? DateFormat(
+                        'dd MMM yyyy, hh:mm a',
+                      ).format(registeredAt.toDate())
+                    : '',
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -254,6 +339,8 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                     ),
                   ),
                 ),
+                SizedBox(height: 16.h),
+                _buildDeviceCard(securityProvider.deviceInfo),
               ],
             ),
           );

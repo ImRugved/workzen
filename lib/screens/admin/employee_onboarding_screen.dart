@@ -569,7 +569,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             topRight: Radius.circular(20),
           ),
         ),
-        child: Column(
+        child: Material(
+          type: MaterialType.transparency,
+          child: Column(
           mainAxisSize: MainAxisSize.max,
           children: [
             // Handle bar
@@ -828,6 +830,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

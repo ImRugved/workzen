@@ -1,5 +1,3 @@
-import 'dart:developer';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -96,7 +94,7 @@ class PushNotificationsService {
           );
 
       await flutterLocalNotificationsPlugin.initialize(
-        initializationSettings,
+        settings: initializationSettings,
         onDidReceiveNotificationResponse: onNotificationTap,
         onDidReceiveBackgroundNotificationResponse: onNotificationTap,
       );
@@ -208,10 +206,10 @@ class PushNotificationsService {
       );
 
       await flutterLocalNotificationsPlugin.show(
-        message.hashCode,
-        title,
-        body,
-        platformChannelSpecifics,
+        id: message.hashCode,
+        title: title,
+        body: body,
+        notificationDetails: platformChannelSpecifics,
         payload: message.data.toString(),
       );
     } catch (e) {

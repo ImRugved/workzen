@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:workzen/utils/logger.dart';
 import '../app_constants.dart';
+import '../constants/firestore_constants.dart';
 import '../models/user_model.dart';
+import '../services/device_service.dart';
 import 'user_provider.dart';
 
 class AuthProvider with ChangeNotifier {
@@ -71,6 +73,46 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  // Binds the account to this device on the first login (isFirstLogin == false).
+  // Attendance punches are later checked against the registered deviceId.
+  Future<void> _registerDeviceIfNeeded() async {
+    final user = _user;
+    final model = _userModel;
+    if (user == null || model == null || model.isFirstLogin) return;
+
+    try {
+      final info = await DeviceService().getDeviceInfo();
+      if (info[FirestoreFields.deviceId] == null) {
+        logDebug('Device id unavailable, skipping device registration');
+        return;
+      }
+
+      final userRef = _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(user.uid);
+      // Device details live with the other security settings (PIN, biometric)
+      final securityRef = userRef
+          .collection(FirestoreSubCollections.security)
+          .doc(FirestoreDocs.securitySettings);
+
+      final batch = _firestore.batch();
+      batch.update(userRef, {FirestoreFields.isFirstLogin: true});
+      batch.set(securityRef, {
+        FirestoreFields.deviceInfo: {
+          ...info,
+          'registeredAt': FieldValue.serverTimestamp(),
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      await batch.commit();
+      logDebug('Device registered for user ${user.uid}');
+
+      await _fetchUserData();
+    } catch (e) {
+      logDebug('Error registering device: $e');
+    }
+  }
+
   // Public method to refresh user data
   Future<void> refreshUserData() async {
     if (_user != null) {
@@ -95,6 +137,7 @@ class AuthProvider with ChangeNotifier {
       );
       _user = result.user;
       await _fetchUserData();
+      await _registerDeviceIfNeeded();
 
       // Always get fresh FCM token after successful login
       await _getFreshFcmTokenAndUpdate();
@@ -371,6 +414,7 @@ class AuthProvider with ChangeNotifier {
           isSubAdmin: _userModel!.isSubAdmin,
           officeLatitude: _userModel!.officeLatitude,
           officeLongitude: _userModel!.officeLongitude,
+          isFirstLogin: _userModel!.isFirstLogin,
           userId: _userModel!.userId,
         );
         notifyListeners();
@@ -392,6 +436,7 @@ class AuthProvider with ChangeNotifier {
       _user = _auth.currentUser;
       if (_user != null) {
         await _fetchUserData();
+        await _registerDeviceIfNeeded();
         await _updateFcmToken();
       }
     } catch (e) {

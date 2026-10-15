@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:workzen/constants/firestore_constants.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/supabase_config.dart';
@@ -51,7 +52,7 @@ class SupabaseService {
   
   // Private method to update user profile image URL in Firebase Firestore
   static Future<void> _updateUserProfileImageUrl(String userId, String imageUrl) async {
-    await _firestore.collection('users').doc(userId).update({
+    await _firestore.collection(FirestoreCollections.users).doc(userId).update({
       'profileImageUrl': imageUrl,
       'updatedAt': FieldValue.serverTimestamp(),
     });

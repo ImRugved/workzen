@@ -11,6 +11,8 @@ import '../models/attendance_model.dart';
 import '../models/leave_model.dart';
 import '../models/request_model.dart';
 import '../models/user_model.dart';
+import '../constants/firestore_constants.dart';
+import '../services/device_service.dart';
 import '../services/fcm_service.dart';
 
 class AttendanceProvider with ChangeNotifier {
@@ -58,7 +60,12 @@ class AttendanceProvider with ChangeNotifier {
   }
 
   // Check if user is within office range and update state
-  void checkOfficeStatus(double? userLat, double? userLng, UserModel user) {
+  void checkOfficeStatus(
+    double? userLat,
+    double? userLng,
+    UserModel user, {
+    double? accuracy,
+  }) {
     final officeLat = user.officeLatitude ?? 18.5679456;
     final officeLng = user.officeLongitude ?? 73.7686132;
 
@@ -70,7 +77,9 @@ class AttendanceProvider with ChangeNotifier {
 
     final distance = _calculateDistance(userLat, userLng, officeLat, officeLng);
     logDebug('Distance from office: ${distance.toStringAsFixed(2)} meters');
-    _isAtOffice = distance <= 20.0;
+    _isAtOffice =
+        _isInsideOffice(distance, accuracy) &&
+        (accuracy == null || accuracy <= _maxAcceptableAccuracy);
     notifyListeners();
   }
 
@@ -238,18 +247,100 @@ class AttendanceProvider with ChangeNotifier {
     return degrees * (math.pi / 180);
   }
 
-  // Validate if user is within office location (20 meter tolerance)
-  bool _isWithinOfficeRange(double? userLat, double? userLng, double? officeLat, double? officeLng) {
-    if (userLat == null || userLng == null || officeLat == null || officeLng == null) {
-      return false;
+  // Geofence rules. GPS on phones drifts by several metres, so the reported
+  // accuracy is credited (up to a cap) before comparing with the radius, and
+  // readings that are too imprecise are rejected instead of guessed.
+  static const double _officeRadius = 20.0; // metres
+  static const double _maxAccuracyCredit = 15.0; // metres
+  static const double _maxAcceptableAccuracy = 50.0; // metres
+
+  bool _isInsideOffice(double distance, double? accuracy) {
+    final credit = math.min(accuracy ?? 0, _maxAccuracyCredit);
+    return distance - credit <= _officeRadius;
+  }
+
+  // Returns an error message if the reading is not valid for punching at the
+  // office, or null when it is. [action] is "in" or "out".
+  String? _officeRangeError(
+    double userLat,
+    double userLng,
+    double officeLat,
+    double officeLng,
+    double? accuracy,
+    String action,
+  ) {
+    final distance = _calculateDistance(userLat, userLng, officeLat, officeLng);
+    logDebug(
+      'Distance from office: ${distance.toStringAsFixed(2)} meters, GPS accuracy: ${accuracy?.toStringAsFixed(1) ?? 'unknown'} meters',
+    );
+
+    if (accuracy != null && accuracy > _maxAcceptableAccuracy) {
+      logDebug('Punch $action rejected: GPS accuracy too low');
+      return 'GPS signal is weak (accuracy ±${accuracy.round()} m). Please move to an open area and try again.';
     }
-    final double distance = _calculateDistance(userLat, userLng, officeLat, officeLng);
-    logDebug('Distance from office: ${distance.toStringAsFixed(2)} meters');
-    return distance <= 20.0; // 20 meter tolerance
+
+    if (!_isInsideOffice(distance, accuracy)) {
+      logDebug('Punch $action rejected: outside office range');
+      return 'You are ${distance.round()} m from the office (limit ${_officeRadius.round()} m'
+          '${accuracy != null ? ', GPS accuracy ±${accuracy.round()} m' : ''}). '
+          'Please move closer and punch $action again.';
+    }
+
+    return null;
+  }
+
+  // Returns an error message if this phone is not the one registered to the
+  // user on their first login, or null when the device matches.
+  Future<String?> _checkRegisteredDevice(String userId) async {
+    try {
+      final userRef = _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId);
+      final userDoc = await userRef.get();
+      final securityDoc = await userRef
+          .collection(FirestoreSubCollections.security)
+          .doc(FirestoreDocs.securitySettings)
+          .get();
+
+      final deviceInfo = securityDoc.data()?[FirestoreFields.deviceInfo];
+      final registeredId = deviceInfo is Map
+          ? deviceInfo[FirestoreFields.deviceId]
+          : null;
+      final isFirstLogin = userDoc.data()?[FirestoreFields.isFirstLogin];
+
+      logDebug(
+        'Device check for $userId - isFirstLogin: $isFirstLogin, registered device: $registeredId',
+      );
+
+      if (isFirstLogin != true || registeredId == null) {
+        logDebug('Device check failed: no device registered for $userId');
+        return 'Your device is not registered yet. Please log out and log in again.';
+      }
+
+      final currentId = await DeviceService().getDeviceId();
+      logDebug('Device check - current device: $currentId');
+      if (currentId == null) {
+        logDebug('Device check failed: unable to read current device id');
+        return 'Unable to verify your device. Please try again.';
+      }
+
+      if (currentId != registeredId) {
+        logDebug(
+          'Device check failed: mismatch (registered: $registeredId, current: $currentId)',
+        );
+        return 'This is not your registered device. Please punch from your registered phone or ask the admin to reset your device.';
+      }
+
+      logDebug('Device check passed for $userId');
+      return null;
+    } catch (e) {
+      logDebug('Error verifying device: $e');
+      return 'Unable to verify your device. Please try again.';
+    }
   }
 
   // Punch in
-  Future<Map<String, dynamic>> punchIn(UserModel user, {double? latitude, double? longitude}) async {
+  Future<Map<String, dynamic>> punchIn(UserModel user, {double? latitude, double? longitude, double? accuracy}) async {
     _isLoading = true;
     notifyListeners();
 
@@ -262,10 +353,26 @@ class AttendanceProvider with ChangeNotifier {
         notifyListeners();
         return {'success': false, 'error': 'Unable to get your location. Please enable location services.'};
       }
-      if (!_isWithinOfficeRange(latitude, longitude, officeLat, officeLng)) {
+      final rangeError = _officeRangeError(
+        latitude,
+        longitude,
+        officeLat,
+        officeLng,
+        accuracy,
+        'in',
+      );
+      if (rangeError != null) {
         _isLoading = false;
         notifyListeners();
-        return {'success': false, 'error': 'You are not at the office location. Please punch in from the office.'};
+        return {'success': false, 'error': rangeError};
+      }
+
+      // Only the device registered on first login may punch
+      final deviceError = await _checkRegisteredDevice(user.id);
+      if (deviceError != null) {
+        _isLoading = false;
+        notifyListeners();
+        return {'success': false, 'error': deviceError};
       }
 
       // Check if already punched in today
@@ -351,7 +458,7 @@ class AttendanceProvider with ChangeNotifier {
   }
 
   // Punch out
-  Future<Map<String, dynamic>> punchOut(UserModel user, {double? latitude, double? longitude}) async {
+  Future<Map<String, dynamic>> punchOut(UserModel user, {double? latitude, double? longitude, double? accuracy}) async {
     try {
       // Validate office location (fallback to default office coordinates)
       final officeLat = user.officeLatitude ?? 18.5679456;
@@ -359,8 +466,22 @@ class AttendanceProvider with ChangeNotifier {
       if (latitude == null || longitude == null) {
         return {'success': false, 'error': 'Unable to get your location. Please enable location services.'};
       }
-      if (!_isWithinOfficeRange(latitude, longitude, officeLat, officeLng)) {
-        return {'success': false, 'error': 'You are not at the office location. Please punch out from the office.'};
+      final rangeError = _officeRangeError(
+        latitude,
+        longitude,
+        officeLat,
+        officeLng,
+        accuracy,
+        'out',
+      );
+      if (rangeError != null) {
+        return {'success': false, 'error': rangeError};
+      }
+
+      // Only the device registered on first login may punch
+      final deviceError = await _checkRegisteredDevice(user.id);
+      if (deviceError != null) {
+        return {'success': false, 'error': deviceError};
       }
 
       // Check if user is on leave today

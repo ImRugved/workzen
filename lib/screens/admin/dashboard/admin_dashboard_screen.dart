@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../admin_home.dart';
-import 'demo_page.dart';
+import 'admin_page.dart';
 import '../../profile_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {

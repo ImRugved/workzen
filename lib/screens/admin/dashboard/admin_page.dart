@@ -6,7 +6,10 @@ import '../../../providers/employee_management_provider.dart';
 import '../../../providers/onboarding_provider.dart';
 import '../../../providers/attendance_provider.dart';
 import '../../../providers/dashboard_provider.dart';
+import 'package:intl/intl.dart';
 import '../../../models/attendance_model.dart';
+import '../../../models/holiday_model.dart';
+import '../../../widgets/department_role_manager.dart';
 import '../../../constants/const_textstyle.dart';
 import '../../../constants/constant_colors.dart';
 import '../../../constants/constant_snackbar.dart';
@@ -89,9 +92,25 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                       _buildAttendanceSection(empProvider, attProvider),
 
                       // 2. Department & Roles
-                      _buildSectionHeader(
-                        'Departments & Roles',
-                        Icons.business,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildSectionHeader(
+                              'Departments & Roles',
+                              Icons.business,
+                            ),
+                          ),
+                          if (empProvider.departments.isNotEmpty)
+                            TextButton.icon(
+                              onPressed: () =>
+                                  DepartmentRoleManager.showAddDepartmentDialog(
+                                    context,
+                                    empProvider,
+                                  ),
+                              icon: Icon(Icons.add, size: 18.r),
+                              label: const Text('Add'),
+                            ),
+                        ],
                       ),
                       SizedBox(height: 10.h),
                       _buildDepartmentSection(empProvider),
@@ -104,6 +123,15 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                       ),
                       SizedBox(height: 10.h),
                       _buildLeaveConfigSection(dashProvider),
+                      SizedBox(height: 24.h),
+
+                      // Holiday Calendar
+                      _buildSectionHeader(
+                        'Holiday Calendar',
+                        Icons.event_outlined,
+                      ),
+                      SizedBox(height: 10.h),
+                      _buildHolidaySection(dashProvider),
                       SizedBox(height: 24.h),
 
                       // 4. Employee Leave Balances
@@ -291,7 +319,67 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
   // --- 2. Department & Roles ---
   Widget _buildDepartmentSection(EmployeeManagementProvider provider) {
     if (provider.departments.isEmpty) {
-      return _buildEmptyCard('No departments found');
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.r),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(16.w),
+          child: Column(
+            children: [
+              Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: ConstColors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.business,
+                  size: 28.r,
+                  color: ConstColors.primary,
+                ),
+              ),
+              SizedBox(height: 10.h),
+              Text(
+                'No departments yet',
+                style: getTextTheme().titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: ConstColors.textColor,
+                ),
+              ),
+              SizedBox(height: 4.h),
+              Text(
+                'Add your first department. You can add roles to it afterwards.',
+                textAlign: TextAlign.center,
+                style: getTextTheme().bodySmall?.copyWith(
+                  color: ConstColors.textColorLight,
+                ),
+              ),
+              SizedBox(height: 14.h),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => DepartmentRoleManager.showAddDepartmentDialog(
+                    context,
+                    provider,
+                  ),
+                  icon: Icon(Icons.add, size: 20.r),
+                  label: const Text('Add Department'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ConstColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: 12.h),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return Card(
@@ -402,6 +490,20 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                                   }).toList(),
                                 ),
                         ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.settings,
+                        size: 20.r,
+                        color: ConstColors.primary,
+                      ),
+                      tooltip: 'Manage ${dept.name}',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => DepartmentRoleManager.showManageSheet(
+                        context,
+                        provider,
+                        dept,
                       ),
                     ),
                   ],
@@ -963,6 +1065,181 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
     }
   }
 
+  // --- Holiday Calendar ---
+  Widget _buildHolidaySection(DashboardProvider dashProvider) {
+    if (dashProvider.isLoadingHolidays) {
+      return _buildLeaveConfigShimmer();
+    }
+
+    final holidays = dashProvider.holidays;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+      child: Padding(
+        padding: EdgeInsets.all(12.w),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Public holidays & festival days',
+                    style: getTextTheme().bodySmall?.copyWith(
+                      color: ConstColors.textColorLight,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => _showAddHolidayDialog(dashProvider),
+                  icon: Icon(Icons.add, size: 18.r),
+                  label: const Text('Add'),
+                ),
+              ],
+            ),
+            if (holidays.isEmpty)
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 16.h),
+                child: Center(
+                  child: Text(
+                    'No holidays added yet',
+                    style: getTextTheme().bodySmall?.copyWith(
+                      color: ConstColors.textColorLight,
+                    ),
+                  ),
+                ),
+              )
+            else
+              ...holidays.map((h) => _buildHolidayTile(h, dashProvider)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHolidayTile(HolidayModel holiday, DashboardProvider provider) {
+    final isPast = holiday.date.isBefore(
+      DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
+    );
+
+    return Padding(
+      padding: EdgeInsets.only(top: 8.h),
+      child: Row(
+        children: [
+          Container(
+            width: 48.w,
+            padding: EdgeInsets.symmetric(vertical: 6.h),
+            decoration: BoxDecoration(
+              color: (isPast ? Colors.grey : ConstColors.primary).withValues(
+                alpha: 0.1,
+              ),
+              borderRadius: BorderRadius.circular(8.r),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  DateFormat('dd').format(holiday.date),
+                  style: getTextTheme().titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: isPast ? Colors.grey : ConstColors.primary,
+                  ),
+                ),
+                Text(
+                  DateFormat('MMM').format(holiday.date),
+                  style: getTextTheme().labelSmall?.copyWith(
+                    color: isPast ? Colors.grey : ConstColors.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  holiday.name,
+                  style: getTextTheme().bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isPast ? Colors.grey : null,
+                  ),
+                ),
+                Text(
+                  [
+                    DateFormat('EEEE, yyyy').format(holiday.date),
+                    if (holiday.description != null) holiday.description!,
+                  ].join(' • '),
+                  style: getTextTheme().labelSmall?.copyWith(
+                    color: ConstColors.textColorLight,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.delete_outline, size: 20.r, color: Colors.red),
+            onPressed: () => _confirmDeleteHoliday(holiday, provider),
+            tooltip: 'Delete',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteHoliday(
+    HolidayModel holiday,
+    DashboardProvider provider,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Holiday'),
+        content: Text('Remove "${holiday.name}" from the holiday calendar?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final success = await provider.deleteHoliday(holiday.id);
+    if (success) {
+      ConstantSnackbar.showSuccess(title: 'Holiday deleted');
+    } else {
+      ConstantSnackbar.showError(title: 'Failed to delete holiday');
+    }
+  }
+
+  Future<void> _showAddHolidayDialog(DashboardProvider provider) async {
+    final result = await showDialog<_HolidayInput>(
+      context: context,
+      builder: (_) => const _AddHolidayDialog(),
+    );
+
+    if (result == null) return;
+
+    final success = await provider.addHoliday(
+      result.name,
+      result.date,
+      description: result.description,
+    );
+    if (success) {
+      ConstantSnackbar.showSuccess(title: 'Holiday added');
+    } else {
+      ConstantSnackbar.showError(title: 'Failed to add holiday');
+    }
+  }
+
   // --- Shimmer Helpers ---
   Widget _buildShimmerBox({
     double? width,
@@ -1077,6 +1354,108 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _HolidayInput {
+  final String name;
+  final DateTime date;
+  final String? description;
+
+  _HolidayInput(this.name, this.date, this.description);
+}
+
+// Owns its controllers so they are disposed only after the dialog's close
+// animation has finished.
+class _AddHolidayDialog extends StatefulWidget {
+  const _AddHolidayDialog();
+
+  @override
+  State<_AddHolidayDialog> createState() => _AddHolidayDialogState();
+}
+
+class _AddHolidayDialogState extends State<_AddHolidayDialog> {
+  final _nameController = TextEditingController();
+  final _descController = TextEditingController();
+  DateTime? _selectedDate;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime(DateTime.now().year - 1),
+      lastDate: DateTime(DateTime.now().year + 3),
+    );
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+    }
+  }
+
+  void _save() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty || _selectedDate == null) {
+      ConstantSnackbar.showError(title: 'Enter holiday name and select a date');
+      return;
+    }
+    final description = _descController.text.trim();
+    Navigator.of(context).pop(
+      _HolidayInput(
+        name,
+        _selectedDate!,
+        description.isEmpty ? null : description,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add Holiday'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _nameController,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Holiday name',
+              hintText: 'e.g. Independence Day',
+            ),
+          ),
+          SizedBox(height: 12.h),
+          TextField(
+            controller: _descController,
+            decoration: const InputDecoration(
+              labelText: 'Description (optional)',
+            ),
+          ),
+          SizedBox(height: 12.h),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.calendar_today, size: 18),
+            label: Text(
+              _selectedDate == null
+                  ? 'Select date'
+                  : DateFormat('dd MMM yyyy').format(_selectedDate!),
+            ),
+            onPressed: _pickDate,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(onPressed: _save, child: const Text('Save')),
+      ],
     );
   }
 }

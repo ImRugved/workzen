@@ -18,6 +18,42 @@ class AttendanceScreen extends StatefulWidget {
 }
 
 class _AttendanceScreenState extends State<AttendanceScreen> {
+  // True for the whole punch flow: location, device check and the save
+  bool _isPunching = false;
+  String? _punchAction; // 'in' or 'out'
+
+  Future<void> _runPunch(String action, Future<void> Function() punch) async {
+    if (_isPunching) return;
+    setState(() {
+      _isPunching = true;
+      _punchAction = action;
+    });
+    try {
+      await punch();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPunching = false;
+          _punchAction = null;
+        });
+      }
+    }
+  }
+
+  Widget _punchIcon(String action, IconData icon) {
+    if (_isPunching && _punchAction == action) {
+      return SizedBox(
+        width: 20.r,
+        height: 20.r,
+        child: const CircularProgressIndicator(
+          strokeWidth: 2.5,
+          color: Colors.white,
+        ),
+      );
+    }
+    return Icon(icon, size: 20.r);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +82,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     double? userLat;
     double? userLng;
+    double? userAccuracy;
 
     // Try to get fresh GPS location (request permission if needed)
     try {
@@ -64,6 +101,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           );
           userLat = position.latitude;
           userLng = position.longitude;
+          userAccuracy = position.accuracy;
 
           final storage = GetStorage();
           await storage.write('latitude', userLat);
@@ -81,7 +119,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       userLng = storage.read('longitude');
     }
 
-    attendanceProvider.checkOfficeStatus(userLat, userLng, user);
+    attendanceProvider.checkOfficeStatus(
+      userLat,
+      userLng,
+      user,
+      accuracy: userAccuracy,
+    );
   }
 
   /// Ensures location services are enabled and permission is granted.
@@ -117,6 +160,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
 
     try {
+      // One fast fix; GPS drift is handled by the accuracy-aware range check
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
@@ -149,6 +193,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         position.latitude,
         position.longitude,
         authProvider.userModel!,
+        accuracy: position.accuracy,
       );
     }
 
@@ -162,6 +207,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           authProvider.userModel!,
           latitude: position.latitude,
           longitude: position.longitude,
+          accuracy: position.accuracy,
         );
 
         if (result['success'] == true) {
@@ -207,6 +253,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         position.latitude,
         position.longitude,
         authProvider.userModel!,
+        accuracy: position.accuracy,
       );
     }
 
@@ -220,6 +267,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           authProvider.userModel!,
           latitude: position.latitude,
           longitude: position.longitude,
+          accuracy: position.accuracy,
         );
 
         if (result['success'] == true) {
@@ -282,7 +330,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       ),
       body: Consumer<AttendanceProvider>(
         builder: (context, attendanceProvider, _) {
-          if (attendanceProvider.isLoading) {
+          // Keep the page (and the button spinner) visible while punching
+          if (attendanceProvider.isLoading && !_isPunching) {
             return const Center(child: CircularProgressIndicator());
           }
 
@@ -423,16 +472,26 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         child: ElevatedButton.icon(
                           onPressed:
                               (todayAttendance?.punchInTime == null &&
-                                  !attendanceProvider.isLoading)
-                              ? _punchIn
+                                  !_isPunching)
+                              ? () => _runPunch('in', _punchIn)
                               : null,
-                          icon: Icon(Icons.login, size: 20.r),
+                          icon: _punchIcon('in', Icons.login),
                           label: Text(
-                            'Punch In',
+                            _isPunching && _punchAction == 'in'
+                                ? 'Verifying...'
+                                : 'Punch In',
                             style: getTextTheme().labelLarge,
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
+                            disabledBackgroundColor:
+                                _isPunching && _punchAction == 'in'
+                                ? Colors.green.withValues(alpha: 0.7)
+                                : null,
+                            disabledForegroundColor:
+                                _isPunching && _punchAction == 'in'
+                                ? Colors.white
+                                : null,
                             padding: EdgeInsets.symmetric(vertical: 10.h),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10.r),
@@ -446,16 +505,26 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           onPressed:
                               (todayAttendance?.punchInTime != null &&
                                   todayAttendance?.punchOutTime == null &&
-                                  !attendanceProvider.isLoading)
-                              ? _punchOut
+                                  !_isPunching)
+                              ? () => _runPunch('out', _punchOut)
                               : null,
-                          icon: Icon(Icons.logout, size: 20.r),
+                          icon: _punchIcon('out', Icons.logout),
                           label: Text(
-                            'Punch Out',
+                            _isPunching && _punchAction == 'out'
+                                ? 'Verifying...'
+                                : 'Punch Out',
                             style: getTextTheme().labelLarge,
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.orange,
+                            disabledBackgroundColor:
+                                _isPunching && _punchAction == 'out'
+                                ? Colors.orange.withValues(alpha: 0.7)
+                                : null,
+                            disabledForegroundColor:
+                                _isPunching && _punchAction == 'out'
+                                ? Colors.white
+                                : null,
                             padding: EdgeInsets.symmetric(vertical: 10.h),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10.r),

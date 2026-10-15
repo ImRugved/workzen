@@ -20,6 +20,7 @@ class UserModel {
   final bool isSubAdmin;
   final double? officeLatitude;
   final double? officeLongitude;
+  final bool isFirstLogin; // false until the first login registers the device
 
   UserModel({
     required this.id,
@@ -40,6 +41,7 @@ class UserModel {
     this.isSubAdmin = false,
     this.officeLatitude,
     this.officeLongitude,
+    this.isFirstLogin = false,
     String? userId,
   }) : userId = userId ?? id;
 
@@ -92,6 +94,7 @@ class UserModel {
       isSubAdmin: json['isSubAdmin'] ?? false,
       officeLatitude: (json['officeLatitude'] as num?)?.toDouble(),
       officeLongitude: (json['officeLongitude'] as num?)?.toDouble(),
+      isFirstLogin: json['isFirstLogin'] ?? false,
       userId: json['userId'],
     );
   }
@@ -116,6 +119,7 @@ class UserModel {
       'isSubAdmin': isSubAdmin,
       'officeLatitude': officeLatitude,
       'officeLongitude': officeLongitude,
+      'isFirstLogin': isFirstLogin,
       'userId': userId,
     };
   }

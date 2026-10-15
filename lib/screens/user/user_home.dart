@@ -13,6 +13,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_drawer.dart';
+import '../../widgets/holiday_calendar_card.dart';
 import '../../constants/const_textstyle.dart';
 import '../../utils/logger.dart';
 
@@ -595,6 +596,8 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                                 },
                               ),
                       ),
+                      SizedBox(height: 16.h),
+                      const HolidayCalendarCard(),
                       SizedBox(height: 16.h),
                     ],
                   ),

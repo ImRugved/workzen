@@ -14,6 +14,7 @@ import '../../providers/employee_management_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/dot_indicator.dart';
+import '../../widgets/holiday_calendar_card.dart';
 import '../../app_constants.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_colors.dart';
@@ -512,6 +513,9 @@ class _AdminHomeState extends State<AdminHome> {
                                 );
                               },
                             ),
+                      SizedBox(height: 16.h),
+                      const HolidayCalendarCard(),
+                      SizedBox(height: 16.h),
                     ],
                   ),
                 );

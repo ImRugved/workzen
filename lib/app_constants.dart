@@ -1,9 +1,11 @@
+import 'constants/firestore_constants.dart';
+
 class AppConstants {
   static const String adminCode = "myadmin";
-  static const String userCollection = "users";
+  static const String userCollection = FirestoreCollections.users;
   static const String userRequestsCollection =
-      "requests"; // Subcollection under users
-  static const String attendanceCollection = "attendance";
+      FirestoreSubCollections.requests; // Subcollection under users
+  static const String attendanceCollection = FirestoreCollections.attendance;
 
   // Request types
   static const String requestTypeLeave = "leave";
@@ -34,13 +36,12 @@ class AppConstants {
   static const String adminRole = "admin";
   static const String employeeRole = "employee";
 
-  // Collections
-  static const String usersCollection = "users";
-  static const String notificationsCollection = "notifications";
-  static const String leavesCollection = "leaves";
-  static const String departmentsCollection = "departments";
-  static const String settingsCollection = "settings";
-  static const String leaveDefaultsDoc = "leave_defaults";
+  // Collections: names live in constants/firestore_constants.dart
+  static const String usersCollection = FirestoreCollections.users;
+  static const String notificationsCollection =
+      FirestoreCollections.notifications;
+  static const String leavesCollection = FirestoreSubCollections.leaves;
+  static const String departmentsCollection = FirestoreCollections.departments;
 
   // Leave types
   static const String leaveTypePL = "pl"; // Privilege Leave / Paid Leave

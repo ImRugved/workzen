@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../app_constants.dart';
+import '../constants/firestore_constants.dart';
 import '../services/fcm_service.dart';
 import '../models/user_model.dart';
 import 'user_provider.dart';
@@ -88,8 +89,8 @@ class OnboardingProvider extends ChangeNotifier {
   Future<void> loadLeaveDefaults() async {
     try {
       final doc = await _firestore
-          .collection(AppConstants.settingsCollection)
-          .doc(AppConstants.leaveDefaultsDoc)
+          .collection(FirestoreCollections.organizationDetails)
+          .doc(FirestoreDocs.leaveConfig)
           .get();
 
       if (doc.exists) {
@@ -528,8 +529,8 @@ class OnboardingProvider extends ChangeNotifier {
 
         // Create leaves subcollection for the user
         final leavesRef = userRef
-            .collection('leaves')
-            .doc('annual_${currentDate.year}');
+            .collection(FirestoreSubCollections.leaves)
+            .doc(FirestoreDocs.annualLeave(currentDate.year));
 
         final leaveData = {
           'year': currentDate.year,
@@ -622,8 +623,8 @@ class OnboardingProvider extends ChangeNotifier {
       final leaveDoc = await _firestore
           .collection(AppConstants.usersCollection)
           .doc(userId)
-          .collection('leaves')
-          .doc('annual_$currentYear')
+          .collection(FirestoreSubCollections.leaves)
+          .doc(FirestoreDocs.annualLeave(currentYear))
           .get();
 
       if (leaveDoc.exists) {
@@ -648,8 +649,8 @@ class OnboardingProvider extends ChangeNotifier {
       final leaveRef = _firestore
           .collection(AppConstants.usersCollection)
           .doc(userId)
-          .collection('leaves')
-          .doc('annual_$currentYear');
+          .collection(FirestoreSubCollections.leaves)
+          .doc(FirestoreDocs.annualLeave(currentYear));
 
       await _firestore.runTransaction((transaction) async {
         final leaveDoc = await transaction.get(leaveRef);
@@ -703,8 +704,8 @@ class OnboardingProvider extends ChangeNotifier {
 
       for (final userDoc in usersSnapshot.docs) {
         final leaveDoc = await userDoc.reference
-            .collection('leaves')
-            .doc('annual_$currentYear')
+            .collection(FirestoreSubCollections.leaves)
+            .doc(FirestoreDocs.annualLeave(currentYear))
             .get();
 
         if (leaveDoc.exists) {
@@ -768,16 +769,16 @@ class OnboardingProvider extends ChangeNotifier {
       for (final userDoc in usersSnapshot.docs) {
         // Check if new year doc already exists
         final newYearDoc = await userDoc.reference
-            .collection('leaves')
-            .doc('annual_$newYear')
+            .collection(FirestoreSubCollections.leaves)
+            .doc(FirestoreDocs.annualLeave(newYear))
             .get();
 
         if (newYearDoc.exists) continue; // Already renewed
 
         // Get previous year's leave data
         final prevYearDoc = await userDoc.reference
-            .collection('leaves')
-            .doc('annual_$previousYear')
+            .collection(FirestoreSubCollections.leaves)
+            .doc(FirestoreDocs.annualLeave(previousYear))
             .get();
 
         int carryForwardPL = 0;
@@ -821,8 +822,8 @@ class OnboardingProvider extends ChangeNotifier {
         };
 
         await userDoc.reference
-            .collection('leaves')
-            .doc('annual_$newYear')
+            .collection(FirestoreSubCollections.leaves)
+            .doc(FirestoreDocs.annualLeave(newYear))
             .set(leaveData);
 
         renewedCount++;

@@ -344,6 +344,8 @@ class EmployeeManagementProvider with ChangeNotifier {
         'isAdmin': false,
         'isSubAdmin': isSubAdmin,
         'isOnboarded': false,
+        // Device is registered on the employee's first login
+        'isFirstLogin': false,
         'fcmToken': '',
         'createdAt': FieldValue.serverTimestamp(),
         'joiningDate': DateTime.now().toIso8601String(),
