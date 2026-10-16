@@ -6,17 +6,17 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'package:animated_number/animated_number.dart';
 import '../../app_constants.dart';
 import '../../models/request_model.dart';
-import '../../models/leave_balance_model.dart';
+import '../../widgets/leave_balance_card.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../providers/user_home_provider.dart';
 import '../../services/notification_service.dart';
 import '../../providers/calendar_provider.dart';
 import '../../widgets/app_drawer.dart';
+import '../../widgets/birthday_banner.dart';
+import '../../widgets/quick_action_tile.dart';
 import '../../widgets/request_card.dart';
 import '../../widgets/attendance_calendar_card.dart';
 import '../../widgets/holiday_calendar_card.dart';
@@ -24,6 +24,7 @@ import '../../constants/apploading_indicator.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_button.dart';
 import '../../constants/constant_colors.dart';
+import '../../constants/app_theme.dart';
 import '../../utils/logger.dart';
 
 class UserHome extends StatefulWidget {
@@ -169,7 +170,9 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
       await storage.write('latitude', position.latitude);
       await storage.write('longitude', position.longitude);
 
-      logDebug('User Location - Latitude: ${position.latitude}, Longitude: ${position.longitude}');
+      logDebug(
+        'User Location - Latitude: ${position.latitude}, Longitude: ${position.longitude}',
+      );
     } catch (e) {
       logDebug('Error getting location: $e');
     }
@@ -199,7 +202,9 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
       appBar: AppBar(
         title: Text(
           'User Dashboard',
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+          style: getTextTheme().titleLarge?.copyWith(
+            color: ConstColors.textColor,
+          ),
         ),
         actions: [
           IconButton(
@@ -217,115 +222,62 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Padding(
-                  padding: EdgeInsets.all(16.w),
+                  padding: AppSpacing.screen,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Welcome section
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.indigo.shade600,
-                              Colors.indigo.shade400,
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(15.r),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.indigo.withOpacity(0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 5),
+                      NeuCard(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 14.w,
+                          vertical: 12.h,
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 22.r,
+                              backgroundColor: ConstColors.lightShade,
+                              child: Text(
+                                authProvider.userModel!.name.isNotEmpty
+                                    ? authProvider.userModel!.name[0]
+                                          .toUpperCase()
+                                    : '?',
+                                style: getTextTheme().displayMedium?.copyWith(
+                                  color: ConstColors.primaryDeep,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 16.w),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Welcome Back!',
+                                    style: getTextTheme().bodyMedium?.copyWith(
+                                      color: ConstColors.textColorLight,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4.h),
+                                  Text(
+                                    authProvider.userModel!.name,
+                                    style: getTextTheme().titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: ConstColors.textColor,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                        child: Padding(
-                          padding: EdgeInsets.all(20.w),
-                          child: Row(
-                            children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: CircleAvatar(
-                                  radius: 35.r,
-                                  backgroundColor: Colors.white,
-                                  child: Text(
-                                    authProvider.userModel!.name.isNotEmpty
-                                        ? authProvider.userModel!.name[0]
-                                              .toUpperCase()
-                                        : '?',
-                                    style: getTextTheme().displayMedium
-                                        ?.copyWith(
-                                          color: Colors.indigo.shade600,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 16.w),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Welcome Back! 👋',
-                                      style: getTextTheme().bodyMedium
-                                          ?.copyWith(
-                                            color: Colors.white.withOpacity(
-                                              0.9,
-                                            ),
-                                          ),
-                                    ),
-                                    SizedBox(height: 4.h),
-                                    Text(
-                                      authProvider.userModel!.name,
-                                      style: getTextTheme().titleLarge
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                          ),
-                                    ),
-                                    SizedBox(height: 4.h),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.email_outlined,
-                                          size: 14.r,
-                                          color: Colors.white.withOpacity(0.8),
-                                        ),
-                                        SizedBox(width: 4.w),
-                                        Expanded(
-                                          child: Text(
-                                            authProvider.userModel!.email,
-                                            style: getTextTheme().bodySmall
-                                                ?.copyWith(
-                                                  color: Colors.white
-                                                      .withOpacity(0.8),
-                                                ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       ),
                       SizedBox(height: 16.h),
+
+                      // Shown only when someone has a birthday today
+                      const BirthdayBanner(),
 
                       // Today's punch times and the month attendance calendar
                       const AttendanceCalendarCard(),
@@ -343,30 +295,27 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                         'Quick Actions',
                         style: getTextTheme().titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: ConstColors.textColor,
                         ),
                       ),
-                      SizedBox(height: 16.h),
+                      SizedBox(height: 12.h),
                       Row(
                         children: [
                           Expanded(
                             child: _buildActionCard(
-                              context,
                               'Apply Leave',
                               Icons.event_available,
-                              Colors.blue,
                               () async {
                                 await Get.toNamed('/apply_leave_screen');
                                 _initializeStream();
                               },
                             ),
                           ),
-                          SizedBox(width: 16.w),
+                          SizedBox(width: 10.w),
                           Expanded(
                             child: _buildActionCard(
-                              context,
                               'Leave History',
                               Icons.history,
-                              Colors.purple,
                               () async {
                                 await Get.toNamed('/leave_history_screen');
                                 _initializeStream();
@@ -385,6 +334,7 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                             'Recent Requests',
                             style: getTextTheme().titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
+                              color: ConstColors.textColor,
                             ),
                           ),
                           TextButton(
@@ -402,151 +352,186 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                       SizedBox(height: 8.h),
 
                       // Requests list with StreamBuilder (Pending only)
+                      // Grows to fit the list or the empty message, up to 300
+                      // Full width, so the empty message is centred in it
                       SizedBox(
-                        height: 300.h,
-                        child: context
-                                    .watch<UserHomeProvider>()
-                                    .requestsStream ==
-                                null
-                            ? const Center(child: AppLoadingIndicator(size: 40))
-                            : StreamBuilder<List<RequestModel>>(
-                                stream: context
-                                    .watch<UserHomeProvider>()
-                                    .requestsStream,
-                                builder: (context, snapshot) {
-                                  if (snapshot.connectionState ==
-                                      ConnectionState.waiting) {
-                                    return const Center(
-                                      child: AppLoadingIndicator(size: 40),
-                                    );
-                                  }
-
-                                  if (snapshot.hasError) {
-                                    // Handle different types of errors with user-friendly messages
-                                    String errorMessage =
-                                        'Unable to load your requests at the moment.';
-
-                                    if (snapshot.error.toString().contains(
-                                          'permission-denied',
-                                        ) ||
-                                        snapshot.error.toString().contains(
-                                          'PERMISSION_DENIED',
-                                        )) {
-                                      errorMessage =
-                                          'Access denied. Please check your account permissions.';
-                                    } else if (snapshot.error
-                                            .toString()
-                                            .contains('network') ||
-                                        snapshot.error.toString().contains(
-                                          'connection',
-                                        )) {
-                                      errorMessage =
-                                          'Network error. Please check your internet connection.';
+                        width: double.infinity,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxHeight: 300.h),
+                          child:
+                              context
+                                      .watch<UserHomeProvider>()
+                                      .requestsStream ==
+                                  null
+                              ? const Center(
+                                  child: AppLoadingIndicator(size: 30),
+                                )
+                              : StreamBuilder<List<RequestModel>>(
+                                  stream: context
+                                      .watch<UserHomeProvider>()
+                                      .requestsStream,
+                                  builder: (context, snapshot) {
+                                    if (snapshot.connectionState ==
+                                        ConnectionState.waiting) {
+                                      return Center(
+                                        child: AppLoadingIndicator(size: 30),
+                                      );
                                     }
 
-                                    return Center(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.error_outline,
-                                            size: 48.r,
-                                            color: Colors.orange,
-                                          ),
-                                          SizedBox(height: 12.h),
-                                          Text(
-                                            errorMessage,
-                                            style: getTextTheme().bodyMedium
-                                                ?.copyWith(color: Colors.grey),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                          SizedBox(height: 12.h),
-                                          ConstantButton(
-                                            text: 'Try Again',
-                                            onPressed: _initializeStream,
-                                            icon: Icon(
-                                              Icons.refresh,
-                                              size: 20.r,
-                                              color: ConstColors.white,
+                                    if (snapshot.hasError) {
+                                      // Handle different types of errors with user-friendly messages
+                                      String errorMessage =
+                                          'Unable to load your requests at the moment.';
+
+                                      if (snapshot.error.toString().contains(
+                                            'permission-denied',
+                                          ) ||
+                                          snapshot.error.toString().contains(
+                                            'PERMISSION_DENIED',
+                                          )) {
+                                        errorMessage =
+                                            'Access denied. Please check your account permissions.';
+                                      } else if (snapshot.error
+                                              .toString()
+                                              .contains('network') ||
+                                          snapshot.error.toString().contains(
+                                            'connection',
+                                          )) {
+                                        errorMessage =
+                                            'Network error. Please check your internet connection.';
+                                      }
+
+                                      return Center(
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.error_outline,
+                                              size: 48.r,
+                                              color:
+                                                  ConstColors.inProgressOrange,
                                             ),
-                                            isFullWidth: false,
-                                            height: 40.h,
+                                            SizedBox(height: 12.h),
+                                            Text(
+                                              errorMessage,
+                                              style: getTextTheme().bodyMedium
+                                                  ?.copyWith(
+                                                    color: ConstColors
+                                                        .textColorLight,
+                                                  ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            SizedBox(height: 12.h),
+                                            ConstantButton(
+                                              text: 'Try Again',
+                                              onPressed: _initializeStream,
+                                              icon: Icon(
+                                                Icons.refresh,
+                                                size: 20.r,
+                                                color: ConstColors.textColor,
+                                              ),
+                                              isFullWidth: false,
+                                              height: 40.h,
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+
+                                    if (!snapshot.hasData ||
+                                        snapshot.data!.isEmpty) {
+                                      return Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 12.h,
+                                        ),
+                                        child: Center(
+                                          child: Column(
+                                            // mainAxisSize: MainAxisSize.min,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.center,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.pending_actions,
+                                                size: 64.r,
+                                                color: ConstColors.darkGrey,
+                                              ),
+                                              SizedBox(height: 16.h),
+                                              Text(
+                                                'No pending requests',
+                                                style: getTextTheme()
+                                                    .titleMedium
+                                                    ?.copyWith(
+                                                      color: ConstColors
+                                                          .textColorLight,
+                                                    ),
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
+                                        ),
+                                      );
+                                    }
+
+                                    // Filter only pending requests
+                                    final allRequests = snapshot.data!;
+                                    final requests = allRequests
+                                        .where(
+                                          (request) =>
+                                              request.status == 'pending',
+                                        )
+                                        .toList();
+
+                                    // If no pending requests
+                                    if (requests.isEmpty) {
+                                      return Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 12.h,
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.check_circle_outline,
+                                              size: 64.r,
+                                              color: ConstColors.successGreen,
+                                            ),
+                                            SizedBox(height: 16.h),
+                                            Text(
+                                              'No pending requests',
+                                              style: getTextTheme().titleMedium
+                                                  ?.copyWith(
+                                                    color: ConstColors
+                                                        .textColorLight,
+                                                  ),
+                                            ),
+                                            SizedBox(height: 8.h),
+                                            Text(
+                                              'All requests have been processed',
+                                              style: getTextTheme().bodySmall
+                                                  ?.copyWith(
+                                                    color: ConstColors
+                                                        .textColorLight,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+
+                                    return ListView.builder(
+                                      shrinkWrap: true,
+                                      itemCount: requests.length > 3
+                                          ? 3
+                                          : requests.length,
+                                      // Same card as leave history and the admin
+                                      itemBuilder: (context, index) =>
+                                          RequestCard(request: requests[index]),
                                     );
-                                  }
-
-                                  if (!snapshot.hasData ||
-                                      snapshot.data!.isEmpty) {
-                                    return Center(
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.pending_actions,
-                                            size: 64.r,
-                                            color: Colors.grey[400],
-                                          ),
-                                          SizedBox(height: 16.h),
-                                          Text(
-                                            'No pending requests',
-                                            style: getTextTheme().titleMedium
-                                                ?.copyWith(color: Colors.grey),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }
-
-                                  // Filter only pending requests
-                                  final allRequests = snapshot.data!;
-                                  final requests = allRequests
-                                      .where(
-                                        (request) =>
-                                            request.status == 'pending',
-                                      )
-                                      .toList();
-
-                                  // If no pending requests
-                                  if (requests.isEmpty) {
-                                    return Center(
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.check_circle_outline,
-                                            size: 64.r,
-                                            color: Colors.green[400],
-                                          ),
-                                          SizedBox(height: 16.h),
-                                          Text(
-                                            'No pending requests',
-                                            style: getTextTheme().titleMedium
-                                                ?.copyWith(color: Colors.grey),
-                                          ),
-                                          SizedBox(height: 8.h),
-                                          Text(
-                                            'All requests have been processed',
-                                            style: getTextTheme().bodySmall
-                                                ?.copyWith(color: Colors.grey),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }
-
-                                  return ListView.builder(
-                                    itemCount: requests.length > 3
-                                        ? 3
-                                        : requests.length,
-                                    // Same card as leave history and the admin
-                                    itemBuilder: (context, index) =>
-                                        RequestCard(request: requests[index]),
-                                  );
-                                },
-                              ),
+                                  },
+                                ),
+                        ),
                       ),
                       SizedBox(height: 16.h),
                       const HolidayCalendarCard(),
@@ -562,13 +547,9 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
   Widget _buildLeaveBalanceSection(UserHomeProvider home) {
     // Only show loading indicator on first load
     if (home.showBalanceLoading) {
-      return Card(
-        elevation: 3,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.r),
-        ),
+      return NeuCard(
         child: Padding(
-          padding: EdgeInsets.all(40.w),
+          padding: EdgeInsets.symmetric(horizontal: 40.w, vertical: 40.h),
           child: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -578,7 +559,7 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                 Text(
                   'Loading leave balances...',
                   style: getTextTheme().bodyMedium?.copyWith(
-                    color: Colors.grey.shade600,
+                    color: ConstColors.textColorLight,
                   ),
                 ),
               ],
@@ -591,30 +572,30 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
     // If still loading but has loaded before, show previous data or empty state
     final balances = home.balances;
     if (balances == null || !balances.hasAnyLeaves) {
-      return Card(
-        elevation: 3,
-        color: Colors.orange.shade50,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.r),
-        ),
+      return NeuCard(
+        color: ConstColors.inProgressOrange.withValues(alpha: 0.12),
         child: Padding(
-          padding: EdgeInsets.all(20.w),
+          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
           child: Column(
             children: [
-              Icon(Icons.info_outline, color: Colors.orange, size: 48.r),
+              Icon(
+                Icons.info_outline,
+                color: ConstColors.inProgressOrange,
+                size: 48.r,
+              ),
               SizedBox(height: 12.h),
               Text(
                 'No Leave Data Available',
                 style: getTextTheme().titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Colors.orange.shade900,
+                  color: ConstColors.textColor,
                 ),
               ),
               SizedBox(height: 8.h),
               Text(
                 'Contact admin to allocate leaves',
                 style: getTextTheme().bodyMedium?.copyWith(
-                  color: Colors.orange.shade700,
+                  color: ConstColors.textColorLight,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -631,382 +612,20 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
           'Leave Balance',
           style: getTextTheme().titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
+            color: ConstColors.textColor,
           ),
         ),
         SizedBox(height: 16.h),
-        _buildLeaveBalanceCard(balances),
-      ],
-    );
-  }
-
-  Widget _buildLeaveBalanceCard(LeaveBalanceModel model) {
-    final plTotal = model.plTotal;
-    final plUsed = model.plUsed;
-    final plBalance = model.plBalance;
-
-    final slTotal = model.slTotal;
-    final slUsed = model.slUsed;
-    final slBalance = model.slBalance;
-
-    final clTotal = model.clTotal;
-    final clUsed = model.clUsed;
-    final clBalance = model.clBalance;
-
-    final totalAssigned = model.totalAllocated;
-    final totalUsed = model.totalUsed;
-    final totalBalance = model.totalBalance;
-
-    // Comp off credit earned from approved comp off requests (not yearly)
-    final requests = context.watch<RequestProvider>();
-    final coEarned = requests.compOffEarned;
-    final coUsed = requests.compOffUsed;
-    final coBalance = requests.compOffBalance;
-
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 15.w, vertical: 10.h),
-        child: Column(
-          children: [
-            // Total Summary
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildAnimatedStatBox(
-                  'Total',
-                  totalAssigned,
-                  Colors.indigo,
-                  Icons.event_note,
-                ),
-                _buildAnimatedStatBox(
-                  'Used',
-                  totalUsed,
-                  Colors.orange,
-                  Icons.event_busy,
-                ),
-                _buildAnimatedStatBox(
-                  'Balance',
-                  totalBalance,
-                  Colors.green,
-                  Icons.event_available,
-                ),
-              ],
-            ),
-            SizedBox(height: 5.h),
-
-            // Pie Chart with Legend Side by Side
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Pie Chart
-                Expanded(
-                  flex: 4,
-                  child: SizedBox(
-                    height: 140.h,
-                    child: Padding(
-                      padding: EdgeInsets.all(12.w),
-                      child: AnimatedBuilder(
-                        animation: _animationController,
-                        builder: (context, child) {
-                          return PieChart(
-                            PieChartData(
-                              sectionsSpace: 2,
-                              centerSpaceRadius: 30.r,
-                              sections: [
-                                if (plBalance > 0)
-                                  PieChartSectionData(
-                                    value:
-                                        plBalance.toDouble() *
-                                        _animationController.value,
-                                    title: 'PL\n$plBalance',
-                                    color: Colors.blue,
-                                    radius: 50.r,
-                                    titleStyle: getTextTheme().labelSmall
-                                        ?.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                  ),
-                                if (slBalance > 0)
-                                  PieChartSectionData(
-                                    value:
-                                        slBalance.toDouble() *
-                                        _animationController.value,
-                                    title: 'SL\n$slBalance',
-                                    color: Colors.green,
-                                    radius: 50.r,
-                                    titleStyle: getTextTheme().labelSmall
-                                        ?.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                  ),
-                                if (clBalance > 0)
-                                  PieChartSectionData(
-                                    value:
-                                        clBalance.toDouble() *
-                                        _animationController.value,
-                                    title: 'CL\n$clBalance',
-                                    color: Colors.orange,
-                                    radius: 50.r,
-                                    titleStyle: getTextTheme().labelSmall
-                                        ?.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                  ),
-                                if (coBalance > 0)
-                                  PieChartSectionData(
-                                    value:
-                                        coBalance * _animationController.value,
-                                    title: 'CO\n${_count(coBalance)}',
-                                    color: Colors.teal,
-                                    radius: 50.r,
-                                    titleStyle: getTextTheme().labelSmall
-                                        ?.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                  ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-
-                SizedBox(width: 20.w), // Legend
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (plTotal > 0)
-                        _buildCompactLegendItem(
-                          'Privilege Leave',
-                          plTotal,
-                          plUsed,
-                          plBalance,
-                          Colors.blue,
-                        ),
-                      if (plTotal > 0) SizedBox(height: 14.h),
-                      if (slTotal > 0)
-                        _buildCompactLegendItem(
-                          'Sick Leave',
-                          slTotal,
-                          slUsed,
-                          slBalance,
-                          Colors.green,
-                        ),
-                      if (slTotal > 0) SizedBox(height: 14.h),
-                      if (clTotal > 0)
-                        _buildCompactLegendItem(
-                          'Casual Leave',
-                          clTotal,
-                          clUsed,
-                          clBalance,
-                          Colors.orange,
-                        ),
-                      if (coEarned > 0) ...[
-                        SizedBox(height: 14.h),
-                        _buildCompactLegendItem(
-                          'Comp Off',
-                          coEarned,
-                          coUsed,
-                          coBalance,
-                          Colors.teal,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnimatedStatBox(
-    String label,
-    int value,
-    Color color,
-    IconData icon,
-  ) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 28.r),
-        SizedBox(height: 8.h),
-        AnimatedNumber(
-          startValue: 0,
-          endValue: value.toDouble(),
-          duration: const Duration(milliseconds: 1500),
-          isFloatingPoint: false,
-          style: getTextTheme().headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        SizedBox(height: 4.h),
-        Text(
-          label,
-          style: getTextTheme().labelMedium?.copyWith(
-            color: Colors.grey.shade600,
-          ),
+        LeaveBalanceCard(
+          model: balances,
+          animation: _animationController,
+          requests: context.watch<RequestProvider>(),
         ),
       ],
     );
   }
 
-  // 2 for whole days, 1.5 for a half day
-  String _count(num n) => n % 1 == 0 ? n.toInt().toString() : n.toString();
-
-  Widget _buildCompactLegendItem(
-    String type,
-    num total,
-    num used,
-    num balance,
-    Color color,
-  ) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 12.w,
-          height: 12.h,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(3.r),
-          ),
-        ),
-        SizedBox(width: 6.w),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              type,
-              style: getTextTheme().labelSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            Text(
-              'Used: ${_count(used)} | Bal: ${_count(balance)}',
-              style: getTextTheme().labelSmall?.copyWith(
-                // fontSize: 9.sp,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
+  Widget _buildActionCard(String title, IconData icon, VoidCallback onTap) {
+    return QuickActionTile(title: title, icon: icon, onTap: onTap);
   }
-
-  Widget _buildActionCard(
-    BuildContext context,
-    String title,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16.r),
-      child: Container(
-        height: 100.h,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [color, color.withOpacity(0.7)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16.r),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            // Background decorative circle
-            Positioned(
-              right: -20,
-              top: -20,
-              child: Container(
-                width: 70.w,
-                height: 70.h,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            // Content
-            Padding(
-              padding: EdgeInsets.all(12.w),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(8.w),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(10.r),
-                    ),
-                    child: Icon(icon, size: 22.r, color: Colors.white),
-                  ),
-                  SizedBox(height: 6.h),
-                  Text(
-                    title,
-                    style: getTextTheme().titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 2.h),
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          'Tap to access',
-                          style: getTextTheme().bodySmall?.copyWith(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 9.sp,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      SizedBox(width: 2.w),
-                      Icon(
-                        Icons.arrow_forward,
-                        size: 10.r,
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
 }

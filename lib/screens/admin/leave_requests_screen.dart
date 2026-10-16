@@ -6,11 +6,12 @@ import '../../models/request_model.dart';
 import '../../providers/request_filter_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/requests_data_table.dart';
+import '../../widgets/request_card.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/permissions.dart';
 import '../../constants/constant_dropdown.dart';
 import '../../constants/apploading_indicator.dart';
+import '../../constants/constant_colors.dart';
 
 class LeaveRequestsScreen extends StatefulWidget {
   const LeaveRequestsScreen({Key? key}) : super(key: key);
@@ -156,7 +157,9 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
       appBar: AppBar(
         title: Text(
           'Leave Requests',
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+          style: getTextTheme().titleLarge?.copyWith(
+            color: ConstColors.textColor,
+          ),
         ),
         actions: [
           // Add refresh button
@@ -173,7 +176,10 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
               children: [
                 // Search bar
                 Padding(
-                  padding: EdgeInsets.all(16.w),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.w,
+                    vertical: 16.h,
+                  ),
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
@@ -191,7 +197,7 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
                         borderRadius: BorderRadius.circular(12.r),
                       ),
                       filled: true,
-                      fillColor: Colors.grey[100],
+                      fillColor: ConstColors.lightShade,
                     ),
                   ),
                 ),
@@ -241,7 +247,7 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
                           child: Text(
                             'Error loading leave requests: ${snapshot.error}',
                             style: getTextTheme().bodyMedium?.copyWith(
-                              color: Colors.red,
+                              color: ConstColors.errorRed,
                             ),
                           ),
                         );
@@ -255,13 +261,13 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
                               Icon(
                                 Icons.event_busy,
                                 size: 80.r,
-                                color: Colors.grey[400],
+                                color: ConstColors.borderColor,
                               ),
                               SizedBox(height: 16.h),
                               Text(
                                 'No leave requests found',
                                 style: getTextTheme().titleMedium?.copyWith(
-                                  color: Colors.grey,
+                                  color: ConstColors.textColorLight,
                                 ),
                               ),
                             ],
@@ -283,13 +289,13 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
                               Icon(
                                 Icons.search_off,
                                 size: 80.r,
-                                color: Colors.grey[400],
+                                color: ConstColors.borderColor,
                               ),
                               SizedBox(height: 16.h),
                               Text(
                                 'No requests match your filters',
                                 style: getTextTheme().titleMedium?.copyWith(
-                                  color: Colors.grey,
+                                  color: ConstColors.textColorLight,
                                 ),
                               ),
                             ],
@@ -299,10 +305,21 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
 
                       // Admins and sub admins with the "approve leave
                       // requests" permission can approve or reject
-                      return RequestsDataTable(
-                        requests: filteredRequests,
-                        canApproveReject: context.read<AuthProvider>().can(
-                          Permissions.leaveRequests,
+                      // Each pending card is swiped: right approves, left
+                      // rejects
+                      final canApproveReject = context
+                          .read<AuthProvider>()
+                          .can(Permissions.leaveRequests);
+                      return ListView.builder(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 10.w,
+                          vertical: 8.h,
+                        ),
+                        itemCount: filteredRequests.length,
+                        itemBuilder: (context, index) => RequestCard(
+                          request: filteredRequests[index],
+                          isAdmin: true,
+                          canApproveReject: canApproveReject,
                         ),
                       );
                     },

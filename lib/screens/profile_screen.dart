@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -15,8 +16,12 @@ import '../constants/const_textstyle.dart';
 import '../constants/constant_snackbar.dart';
 import '../constants/constant_button.dart';
 import '../constants/constant_colors.dart';
+import '../constants/app_theme.dart';
 import '../constants/apploading_indicator.dart';
 import '../constants/constant_textfield.dart';
+import '../constants/constant_date_time_picker.dart';
+import '../constants/constant_dropdown.dart';
+import '../app_constants.dart';
 import 'security_settings_screen.dart';
 
 /// Profile and personal details. The user comes from [AuthProvider] (live);
@@ -85,7 +90,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final bytes = await File(image.path).readAsBytes();
       final error = await _profile.uploadProfileImage(auth, bytes);
       if (error == null) {
-        ConstantSnackbar.showSuccess(title: 'Profile image updated successfully!');
+        ConstantSnackbar.showSuccess(
+          title: 'Profile image updated successfully!',
+        );
       } else {
         ConstantSnackbar.showError(title: error);
       }
@@ -134,7 +141,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _bloodGroupController.text = info.bloodGroup;
     _totalExperienceController.text = info.totalExperience;
     _emergencyContactController.text = info.emergencyContactNumber;
-    _profile.startEditing();
+    _profile.startEditing(dateOfBirth: info.dateOfBirth, gender: info.gender);
   }
 
   Future<void> _savePersonalInfo(AuthProvider auth) async {
@@ -145,6 +152,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         mobileNumber: _mobileController.text,
         alternateNumber: _alternateMobileController.text,
         bloodGroup: _bloodGroupController.text,
+        dateOfBirth: _profile.dateOfBirth,
+        gender: _profile.gender,
         totalExperience: _totalExperienceController.text,
         emergencyContactNumber: _emergencyContactController.text,
       ),
@@ -214,10 +223,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         appBar: AppBar(
           title: Text(
             'Profile',
-            style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+            style: getTextTheme().titleLarge?.copyWith(
+              color: ConstColors.textColor,
+            ),
           ),
-          backgroundColor: Colors.blue,
-          foregroundColor: Colors.white,
         ),
         body: Consumer<AuthProvider>(
           builder: (context, authProvider, child) {
@@ -233,7 +242,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             }
 
             return SingleChildScrollView(
-              padding: EdgeInsets.all(16.w),
+              padding: AppSpacing.screen,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -260,7 +269,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           height: 120.w,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.blue, width: 3),
+            border: Border.all(color: ConstColors.primary, width: 3),
           ),
           child: ClipOval(
             child:
@@ -274,10 +283,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const AppLoadingIndicator(size: 40),
                     errorWidget: (context, url, error) {
                       logDebug('Error loading profile image: $error');
-                      return Icon(Icons.person, size: 60.r, color: Colors.grey);
+                      return Icon(
+                        Icons.person,
+                        size: 60.r,
+                        color: ConstColors.textColorLight,
+                      );
                     },
                   )
-                : Icon(Icons.person, size: 60.r, color: Colors.grey),
+                : Icon(
+                    Icons.person,
+                    size: 60.r,
+                    color: ConstColors.textColorLight,
+                  ),
           ),
         ),
 
@@ -287,7 +304,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           right: 0,
           child: Container(
             decoration: const BoxDecoration(
-              color: Colors.blue,
+              color: ConstColors.primary,
               shape: BoxShape.circle,
             ),
             child: Selector<ProfileScreenProvider, bool>(
@@ -299,10 +316,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         height: 20.w,
                         child: AppLoadingIndicator(
                           size: 20,
-                          color: ConstColors.white,
+                          color: ConstColors.textColor,
                         ),
                       )
-                    : Icon(Icons.camera_alt, color: Colors.white, size: 20.r),
+                    : Icon(
+                        Icons.camera_alt,
+                        color: ConstColors.textColor,
+                        size: 20.r,
+                      ),
                 onPressed: isUploading ? null : _showImageSourceDialog,
               ),
             ),
@@ -313,10 +334,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildPersonalInfoCard(UserModel user, AuthProvider authProvider) {
-    return Card(
-      elevation: 4,
+    return NeuCard(
       child: Padding(
-        padding: EdgeInsets.all(16.w),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
         child: Consumer<ProfileScreenProvider>(
           builder: (context, profile, _) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -328,7 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       'Personal Information',
                       style: getTextTheme().titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: Colors.blue,
+                        color: ConstColors.primaryDeep,
                       ),
                     ),
                   ),
@@ -339,7 +359,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       label: Text(
                         'Edit',
                         style: getTextTheme().labelLarge?.copyWith(
-                          color: Colors.blue,
+                          color: ConstColors.primaryDeep,
                         ),
                       ),
                     ),
@@ -351,20 +371,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SizedBox(height: 12.h),
               _buildInfoRow(Icons.email, 'Email', user.email),
               SizedBox(height: 12.h),
-              _buildInfoRow(Icons.badge, 'Employee ID', user.employeeId ?? 'N/A'),
+              _buildInfoRow(
+                Icons.badge,
+                'Employee ID',
+                user.employeeId ?? 'N/A',
+              ),
               SizedBox(height: 12.h),
               _buildInfoRow(Icons.work, 'Department', user.department ?? 'N/A'),
               SizedBox(height: 12.h),
-              _buildInfoRow(
-                Icons.admin_panel_settings,
-                'Role',
-                user.roleLabel,
-              ),
+              _buildInfoRow(Icons.admin_panel_settings, 'Role', user.roleLabel),
               SizedBox(height: 12.h),
               _buildInfoRow(
                 Icons.badge_outlined,
                 'Job Role',
                 user.jobRole ?? 'N/A',
+              ),
+              SizedBox(height: 12.h),
+              _buildInfoRow(
+                Icons.cake_outlined,
+                'Date of Birth',
+                user.dateOfBirth == null
+                    ? 'Not set'
+                    : DateFormat('dd MMM yyyy').format(user.dateOfBirth!),
+              ),
+              SizedBox(height: 12.h),
+              _buildInfoRow(
+                Icons.wc_outlined,
+                'Gender',
+                user.gender ?? 'Not set',
               ),
               if (profile.isEditingPersonal) ...[
                 SizedBox(height: 16.h),
@@ -406,6 +440,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
             controller: _bloodGroupController,
           ),
           SizedBox(height: 12.h),
+          // Date of birth: the people's own past date, so no future dates
+          Selector<ProfileScreenProvider, DateTime?>(
+            selector: (_, p) => p.dateOfBirth,
+            builder: (context, dob, _) => ConstantDatePicker(
+              label: 'Date of Birth',
+              hint: 'Select date of birth',
+              value: dob,
+              firstDate: DateTime(1950),
+              lastDate: DateTime.now(),
+              onChanged: _profile.setDateOfBirth,
+            ),
+          ),
+          SizedBox(height: 12.h),
+          Selector<ProfileScreenProvider, String?>(
+            selector: (_, p) => p.gender,
+            builder: (context, gender, _) => ConstantDropdown<String>(
+              label: 'Gender',
+              hint: 'Select gender',
+              value: gender,
+              items: AppConstants.genders,
+              itemLabel: (g) => g,
+              onChanged: _profile.setGender,
+            ),
+          ),
+          SizedBox(height: 12.h),
           ConstTextField(
             customText: 'Total Experience',
             controller: _totalExperienceController,
@@ -423,7 +482,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 text: 'Save',
                 onPressed: () => _savePersonalInfo(authProvider),
                 backgroundColor: ConstColors.primary,
-                textColor: ConstColors.white,
+                textColor: ConstColors.textColor,
                 isFullWidth: false,
                 height: 40.h,
               ),
@@ -440,10 +499,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildAccountActionsCard(AuthProvider authProvider) {
-    return Card(
-      elevation: 4,
+    return NeuCard(
       child: Padding(
-        padding: EdgeInsets.all(16.w),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -451,7 +509,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               'Account Actions',
               style: getTextTheme().titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: Colors.blue,
+                color: ConstColors.primaryDeep,
               ),
             ),
             SizedBox(height: 16.h),
@@ -459,7 +517,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Divider(),
 
             ListTile(
-              leading: const Icon(Icons.security, color: Colors.blue),
+              leading: const Icon(
+                Icons.security,
+                color: ConstColors.primaryDeep,
+              ),
               title: Text('Security', style: getTextTheme().bodyMedium),
               trailing: Icon(Icons.arrow_forward_ios, size: 16.r),
               onTap: () {
@@ -474,7 +535,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Divider(),
 
             ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
+              leading: const Icon(Icons.logout, color: ConstColors.errorRed),
               title: Text('Logout', style: getTextTheme().bodyMedium),
               trailing: Icon(Icons.arrow_forward_ios, size: 16.r),
               onTap: () => _showLogoutDialog(authProvider),
@@ -488,7 +549,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(icon, color: Colors.blue, size: 20.r),
+        Icon(icon, color: ConstColors.primaryDeep, size: 20.r),
         SizedBox(width: 12.w),
         Expanded(
           flex: 2,
@@ -496,7 +557,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             label,
             style: getTextTheme().bodyMedium?.copyWith(
               fontWeight: FontWeight.w500,
-              color: Colors.grey,
+              color: ConstColors.textColorLight,
             ),
           ),
         ),

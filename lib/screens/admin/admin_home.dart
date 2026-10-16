@@ -3,17 +3,17 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'package:animated_number/animated_number.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:carousel_slider/carousel_slider.dart';
 import '../../models/request_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../providers/employee_management_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_drawer.dart';
-import '../../widgets/dot_indicator.dart';
+import '../../widgets/birthday_banner.dart';
+import '../../widgets/donut_stat_card.dart';
+import '../../widgets/quick_action_tile.dart';
+import '../../widgets/request_type_style.dart';
 import '../../widgets/holiday_calendar_card.dart';
 import '../../app_constants.dart';
 import '../../providers/value_provider.dart';
@@ -22,6 +22,7 @@ import '../../constants/permissions.dart';
 import '../../constants/apploading_indicator.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_colors.dart';
+import '../../constants/app_theme.dart';
 import '../../constants/constant_button.dart';
 import '../../utils/logger.dart';
 
@@ -36,13 +37,10 @@ class _AdminHomeState extends State<AdminHome> {
   // Both are scoped state holders, so this screen needs no setState
   final ValueProvider<Stream<List<RequestModel>>?> _leavesStream =
       ValueProvider<Stream<List<RequestModel>>?>(null);
-  final ValueProvider<int> _carouselIndex = ValueProvider<int>(0);
-  final bool isAnimated = true; // Default to true, can be changed
 
   @override
   void dispose() {
     _leavesStream.dispose();
-    _carouselIndex.dispose();
     super.dispose();
   }
 
@@ -133,7 +131,6 @@ class _AdminHomeState extends State<AdminHome> {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: _leavesStream),
-        ChangeNotifierProvider.value(value: _carouselIndex),
       ],
       child: Builder(builder: _buildScaffold),
     );
@@ -147,7 +144,9 @@ class _AdminHomeState extends State<AdminHome> {
       appBar: AppBar(
         title: Text(
           'Admin Dashboard Panel',
-          style: getTextTheme().titleMedium?.copyWith(color: Colors.white),
+          style: getTextTheme().titleMedium?.copyWith(
+            color: ConstColors.textColor,
+          ),
         ),
         actions: [
           IconButton(
@@ -191,13 +190,13 @@ class _AdminHomeState extends State<AdminHome> {
                         Icon(
                           Icons.error_outline,
                           size: 64.r,
-                          color: Colors.orange,
+                          color: ConstColors.inProgressOrange,
                         ),
                         SizedBox(height: 16.h),
                         Text(
                           errorMessage,
                           style: getTextTheme().bodyLarge?.copyWith(
-                            color: Colors.grey,
+                            color: ConstColors.textColorLight,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -208,7 +207,7 @@ class _AdminHomeState extends State<AdminHome> {
                           icon: Icon(
                             Icons.refresh,
                             size: 20.r,
-                            color: ConstColors.white,
+                            color: ConstColors.textColor,
                           ),
                           isFullWidth: false,
                         ),
@@ -231,43 +230,28 @@ class _AdminHomeState extends State<AdminHome> {
                     .length;
 
                 return SingleChildScrollView(
-                  padding: EdgeInsets.all(10.w),
+                  padding: AppSpacing.screen,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Welcome Card with Gradient
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.indigo.shade700,
-                              Colors.indigo.shade400,
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(16.r),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.indigo.withOpacity(0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
+                      // Welcome card: white raised card, same as the user's
+                      NeuCard(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 14.w,
+                          vertical: 12.h,
                         ),
-                        padding: EdgeInsets.all(15.w),
                         child: Row(
                           children: [
                             CircleAvatar(
-                              backgroundColor: Colors.white,
-                              radius: 30.r,
+                              backgroundColor: ConstColors.lightShade,
+                              radius: 22.r,
                               child: Text(
                                 authProvider.userModel?.name.isNotEmpty == true
                                     ? authProvider.userModel!.name[0]
                                           .toUpperCase()
                                     : "A",
                                 style: getTextTheme().displayMedium?.copyWith(
-                                  color: Colors.indigo.shade700,
+                                  color: ConstColors.primaryDeep,
                                 ),
                               ),
                             ),
@@ -279,22 +263,14 @@ class _AdminHomeState extends State<AdminHome> {
                                   Text(
                                     'Welcome Back!',
                                     style: getTextTheme().bodyMedium?.copyWith(
-                                      color: Colors.white.withOpacity(0.9),
+                                      color: ConstColors.textColorLight,
                                     ),
                                   ),
                                   SizedBox(height: 4.h),
                                   Text(
                                     authProvider.userModel?.name ?? "Admin",
                                     style: getTextTheme().titleLarge?.copyWith(
-                                      color: Colors.white,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  SizedBox(height: 2.h),
-                                  Text(
-                                    authProvider.userModel?.email ?? "",
-                                    style: getTextTheme().bodySmall?.copyWith(
-                                      color: Colors.white.withOpacity(0.8),
+                                      color: ConstColors.textColor,
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -306,24 +282,17 @@ class _AdminHomeState extends State<AdminHome> {
                       ),
                       SizedBox(height: 16.h),
 
+                      // Shown only when someone has a birthday today
+                      const BirthdayBanner(),
+
                       // The admin's own punch times and month attendance calendar
                       const AttendanceCalendarCard(),
                       SizedBox(height: 20.h),
 
-                      // Employee Statistics Section with Carousel
-                      Selector<ValueProvider<int>, int>(
-                        selector: (_, index) => index.value,
-                        builder: (context, carouselIndex, _) =>
-                            _buildSectionHeader(
-                              _getCarouselSectionTitle(
-                                allRequests,
-                                carouselIndex,
-                              ),
-                              Icons.people,
-                            ),
-                      ),
+                      // Employee onboarding overview
+                      _buildSectionHeader('Onboarding Overview', Icons.people),
                       SizedBox(height: 12.h),
-                      _buildOverviewCarousel(employeeProvider, allRequests),
+                      _buildEmployeeChartCard(employeeProvider),
                       SizedBox(height: 24.h),
 
                       // Leave Requests Statistics Section
@@ -347,154 +316,60 @@ class _AdminHomeState extends State<AdminHome> {
 
                       // Recent Requests
                       if (authProvider.can(Permissions.leaveRequests)) ...[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildSectionHeader(
-                            'Recent Requests',
-                            Icons.history,
-                            showDivider: false,
-                          ),
-                          TextButton.icon(
-                            onPressed: () async {
-                              await Get.toNamed('/leave_requests_screen');
-                              if (mounted) _initializeData();
-                            },
-                            icon: Icon(Icons.arrow_forward, size: 18.r),
-                            label: Text(
-                              'View All',
-                              style: getTextTheme().labelMedium,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _buildSectionHeader(
+                              'Recent Requests',
+                              Icons.history,
+                              showDivider: false,
                             ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 12.h),
-                      allRequests.isEmpty
-                          ? Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(32.w),
+                            TextButton.icon(
+                              onPressed: () async {
+                                await Get.toNamed('/leave_requests_screen');
+                                if (mounted) _initializeData();
+                              },
+                              icon: Icon(Icons.arrow_forward, size: 18.r),
+                              label: Text(
+                                'View All',
+                                style: getTextTheme().labelMedium,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 12.h),
+                        allRequests.isEmpty
+                            ? Center(
                                 child: Column(
                                   children: [
                                     Icon(
                                       Icons.inbox,
-                                      size: 64.r,
-                                      color: Colors.grey[400],
+                                      size: 50.r,
+                                      color: ConstColors.borderColor,
                                     ),
                                     SizedBox(height: 16.h),
                                     Text(
                                       'No leave requests yet',
                                       style: getTextTheme().titleMedium
-                                          ?.copyWith(color: Colors.grey),
+                                          ?.copyWith(
+                                            color: ConstColors.textColorLight,
+                                          ),
                                     ),
                                   ],
                                 ),
+                              )
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: allRequests.length > 5
+                                    ? 5
+                                    : allRequests.length,
+                                itemBuilder: (context, index) {
+                                  return _buildRecentRequestTile(
+                                    allRequests[index],
+                                  );
+                                },
                               ),
-                            )
-                          : ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: allRequests.length > 5
-                                  ? 5
-                                  : allRequests.length,
-                              itemBuilder: (context, index) {
-                                final request = allRequests[index];
-                                return Card(
-                                  margin: EdgeInsets.only(bottom: 12.h),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10.r),
-                                    side: BorderSide(
-                                      color: request.status == 'pending'
-                                          ? Colors.orange.withOpacity(0.5)
-                                          : request.status == 'approved'
-                                          ? Colors.green.withOpacity(0.5)
-                                          : Colors.red.withOpacity(0.5),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Padding(
-                                    padding: EdgeInsets.all(12.w),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                request.userName,
-                                                style: getTextTheme().titleSmall
-                                                    ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            SizedBox(width: 8.w),
-                                            _getStatusChip(request.status),
-                                          ],
-                                        ),
-                                        SizedBox(height: 8.h),
-                                        // Leave Type (only for leave requests)
-                                        if (request.isLeaveRequest &&
-                                            request.leaveType != null)
-                                          Padding(
-                                            padding: EdgeInsets.only(
-                                              bottom: 8.h,
-                                            ),
-                                            child: Container(
-                                              padding: EdgeInsets.symmetric(
-                                                horizontal: 8.w,
-                                                vertical: 4.h,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: _getLeaveTypeColor(
-                                                  request.leaveType!,
-                                                ).withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(6.r),
-                                                border: Border.all(
-                                                  color: _getLeaveTypeColor(
-                                                    request.leaveType!,
-                                                  ),
-                                                  width: 1,
-                                                ),
-                                              ),
-                                              child: Text(
-                                                _getLeaveTypeFullName(
-                                                  request.leaveType!,
-                                                ),
-                                                style: getTextTheme()
-                                                    .labelMedium
-                                                    ?.copyWith(
-                                                      color: _getLeaveTypeColor(
-                                                        request.leaveType!,
-                                                      ),
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                              ),
-                                            ),
-                                          ),
-                                        Text(
-                                          '${request.typeDisplayName}: ${request.displayDate}',
-                                          style: getTextTheme().bodyMedium,
-                                        ),
-                                        SizedBox(height: 4.h),
-                                        Text(
-                                          'Reason: ${request.reason}',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: getTextTheme().bodyMedium,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
                       ],
                       SizedBox(height: 16.h),
                       const HolidayCalendarCard(),
@@ -514,7 +389,6 @@ class _AdminHomeState extends State<AdminHome> {
         _buildActionCard(
           'Manage Leaves',
           Icons.approval,
-          Colors.indigo,
           () async {
             await Get.toNamed('/leave_requests_screen');
             if (mounted) _initializeData();
@@ -522,15 +396,18 @@ class _AdminHomeState extends State<AdminHome> {
         ),
       if (auth.can(Permissions.manageEmployees) ||
           auth.can(Permissions.addEmployee))
-        _buildActionCard('Employees', Icons.people, Colors.teal, () async {
-          await Get.toNamed('/employee_management_screen');
-          if (mounted) _initializeData();
-        }),
+        _buildActionCard(
+          'Employees',
+          Icons.people,
+          () async {
+            await Get.toNamed('/employee_management_screen');
+            if (mounted) _initializeData();
+          },
+        ),
       if (auth.can(Permissions.viewAttendance))
         _buildActionCard(
           'Attendance',
           Icons.access_time,
-          Colors.orange,
           () async {
             await Get.toNamed('/admin_attendance_screen');
             if (mounted) _initializeData();
@@ -540,7 +417,6 @@ class _AdminHomeState extends State<AdminHome> {
         _buildActionCard(
           'Onboarding',
           Icons.person_add,
-          Colors.purple,
           () async {
             await Get.toNamed('/employee_onboarding_screen');
             if (mounted) _initializeData();
@@ -556,7 +432,7 @@ class _AdminHomeState extends State<AdminHome> {
         Row(
           children: [
             Expanded(child: actions[i]),
-            SizedBox(width: 12.w),
+            SizedBox(width: 10.w),
             Expanded(
               child: i + 1 < actions.length
                   ? actions[i + 1]
@@ -565,66 +441,15 @@ class _AdminHomeState extends State<AdminHome> {
           ],
         ),
       );
-      rows.add(SizedBox(height: 12.h));
+      rows.add(SizedBox(height: 10.h));
     }
 
     return [
       _buildSectionHeader('Quick Actions', Icons.touch_app),
       SizedBox(height: 12.h),
       ...rows,
-      SizedBox(height: 12.h),
+      SizedBox(height: 14.h),
     ];
-  }
-
-  // Get section title based on current carousel index
-  String _getCarouselSectionTitle(
-    List<RequestModel> allRequests,
-    int carouselIndex,
-  ) {
-    // Count pending leave requests to determine if leave chart exists
-    final pendingLeaveRequests = allRequests
-        .where(
-          (r) =>
-              r.type == AppConstants.requestTypeLeave &&
-              r.status == AppConstants.statusPending,
-        )
-        .toList();
-
-    int plCount = 0;
-    int slCount = 0;
-    int clCount = 0;
-
-    for (var request in pendingLeaveRequests) {
-      final leaveType = request.leaveType;
-      if (leaveType != null) {
-        switch (leaveType.toLowerCase()) {
-          case 'pl':
-            plCount++;
-            break;
-          case 'sl':
-            slCount++;
-            break;
-          case 'cl':
-            clCount++;
-            break;
-        }
-      }
-    }
-
-    final totalPendingLeaves = plCount + slCount + clCount;
-    final hasLeaveChart = totalPendingLeaves > 0;
-
-    // If only one chart (employee chart), always show "Employee Overview"
-    if (!hasLeaveChart) {
-      return 'Employee Overview';
-    }
-
-    // If two charts, show based on current index
-    if (carouselIndex == 0) {
-      return 'Onboarding Overview';
-    } else {
-      return 'Leave Request Overview';
-    }
   }
 
   // Section Header
@@ -635,753 +460,74 @@ class _AdminHomeState extends State<AdminHome> {
   }) {
     return Row(
       children: [
-        Icon(icon, size: 24.r, color: Colors.indigo),
+        Icon(icon, size: 24.r, color: ConstColors.primaryDeep),
         SizedBox(width: 8.w),
         Text(
           title,
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.black87),
+          style: getTextTheme().titleLarge?.copyWith(
+            color: ConstColors.textColor,
+          ),
         ),
       ],
     );
   }
 
-  // Overview Carousel with Employee and Leave Type Charts
-  Widget _buildOverviewCarousel(
-    EmployeeManagementProvider employeeProvider,
-    List<RequestModel> allRequests,
-  ) {
-    // Count only PENDING leave requests by type
-    final pendingLeaveRequests = allRequests
-        .where(
-          (r) =>
-              r.type == AppConstants.requestTypeLeave &&
-              r.status == AppConstants.statusPending,
-        )
-        .toList();
-
-    int plCount = 0;
-    int slCount = 0;
-    int clCount = 0;
-
-    for (var request in pendingLeaveRequests) {
-      final leaveType = request.leaveType;
-      if (leaveType != null) {
-        switch (leaveType.toLowerCase()) {
-          case 'pl':
-            plCount++;
-            break;
-          case 'sl':
-            slCount++;
-            break;
-          case 'cl':
-            clCount++;
-            break;
-        }
-      }
-    }
-
-    final totalPendingLeaves = plCount + slCount + clCount;
-
-    // Build items list - always include employee chart
-    List<Widget> carouselItems = [
-      SizedBox(
+  // Employee onboarding card
+  Widget _buildEmployeeChartCard(EmployeeManagementProvider provider) {
+    if (provider.totalEmployees == 0) {
+      return SizedBox(
         width: double.infinity,
-        child: _buildEmployeeChartCard(employeeProvider),
-      ),
-    ];
-
-    // Only add leave type chart if there are pending leave requests
-    if (totalPendingLeaves > 0) {
-      carouselItems.add(
-        SizedBox(
-          width: double.infinity,
-          child: _buildLeaveTypeChartCard(
-            plCount,
-            slCount,
-            clCount,
-            totalPendingLeaves,
+        child: NeuCard(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
+            child: Text(
+              'No employee data available',
+              textAlign: TextAlign.center,
+              style: getTextTheme().bodyMedium?.copyWith(
+                color: ConstColors.textColorLight,
+              ),
+            ),
           ),
         ),
       );
     }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          width: double.infinity,
-          child: CarouselSlider(
-            options: CarouselOptions(
-              height: 160.h,
-              autoPlay:
-                  carouselItems.length >
-                  1, // Only auto-play if more than one item
-              autoPlayInterval: const Duration(seconds: 4),
-              autoPlayAnimationDuration: const Duration(milliseconds: 800),
-              autoPlayCurve: Curves.fastOutSlowIn,
-              enlargeCenterPage: false,
-              viewportFraction: 1.0,
-              enableInfiniteScroll: carouselItems.length > 1,
-              onPageChanged: (index, reason) => _carouselIndex.value = index,
-            ),
-            items: carouselItems,
-          ),
+    return DonutStatCard(
+      centerLabel: 'Employees',
+      items: [
+        DonutStatItem(
+          'Onboarded',
+          provider.onboardedEmployees,
+          ConstColors.successGreen,
         ),
-        SizedBox(height: 8.h),
-        // Dot Indicator
-        Selector<ValueProvider<int>, int>(
-          selector: (_, index) => index.value,
-          builder: (context, carouselIndex, _) => DotIndicator(
-            itemCount: carouselItems.length,
-            currentIndex: carouselIndex,
-          ),
+        DonutStatItem(
+          'Pending',
+          provider.pendingEmployees,
+          ConstColors.warningAmber,
         ),
       ],
     );
   }
 
-  // Employee Statistics Card with Pie Chart
-  Widget _buildEmployeeChartCard(EmployeeManagementProvider provider) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-        child: provider.totalEmployees > 0
-            ? Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Chart and Total in Center
-                  SizedBox(
-                    width: 120.w,
-                    height: 110.h,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        PieChart(
-                          PieChartData(
-                            sectionsSpace: 2,
-                            centerSpaceRadius: 28.r,
-                            sections: [
-                              PieChartSectionData(
-                                value: provider.onboardedEmployees.toDouble(),
-                                title: '${provider.onboardedEmployees}',
-                                color: ConstColors.successGreen,
-                                radius: 25.r,
-                                titleStyle: getTextTheme().bodySmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: ConstColors.white,
-                                  fontSize: 11.sp,
-                                ),
-                              ),
-                              PieChartSectionData(
-                                value: provider.pendingEmployees.toDouble(),
-                                title: '${provider.pendingEmployees}',
-                                color: ConstColors.warningAmber,
-                                radius: 25.r,
-                                titleStyle: getTextTheme().bodySmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: ConstColors.white,
-                                  fontSize: 11.sp,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Total Count in Center
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            isAnimated
-                                ? AnimatedNumber(
-                                    startValue:
-                                        provider.totalEmployees.toDouble() / 2,
-                                    endValue: provider.totalEmployees
-                                        .toDouble(),
-                                    duration: const Duration(seconds: 1),
-                                    isFloatingPoint: false,
-                                    style: getTextTheme().titleMedium?.copyWith(
-                                      color: ConstColors.primary,
-                                    ),
-                                  )
-                                : Text(
-                                    provider.totalEmployees.toString(),
-                                    style: getTextTheme().titleMedium?.copyWith(
-                                      color: ConstColors.primary,
-                                    ),
-                                  ),
-                            SizedBox(height: 2.h),
-                            Text(
-                              'Total',
-                              style: getTextTheme().labelSmall?.copyWith(
-                                fontWeight: FontWeight.w500,
-                                color: ConstColors.textColorLight,
-                                fontSize: 9.sp,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(width: 16.w),
-                  // Legend next to chart
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLegendItem('Onboarded', ConstColors.successGreen),
-                      SizedBox(height: 12.h),
-                      _buildLegendItem('Pending', ConstColors.warningAmber),
-                    ],
-                  ),
-                ],
-              )
-            : Padding(
-                padding: EdgeInsets.all(20.w),
-                child: Text(
-                  'No employee data available',
-                  style: getTextTheme().bodyMedium?.copyWith(
-                    color: ConstColors.textColorLight,
-                  ),
-                ),
-              ),
-      ),
-    );
-  }
-
-  // Leave Type Chart Card (PL, SL, CL)
-  Widget _buildLeaveTypeChartCard(
-    int plCount,
-    int slCount,
-    int clCount,
-    int totalLeaves,
-  ) {
-    // Count how many distinct leave types have requests
-    final activeTypes = [
-      if (plCount > 0)
-        {
-          'label': 'Privilege Leave (PL)',
-          'short': 'PL',
-          'count': plCount,
-          'color': ConstColors.infoBlue,
-        },
-      if (slCount > 0)
-        {
-          'label': 'Sick Leave (SL)',
-          'short': 'SL',
-          'count': slCount,
-          'color': ConstColors.successGreen,
-        },
-      if (clCount > 0)
-        {
-          'label': 'Casual Leave (CL)',
-          'short': 'CL',
-          'count': clCount,
-          'color': ConstColors.inProgressOrange,
-        },
-    ];
-
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-        child: totalLeaves > 0
-            ? activeTypes.length == 1
-                  // Single leave type — show a clean stat layout instead of pie chart
-                  ? _buildSingleLeaveTypeLayout(activeTypes.first)
-                  // Multiple leave types — show pie chart
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Chart and Total in Center
-                        SizedBox(
-                          width: 120.w,
-                          height: 110.h,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              PieChart(
-                                PieChartData(
-                                  sectionsSpace: 2,
-                                  centerSpaceRadius: 28.r,
-                                  sections: [
-                                    if (plCount > 0)
-                                      PieChartSectionData(
-                                        value: plCount.toDouble(),
-                                        title: '$plCount',
-                                        color: ConstColors.infoBlue,
-                                        radius: 25.r,
-                                        titleStyle: getTextTheme().bodySmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: ConstColors.white,
-                                              fontSize: 11.sp,
-                                            ),
-                                      ),
-                                    if (slCount > 0)
-                                      PieChartSectionData(
-                                        value: slCount.toDouble(),
-                                        title: '$slCount',
-                                        color: ConstColors.successGreen,
-                                        radius: 25.r,
-                                        titleStyle: getTextTheme().bodySmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: ConstColors.white,
-                                              fontSize: 11.sp,
-                                            ),
-                                      ),
-                                    if (clCount > 0)
-                                      PieChartSectionData(
-                                        value: clCount.toDouble(),
-                                        title: '$clCount',
-                                        color: ConstColors.inProgressOrange,
-                                        radius: 25.r,
-                                        titleStyle: getTextTheme().bodySmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: ConstColors.white,
-                                              fontSize: 11.sp,
-                                            ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              // Total Count in Center
-                              Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  isAnimated
-                                      ? AnimatedNumber(
-                                          startValue:
-                                              totalLeaves.toDouble() / 2,
-                                          endValue: totalLeaves.toDouble(),
-                                          duration: const Duration(seconds: 1),
-                                          isFloatingPoint: false,
-                                          style: getTextTheme().titleMedium
-                                              ?.copyWith(
-                                                color: ConstColors.primary,
-                                              ),
-                                        )
-                                      : Text(
-                                          totalLeaves.toString(),
-                                          style: getTextTheme().titleMedium
-                                              ?.copyWith(
-                                                color: ConstColors.primary,
-                                              ),
-                                        ),
-                                  SizedBox(height: 2.h),
-                                  Text(
-                                    'Total',
-                                    style: getTextTheme().labelSmall?.copyWith(
-                                      fontWeight: FontWeight.w500,
-                                      color: ConstColors.textColorLight,
-                                      fontSize: 9.sp,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(width: 16.w),
-                        // Legend next to chart
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (plCount > 0)
-                              _buildLegendItem('PL', ConstColors.infoBlue),
-                            if (plCount > 0 && (slCount > 0 || clCount > 0))
-                              SizedBox(height: 10.h),
-                            if (slCount > 0)
-                              _buildLegendItem('SL', ConstColors.successGreen),
-                            if (slCount > 0 && clCount > 0)
-                              SizedBox(height: 10.h),
-                            if (clCount > 0)
-                              _buildLegendItem(
-                                'CL',
-                                ConstColors.inProgressOrange,
-                              ),
-                          ],
-                        ),
-                      ],
-                    )
-            : Padding(
-                padding: EdgeInsets.all(20.w),
-                child: Text(
-                  'No leave requests available',
-                  style: getTextTheme().bodyMedium?.copyWith(
-                    color: ConstColors.textColorLight,
-                  ),
-                ),
-              ),
-      ),
-    );
-  }
-
-  // Layout for when only a single leave type has pending requests
-  Widget _buildSingleLeaveTypeLayout(Map<String, dynamic> leaveType) {
-    final String label = leaveType['label'] as String;
-    final String shortLabel = leaveType['short'] as String;
-    final int count = leaveType['count'] as int;
-    final Color color = leaveType['color'] as Color;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Colored circle with count
-        Container(
-          width: 90.w,
-          height: 90.h,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [color, color.withOpacity(0.7)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                isAnimated
-                    ? AnimatedNumber(
-                        startValue: count.toDouble() / 2,
-                        endValue: count.toDouble(),
-                        duration: const Duration(seconds: 1),
-                        isFloatingPoint: false,
-                        style: getTextTheme().headlineSmall?.copyWith(
-                          color: ConstColors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )
-                    : Text(
-                        count.toString(),
-                        style: getTextTheme().headlineSmall?.copyWith(
-                          color: ConstColors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                Text(
-                  'Pending',
-                  style: getTextTheme().labelSmall?.copyWith(
-                    color: ConstColors.white.withOpacity(0.9),
-                    fontSize: 9.sp,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        SizedBox(width: 20.w),
-        // Leave type info
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              shortLabel,
-              style: getTextTheme().titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            SizedBox(height: 4.h),
-            Text(
-              label,
-              style: getTextTheme().bodySmall?.copyWith(
-                color: ConstColors.textColorLight,
-              ),
-            ),
-            SizedBox(height: 8.h),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20.r),
-                border: Border.all(color: color.withOpacity(0.3)),
-              ),
-              child: Text(
-                '$count pending request${count > 1 ? 's' : ''}',
-                style: getTextTheme().labelSmall?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // Legend Item
-  Widget _buildLegendItem(String label, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 16.w,
-          height: 16.h,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        SizedBox(width: 8.w),
-        Text(
-          label,
-          style: getTextTheme().bodyMedium?.copyWith(
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Leave Requests Statistics Card - Compact Version
+  // Leave requests by status: same donut card as the other overviews
   Widget _buildLeaveRequestsStatsCard(
     int total,
     int pending,
     int approved,
     int rejected,
   ) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
-      child: Padding(
-        padding: EdgeInsets.all(16.w),
-        child: Column(
-          children: [
-            // Stats Row with Animated Numbers
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildCompactStatItem(
-                  'Total',
-                  total,
-                  Colors.blue,
-                  Icons.list_alt,
-                ),
-                _buildCompactStatItem(
-                  'Pending',
-                  pending,
-                  Colors.orange,
-                  Icons.pending_actions,
-                ),
-                _buildCompactStatItem(
-                  'Approved',
-                  approved,
-                  Colors.green,
-                  Icons.check_circle,
-                ),
-                _buildCompactStatItem(
-                  'Rejected',
-                  rejected,
-                  Colors.red,
-                  Icons.cancel,
-                ),
-              ],
-            ),
-            SizedBox(height: 16.h),
-            // Compact Bar Chart
-            if (total > 0)
-              SizedBox(
-                height: 140.h,
-                child: BarChart(
-                  BarChartData(
-                    alignment: BarChartAlignment.spaceAround,
-                    maxY: total.toDouble() * 1.2,
-                    barTouchData: BarTouchData(enabled: false),
-                    titlesData: FlTitlesData(
-                      show: true,
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          getTitlesWidget: (value, meta) {
-                            switch (value.toInt()) {
-                              case 0:
-                                return Text(
-                                  'Pending',
-                                  style: getTextTheme().bodySmall,
-                                );
-                              case 1:
-                                return Text(
-                                  'Approved',
-                                  style: getTextTheme().bodySmall,
-                                );
-                              case 2:
-                                return Text(
-                                  'Rejected',
-                                  style: getTextTheme().bodySmall,
-                                );
-                              default:
-                                return const Text('');
-                            }
-                          },
-                        ),
-                      ),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 30,
-                          getTitlesWidget: (value, meta) {
-                            return Text(
-                              value.toInt().toString(),
-                              style: getTextTheme().bodySmall?.copyWith(
-                                fontSize: 10.sp,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      topTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      rightTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                    ),
-                    gridData: FlGridData(show: true, drawVerticalLine: false),
-                    borderData: FlBorderData(show: false),
-                    barGroups: [
-                      BarChartGroupData(
-                        x: 0,
-                        barRods: [
-                          BarChartRodData(
-                            toY: pending.toDouble(),
-                            color: Colors.orange,
-                            width: 30.w,
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(4.r),
-                            ),
-                          ),
-                        ],
-                      ),
-                      BarChartGroupData(
-                        x: 1,
-                        barRods: [
-                          BarChartRodData(
-                            toY: approved.toDouble(),
-                            color: Colors.green,
-                            width: 30.w,
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(4.r),
-                            ),
-                          ),
-                        ],
-                      ),
-                      BarChartGroupData(
-                        x: 2,
-                        barRods: [
-                          BarChartRodData(
-                            toY: rejected.toDouble(),
-                            color: Colors.red,
-                            width: 30.w,
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(4.r),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Compact Stat Item (for Leave Requests)
-  Widget _buildCompactStatItem(
-    String label,
-    int value,
-    Color color,
-    IconData icon,
-  ) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 25.r),
-        SizedBox(height: 4.h),
-        isAnimated
-            ? AnimatedNumber(
-                startValue: value.toDouble() / 2,
-                endValue: value.toDouble(),
-                duration: const Duration(seconds: 1),
-                isFloatingPoint: false,
-                style: getTextTheme().titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                  fontSize: 18.sp,
-                ),
-              )
-            : Text(
-                value.toString(),
-                style: getTextTheme().titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-        SizedBox(height: 2.h),
-        Text(
-          label,
-          style: getTextTheme().bodyMedium?.copyWith(color: Colors.grey),
-        ),
+    return DonutStatCard(
+      centerLabel: 'Requests',
+      items: [
+        DonutStatItem('Pending', pending, ConstColors.inProgressOrange),
+        DonutStatItem('Approved', approved, ConstColors.successGreen),
+        DonutStatItem('Rejected', rejected, ConstColors.errorRed),
       ],
     );
   }
 
   // Action Card
-  Widget _buildActionCard(
-    String title,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12.r),
-      child: Container(
-        padding: EdgeInsets.all(16.w),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [color, color.withOpacity(0.7)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(12.r),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 32.r),
-            SizedBox(height: 12.h),
-            Text(
-              title,
-              style: getTextTheme().labelLarge?.copyWith(color: Colors.white),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
+  Widget _buildActionCard(String title, IconData icon, VoidCallback onTap) {
+    return QuickActionTile(title: title, icon: icon, onTap: onTap);
   }
 
   Widget _getStatusChip(String status) {
@@ -1390,26 +536,26 @@ class _AdminHomeState extends State<AdminHome> {
 
     switch (status) {
       case 'pending':
-        color = Colors.orange;
+        color = ConstColors.inProgressOrange;
         label = 'Pending';
         break;
       case 'approved':
-        color = Colors.green;
+        color = ConstColors.successGreen;
         label = 'Approved';
         break;
       case 'rejected':
-        color = Colors.red;
+        color = ConstColors.errorRed;
         label = 'Rejected';
         break;
       default:
-        color = Colors.grey;
+        color = ConstColors.textColorLight;
         label = 'Unknown';
     }
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12.r),
         border: Border.all(color: color, width: 0.5),
       ),
@@ -1423,29 +569,89 @@ class _AdminHomeState extends State<AdminHome> {
     );
   }
 
-  String _getLeaveTypeFullName(String leaveType) {
-    switch (leaveType.toLowerCase()) {
-      case AppConstants.leaveTypePL:
-        return 'Privilege Leave (PL)';
-      case AppConstants.leaveTypeSL:
-        return 'Sick Leave (SL)';
-      case AppConstants.leaveTypeCL:
-        return 'Casual Leave (CL)';
-      default:
-        return '${leaveType.toUpperCase()} (${leaveType.toUpperCase()})';
-    }
-  }
-
-  Color _getLeaveTypeColor(String leaveType) {
-    switch (leaveType.toLowerCase()) {
-      case AppConstants.leaveTypePL:
-        return ConstColors.infoBlue;
-      case AppConstants.leaveTypeSL:
-        return ConstColors.successGreen;
-      case AppConstants.leaveTypeCL:
-        return ConstColors.inProgressOrange;
-      default:
-        return Colors.grey;
-    }
+  // One recent request: type badge, who and what, status, one line of reason.
+  // Same look as the request card, only smaller.
+  Widget _buildRecentRequestTile(RequestModel request) {
+    final style = RequestTypeStyle.of(request);
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 6.h),
+      child: NeuCard(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(NeuStyle.radiusMedium.r),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Coloured edge shows the type at a glance
+                Container(width: 4.w, color: style.color),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 10.w,
+                      vertical: 8.h,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32.r,
+                          height: 32.r,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: style.color.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: style.color),
+                          ),
+                          child: Text(
+                            style.code,
+                            style: getTextTheme().labelMedium?.copyWith(
+                              color: style.color,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 10.w),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                request.userName,
+                                overflow: TextOverflow.ellipsis,
+                                style: getTextTheme().bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: ConstColors.textColor,
+                                ),
+                              ),
+                              Text(
+                                '${style.name} · ${request.displayDate}',
+                                overflow: TextOverflow.ellipsis,
+                                style: getTextTheme().bodySmall?.copyWith(
+                                  color: ConstColors.textColor,
+                                ),
+                              ),
+                              if (request.reason.isNotEmpty)
+                                Text(
+                                  request.reason,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: getTextTheme().bodySmall?.copyWith(
+                                    color: ConstColors.textColorLight,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: 8.w),
+                        _getStatusChip(request.status),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

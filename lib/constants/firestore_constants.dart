@@ -24,8 +24,10 @@
 // organization_details                 org-wide settings, readable by every signed-in user
 //   ├─ leave_config                    default PL / SL / CL allocation
 //   ├─ office_hours                    start / end time and late / half-day rules
-//   └─ holidays/items/{holidayId}      holiday calendar
-// notifications                        reserved, not used yet
+//   ├─ holidays/items/{holidayId}      holiday calendar
+//   └─ birthdays/items/{uid}           month and day of each employee's birthday (no year),
+//                                      written by the employee when they save their date of birth
+// notifications                       reserved, not used yet
 //
 // =============================================================================
 // DOCUMENT SHAPES (JSON as saved)
@@ -55,6 +57,8 @@
 //                                                // (missing means on for sick leave)
 //   "totalExperience": "3", "emergencyContactNumber": "98...",
 //   "address": "...", "alternateNumber": "...", "bloodGroup": "O+",
+//   "dateOfBirth": Timestamp,                    // date only, set by the employee on the profile
+//   "gender": "Male" | "Female" | "Other",       // set by the employee; words the birthday greeting
 //   "aadharNumber": "...", "panCardNumber": "...",              // admin-only details
 //   "officeLatitude": 18.5679456, "officeLongitude": 73.7686132 // punch geofence centre
 // }
@@ -161,6 +165,12 @@
 // organization_details/holidays/items/{holidayId}   (HolidayModel)
 // { "id": "uuid", "name": "Independence Day", "date": Timestamp (midnight),
 //   "description": "optional", "createdAt": Timestamp }
+//
+// organization_details/birthdays/items/{uid}        (BirthdayModel)
+// { "userId": "uid", "name": "Rugved", "gender": "Male" | "Female" | "Other" | null,
+//   "month": 10, "day": 30,
+//   "monthDay": "10-30",                       // queried with == to find today's birthdays
+//   "updatedAt": Timestamp }
 // =============================================================================
 
 /// Top-level collections.
@@ -186,6 +196,9 @@ class FirestoreSubCollections {
 
   // organization_details/holidays/...
   static const String holidayItems = 'items';
+
+  // organization_details/birthdays/...
+  static const String birthdayItems = 'items';
 }
 
 /// Field names used in code on users/{uid} and users/{uid}/security/settings.
@@ -212,6 +225,7 @@ class FirestoreDocs {
   static const String leaveConfig = 'leave_config';
   static const String officeHours = 'office_hours';
   static const String holidays = 'holidays';
+  static const String birthdays = 'birthdays';
 
   /// users/{uid}/leaves/annual_{year}
   static String annualLeave(int year) => 'annual_$year';

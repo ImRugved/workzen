@@ -27,11 +27,10 @@ class DotIndicator extends StatelessWidget {
             borderRadius: BorderRadius.circular(4.r),
             color: currentIndex == index
                 ? ConstColors.primary
-                : ConstColors.primary.withOpacity(0.3),
+                : ConstColors.primary.withValues(alpha: 0.3),
           ),
         ),
       ),
     );
   }
 }
-

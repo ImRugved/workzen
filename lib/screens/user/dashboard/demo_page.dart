@@ -12,6 +12,7 @@ import '../../../providers/toggle_provider.dart';
 import '../../../constants/const_textstyle.dart';
 import '../../../constants/constant_colors.dart';
 import '../../../constants/constant_dropdown.dart';
+import '../../../constants/app_theme.dart';
 
 /// "Info" tab: the organization's yearly leave and office timings, a place for
 /// the company rules, and the employee directory table with search and
@@ -70,17 +71,13 @@ class _UserDemoPageState extends State<UserDemoPage> {
         ChangeNotifierProvider.value(value: _directory),
       ],
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Info'),
-          backgroundColor: ConstColors.primary,
-          foregroundColor: Colors.white,
-        ),
+        appBar: AppBar(title: const Text('Info')),
         backgroundColor: ConstColors.backgroundColor,
         body: RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.all(16.w),
+            padding: AppSpacing.screen,
             children: [
               const _OrganizationCard(),
               SizedBox(height: 16.h),
@@ -95,11 +92,9 @@ class _UserDemoPageState extends State<UserDemoPage> {
   }
 
   Widget _buildDirectory() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+    return NeuCard(
       child: Padding(
-        padding: EdgeInsets.all(12.w),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -183,13 +178,13 @@ class _UserDemoPageState extends State<UserDemoPage> {
 
   Widget _buildShimmer() {
     return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
+      baseColor: ConstColors.borderColor,
+      highlightColor: ConstColors.backgroundColor,
       child: Container(
         height: 160.h,
         width: double.infinity,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: ConstColors.cardBackground,
           borderRadius: BorderRadius.circular(12.r),
         ),
       ),
@@ -280,11 +275,9 @@ class _OrganizationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+    return NeuCard(
       child: Padding(
-        padding: EdgeInsets.all(14.w),
+        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
         child: Consumer<OrganizationProvider>(
           builder: (context, org, _) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,7 +399,7 @@ class _OrganizationCard extends StatelessWidget {
                   Text(
                     line.key,
                     style: getTextTheme().bodyMedium?.copyWith(
-                      color: Colors.grey,
+                      color: ConstColors.textColorLight,
                     ),
                   ),
                   Text(
@@ -430,11 +423,9 @@ class _CompanyRulesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+    return NeuCard(
       child: Padding(
-        padding: EdgeInsets.all(14.w),
+        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

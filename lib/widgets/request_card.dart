@@ -5,9 +5,9 @@ import 'package:provider/provider.dart';
 import '../app_constants.dart';
 import '../models/request_model.dart';
 import '../providers/request_provider.dart';
+import '../constants/app_theme.dart';
 import '../constants/const_textstyle.dart';
 import '../constants/constant_colors.dart';
-import '../constants/constant_button.dart';
 import '../constants/constant_snackbar.dart';
 import 'request_decision.dart';
 import 'request_type_style.dart';
@@ -39,39 +39,117 @@ class RequestCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = _style;
 
-    return Card(
-      margin: EdgeInsets.only(bottom: 12.h),
-      elevation: 2,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Coloured edge shows the type at a glance
-            Container(width: 5.w, color: style.color),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(12.w),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeader(style),
-                    SizedBox(height: 10.h),
-                    _buildDetails(style),
-                    SizedBox(height: 10.h),
-                    _buildReason(),
-                    if (request.status != AppConstants.statusPending &&
-                        request.adminRemark != null &&
-                        request.adminRemark!.isNotEmpty)
-                      _buildRemark(),
-                    _buildActions(context),
-                  ],
+    final card = NeuCard(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(NeuStyle.radiusMedium.r),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Coloured edge shows the type at a glance
+              Container(width: 4.w, color: style.color),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 10.w,
+                    vertical: 8.h,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(style),
+                      SizedBox(height: 6.h),
+                      _buildDetails(style),
+                      if (request.reason.isNotEmpty) ...[
+                        SizedBox(height: 6.h),
+                        _buildReason(),
+                      ],
+                      if (request.status != AppConstants.statusPending &&
+                          request.adminRemark != null &&
+                          request.adminRemark!.isNotEmpty)
+                        _buildRemark(),
+                      _buildActions(),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+
+    final pending = request.status == AppConstants.statusPending;
+    // An employee cancels a pending request by swiping the card left; an
+    // admin approves by swiping right and rejects by swiping left
+    final adminSwipe = isAdmin && canApproveReject && pending;
+    final employeeSwipe = !isAdmin && pending;
+
+    // The list removes the card itself once the request changes, so a swipe
+    // never completes on its own: it only opens the confirmation
+    Widget swipeable(Widget child) {
+      return Dismissible(
+        key: ValueKey('swipe_${request.id}'),
+        direction: adminSwipe
+            ? DismissDirection.horizontal
+            : DismissDirection.endToStart,
+        confirmDismiss: (direction) async {
+          if (!adminSwipe) {
+            await _showDeleteConfirmation(context);
+          } else if (direction == DismissDirection.startToEnd) {
+            RequestDecision.show(context, request, AppConstants.statusApproved);
+          } else {
+            RequestDecision.show(context, request, AppConstants.statusRejected);
+          }
+          return false;
+        },
+        background: adminSwipe
+            ? _swipeHint(
+                Icons.check_circle_outline,
+                'Approve',
+                ConstColors.successGreen,
+                Alignment.centerLeft,
+              )
+            : const SizedBox.shrink(),
+        secondaryBackground: _swipeHint(
+          adminSwipe ? Icons.highlight_off : Icons.delete_outline,
+          adminSwipe ? 'Reject' : 'Cancel',
+          ConstColors.errorRed,
+          Alignment.centerRight,
+        ),
+        child: child,
+      );
+    }
+
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 6.h),
+      child: adminSwipe || employeeSwipe ? swipeable(card) : card,
+    );
+  }
+
+  // Shown behind the card while it is swiped: coloured icon and text only
+  Widget _swipeHint(
+    IconData icon,
+    String label,
+    Color color,
+    Alignment alignment,
+  ) {
+    return Container(
+      alignment: alignment,
+      padding: EdgeInsets.symmetric(horizontal: 20.w),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 20.r),
+          SizedBox(width: 6.w),
+          Text(
+            label,
+            style: getTextTheme().labelLarge?.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -80,8 +158,8 @@ class RequestCard extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 40.r,
-          height: 40.r,
+          width: 32.r,
+          height: 32.r,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: style.color.withValues(alpha: 0.12),
@@ -112,7 +190,7 @@ class RequestCard extends StatelessWidget {
                 Text(
                   request.userName,
                   style: getTextTheme().bodySmall?.copyWith(
-                    color: Colors.grey[700],
+                    color: ConstColors.textColorLight,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -149,36 +227,45 @@ class RequestCard extends StatelessWidget {
       children: [
         _InfoRow(
           icon: Icons.event,
-          label: isCompOff ? 'Worked on' : 'Dates',
+          // One day reads "On Date", a range reads "On Dates"
+          label: isCompOff
+              ? 'Worked on'
+              : (from == null || sameDay || to == null)
+              ? 'On Date'
+              : 'On Dates',
           value: dateText,
         ),
         // The day off asked for in return for the day worked
         if (isCompOff && request.compOffDate != null) ...[
-          SizedBox(height: 6.h),
+          SizedBox(height: 2.h),
           _InfoRow(
             icon: Icons.event_available,
             label: 'Comp off on',
             value: _date.format(request.compOffDate!),
           ),
         ],
-        SizedBox(height: 8.h),
+        SizedBox(height: 6.h),
         Wrap(
-          spacing: 8.w,
-          runSpacing: 6.h,
+          spacing: 6.w,
+          runSpacing: 4.h,
           children: [
             _pill(Icons.timelapse, _days(request.requestedDays), style.color),
             if (request.shift != null)
-              _pill(Icons.access_time, request.shift!, Colors.grey[700]!),
+              _pill(
+                Icons.access_time,
+                request.shift!,
+                ConstColors.textColorLight,
+              ),
             if (isCompOff && request.fromTime != null && request.toTime != null)
               _pill(
                 Icons.schedule,
                 '${request.fromTime} - ${request.toTime}',
-                Colors.grey[700]!,
+                ConstColors.textColorLight,
               ),
             _pill(
               Icons.calendar_today,
-              'Applied ${_date.format(request.appliedOn)}',
-              Colors.grey[700]!,
+              'Applied on ${DateFormat('dd MMM').format(request.appliedOn)}',
+              ConstColors.textColorLight,
             ),
           ],
         ),
@@ -211,33 +298,29 @@ class RequestCard extends StatelessWidget {
   }
 
   Widget _buildReason() {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(8.w),
-      decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8.r),
-      ),
-      child: Text(
-        request.reason.isEmpty ? 'No reason given' : request.reason,
-        style: getTextTheme().bodySmall,
+    return Text(
+      request.reason,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: getTextTheme().bodySmall?.copyWith(
+        color: ConstColors.textColorLight,
       ),
     );
   }
 
   Widget _buildRemark() {
     return Padding(
-      padding: EdgeInsets.only(top: 8.h),
+      padding: EdgeInsets.symmetric(vertical: 4.h),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.comment, size: 16.r, color: Colors.blue[600]),
+          Icon(Icons.comment, size: 14.r, color: ConstColors.primaryDeep),
           SizedBox(width: 6.w),
           Expanded(
             child: Text(
               'Admin: ${request.adminRemark!}',
               style: getTextTheme().bodySmall?.copyWith(
-                color: Colors.blue[700],
+                color: ConstColors.primaryDeep,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -247,67 +330,34 @@ class RequestCard extends StatelessWidget {
     );
   }
 
-  Widget _buildActions(BuildContext context) {
+  // A hint under a pending card: there are no buttons, the card is swiped
+  // (see build)
+  Widget _buildActions() {
     if (request.status != AppConstants.statusPending) {
       return const SizedBox.shrink();
     }
+    // An admin without the approve permission can only look
+    if (isAdmin && !canApproveReject) return const SizedBox.shrink();
 
-    // Admin / allowed sub admin: approve or reject
-    if (isAdmin) {
-      if (!canApproveReject) return const SizedBox.shrink();
-      return Padding(
-        padding: EdgeInsets.only(top: 12.h),
-        child: Row(
-          children: [
-            Expanded(
-              child: ConstantButton(
-                text: 'Approve',
-                icon: Icon(Icons.check, color: ConstColors.white, size: 18.r),
-                backgroundColor: ConstColors.successGreen,
-                height: 40.h,
-                onPressed: () => RequestDecision.show(
-                  context,
-                  request,
-                  AppConstants.statusApproved,
-                ),
-              ),
-            ),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: ConstantButton(
-                text: 'Reject',
-                icon: Icon(Icons.close, color: ConstColors.white, size: 18.r),
-                backgroundColor: ConstColors.errorRed,
-                height: 40.h,
-                onPressed: () => RequestDecision.show(
-                  context,
-                  request,
-                  AppConstants.statusRejected,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Employee: withdraw a pending request
     return Padding(
-      padding: EdgeInsets.only(top: 12.h),
-      child: SizedBox(
-        width: double.infinity,
-        child: ConstantButton(
-          text: 'Cancel Request',
-          icon: Icon(
-            Icons.delete_outline,
-            color: ConstColors.errorRed,
-            size: 18.r,
+      padding: EdgeInsets.only(top: 6.h),
+      child: Row(
+        children: [
+          Icon(
+            isAdmin ? Icons.swap_horiz : Icons.swipe_left,
+            size: 14.r,
+            color: ConstColors.textColorLight,
           ),
-          isOutlined: true,
-          backgroundColor: ConstColors.errorRed,
-          height: 40.h,
-          onPressed: () => _showDeleteConfirmation(context),
-        ),
+          SizedBox(width: 4.w),
+          Text(
+            isAdmin
+                ? 'Swipe right to approve, left to reject'
+                : 'Swipe left to cancel',
+            style: getTextTheme().labelSmall?.copyWith(
+              color: ConstColors.textColorLight,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -350,40 +400,98 @@ class RequestCard extends StatelessWidget {
     );
   }
 
-  void _showDeleteConfirmation(BuildContext context) {
-    showDialog(
+  Future<void> _showDeleteConfirmation(BuildContext context) {
+    return showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Cancel Request', style: getTextTheme().titleMedium),
-        content: Text(
-          'Are you sure you want to cancel this ${request.typeDisplayName.toLowerCase()} request?',
-          style: getTextTheme().bodyMedium,
+      builder: (dialogContext) => Dialog(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 52.r,
+                height: 52.r,
+                decoration: BoxDecoration(
+                  color: ConstColors.errorRed.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.delete_outline,
+                  size: 26.r,
+                  color: ConstColors.errorRed,
+                ),
+              ),
+              SizedBox(height: 14.h),
+              Text(
+                'Cancel Request?',
+                style: getTextTheme().titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: ConstColors.textColor,
+                ),
+              ),
+              SizedBox(height: 8.h),
+              Text(
+                'This ${request.typeDisplayName.toLowerCase()} request will be withdrawn. You can apply again any time.',
+                textAlign: TextAlign.center,
+                style: getTextTheme().bodyMedium?.copyWith(
+                  color: ConstColors.textColor,
+                ),
+              ),
+              SizedBox(height: 16.h),
+              Divider(height: 1, color: ConstColors.borderColor),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: Text(
+                        'No',
+                        style: getTextTheme().labelLarge?.copyWith(
+                          color: ConstColors.textColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 24.h,
+                    child: VerticalDivider(
+                      width: 1,
+                      color: ConstColors.borderColor,
+                    ),
+                  ),
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () async {
+                        Navigator.pop(dialogContext);
+                        final success = await context
+                            .read<RequestProvider>()
+                            .deletePendingRequest(request);
+                        if (success) {
+                          ConstantSnackbar.showSuccess(
+                            title: 'Request cancelled successfully',
+                          );
+                        } else {
+                          ConstantSnackbar.showError(
+                            title: 'Failed to cancel request',
+                          );
+                        }
+                      },
+                      child: Text(
+                        'Yes, cancel',
+                        style: getTextTheme().labelLarge?.copyWith(
+                          color: ConstColors.errorRed,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text('No', style: getTextTheme().labelLarge),
-          ),
-          ConstantButton(
-            text: 'Yes, cancel',
-            isFullWidth: false,
-            height: 40.h,
-            backgroundColor: ConstColors.errorRed,
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              final success = await context
-                  .read<RequestProvider>()
-                  .deletePendingRequest(request);
-              if (success) {
-                ConstantSnackbar.showSuccess(
-                  title: 'Request cancelled successfully',
-                );
-              } else {
-                ConstantSnackbar.showError(title: 'Failed to cancel request');
-              }
-            },
-          ),
-        ],
       ),
     );
   }
@@ -404,16 +512,18 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 16.r, color: Colors.grey[600]),
+        Icon(icon, size: 14.r, color: ConstColors.textColorLight),
         SizedBox(width: 4.w),
         Text(
           '$label: ',
-          style: getTextTheme().bodyMedium?.copyWith(color: Colors.grey[700]),
+          style: getTextTheme().bodySmall?.copyWith(
+            color: ConstColors.textColorLight,
+          ),
         ),
         Expanded(
           child: Text(
             value,
-            style: getTextTheme().bodyMedium?.copyWith(
+            style: getTextTheme().bodySmall?.copyWith(
               fontWeight: FontWeight.w600,
             ),
           ),

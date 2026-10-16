@@ -14,6 +14,7 @@ import '../../constants/const_textstyle.dart';
 import '../../constants/constant_snackbar.dart';
 import '../../constants/constant_button.dart';
 import '../../constants/constant_colors.dart';
+import '../../constants/app_theme.dart';
 import '../../utils/logger.dart';
 
 class AttendanceScreen extends StatefulWidget {
@@ -57,7 +58,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         height: 20.r,
         child: const AppLoadingIndicator(
           size: 20,
-          color: ConstColors.white,
+          color: ConstColors.textColor,
         ),
       );
     }
@@ -244,12 +245,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ConstantSnackbar.show(
               title:
                   'You are on leave today${todayLeave != null ? ' (${DateFormat('dd MMM yyyy').format(todayLeave.fromDate)})' : ''}',
-              backgroundColor: Colors.orange,
+              backgroundColor: ConstColors.inProgressOrange,
             );
           } else if (error == 'already_punched_in') {
             ConstantSnackbar.show(
               title: 'You have already punched in today',
-              backgroundColor: Colors.orange,
+              backgroundColor: ConstColors.inProgressOrange,
             );
           } else {
             ConstantSnackbar.showError(title: error);
@@ -306,12 +307,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           if (error == 'not_punched_in') {
             ConstantSnackbar.show(
               title: 'You need to punch in first',
-              backgroundColor: Colors.orange,
+              backgroundColor: ConstColors.inProgressOrange,
             );
           } else if (error == 'already_punched_out') {
             ConstantSnackbar.show(
               title: 'You have already punched out today',
-              backgroundColor: Colors.orange,
+              backgroundColor: ConstColors.inProgressOrange,
             );
           } else {
             ConstantSnackbar.showError(title: error);
@@ -333,7 +334,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       appBar: AppBar(
         title: Text(
           'Attendance Screen',
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+          style: getTextTheme().titleLarge?.copyWith(
+            color: ConstColors.textColor,
+          ),
         ),
         actions: [
           IconButton(
@@ -373,18 +376,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           final todayHoliday = org.holidayOn(DateTime.now());
 
           return SingleChildScrollView(
-            padding: EdgeInsets.all(16.w),
+            padding: AppSpacing.screen,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Date and time card
-                Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
+                NeuCard(
                   child: Padding(
-                    padding: EdgeInsets.all(10.w),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 10.w,
+                      vertical: 10.h,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -409,20 +411,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                     height: 12.r,
                                     decoration: BoxDecoration(
                                       color: isAtOffice
-                                          ? Colors.green
-                                          : Colors.red,
+                                          ? ConstColors.successGreen
+                                          : ConstColors.errorRed,
                                       shape: BoxShape.circle,
                                     ),
                                   ),
                                   SizedBox(width: 6.w),
                                   Text(
-                                    isAtOffice
-                                        ? 'At Office'
-                                        : 'Not at Office',
+                                    isAtOffice ? 'At Office' : 'Not at Office',
                                     style: getTextTheme().labelSmall?.copyWith(
                                       color: isAtOffice
-                                          ? Colors.green
-                                          : Colors.red,
+                                          ? ConstColors.successGreen
+                                          : ConstColors.errorRed,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -433,7 +433,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         Text(
                           'Current Time: $time',
                           style: getTextTheme().bodyMedium?.copyWith(
-                            color: Colors.grey[700],
+                            color: ConstColors.textColorLight,
                           ),
                         ),
                       ],
@@ -443,13 +443,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 SizedBox(height: 15.h),
 
                 // Status card
-                Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
+                NeuCard(
                   child: Padding(
-                    padding: EdgeInsets.all(10.w),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 10.w,
+                      vertical: 10.h,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -465,14 +464,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           _buildStatusRow(
                             'On Leave',
                             'You are on approved leave today',
-                            Colors.blue,
+                            ConstColors.primaryDeep,
                             Icons.event_busy,
                           )
                         else if (todayAttendance == null)
                           _buildStatusRow(
                             'Not Checked In',
                             'You haven\'t punched in today',
-                            Colors.grey,
+                            ConstColors.textColorLight,
                             Icons.pending_actions,
                           )
                         else if (todayAttendance.punchInTime != null &&
@@ -480,7 +479,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           _buildStatusRow(
                             'Checked In',
                             'Punched in at ${DateFormat('hh:mm a').format(todayAttendance.punchInTime!)}${_punchInSuffix(officeHours, todayAttendance.punchInTime!)}',
-                            Colors.green,
+                            ConstColors.successGreen,
                             Icons.login,
                           )
                         else if (todayAttendance.punchInTime != null &&
@@ -488,7 +487,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           _buildStatusRow(
                             'Checked Out',
                             'Punched out at ${DateFormat('hh:mm a').format(todayAttendance.punchOutTime!)}',
-                            Colors.orange,
+                            ConstColors.inProgressOrange,
                             Icons.logout,
                           ),
                       ],
@@ -499,17 +498,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   SizedBox(height: 16.h),
                   Container(
                     width: double.infinity,
-                    padding: EdgeInsets.all(12.w),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 12.w,
+                      vertical: 12.h,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.lightBlue.withValues(alpha: 0.12),
+                      color: ConstColors.primary.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10.r),
-                      border: Border.all(
-                        color: Colors.lightBlue.withValues(alpha: 0.4),
-                      ),
+                      border: Border.all(color: ConstColors.primary),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.celebration, color: Colors.lightBlue, size: 22.r),
+                        Icon(
+                          Icons.celebration,
+                          color: ConstColors.primaryDeep,
+                          size: 22.r,
+                        ),
                         SizedBox(width: 12.w),
                         Expanded(
                           child: Text(
@@ -527,7 +531,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   SizedBox(height: 12.h),
                   Row(
                     children: [
-                      Icon(Icons.access_time, size: 16.r, color: Colors.grey),
+                      Icon(
+                        Icons.access_time,
+                        size: 16.r,
+                        color: ConstColors.textColorLight,
+                      ),
                       SizedBox(width: 6.w),
                       Expanded(
                         child: Text(
@@ -535,7 +543,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           '${officeHours.lateAfterMinutes != null ? ' • Late after ${officeHours.startPlus(officeHours.lateAfterMinutes!).format(context)}' : ''}'
                           '${officeHours.halfDayAfterMinutes != null ? ' • Half day after ${officeHours.startPlus(officeHours.halfDayAfterMinutes!).format(context)}' : ''}',
                           style: getTextTheme().bodySmall?.copyWith(
-                            color: Colors.grey[700],
+                            color: ConstColors.textColorLight,
                           ),
                         ),
                       ),
@@ -558,7 +566,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                   !attendanceProvider.isPunching)
                               ? () => _runPunch('in', _punchIn)
                               : null,
-                          icon: _punchIcon(attendanceProvider, 'in', Icons.login),
+                          icon: _punchIcon(
+                            attendanceProvider,
+                            'in',
+                            Icons.login,
+                          ),
                           backgroundColor: ConstColors.successGreen,
                           disabledBackgroundColor:
                               attendanceProvider.punchAction == 'in'
@@ -596,23 +608,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   )
                 else
                   Container(
-                    padding: EdgeInsets.all(16.w),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 16.h,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
+                      color: ConstColors.primary.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10.r),
-                      border: Border.all(
-                        color: Colors.blue.withOpacity(0.3),
-                      ),
+                      border: Border.all(color: ConstColors.primary),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.info, color: Colors.blue, size: 24.r),
+                        Icon(
+                          Icons.info,
+                          color: ConstColors.primaryDeep,
+                          size: 24.r,
+                        ),
                         SizedBox(width: 16.w),
                         Expanded(
                           child: Text(
                             'You are on approved leave from ${DateFormat('dd MMM').format(todayLeave.fromDate)} to ${DateFormat('dd MMM').format(todayLeave.toDate)}',
                             style: getTextTheme().bodyMedium?.copyWith(
-                              color: Colors.blue,
+                              color: ConstColors.primaryDeep,
                             ),
                           ),
                         ),
@@ -636,9 +653,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return Row(
       children: [
         Container(
-          padding: EdgeInsets.all(12.w),
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.12),
             shape: BoxShape.circle,
           ),
           child: Icon(icon, color: color, size: 24.r),
@@ -659,7 +676,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               Text(
                 subtitle,
                 style: getTextTheme().bodySmall?.copyWith(
-                  color: Colors.grey[700],
+                  color: ConstColors.textColorLight,
                 ),
               ),
             ],

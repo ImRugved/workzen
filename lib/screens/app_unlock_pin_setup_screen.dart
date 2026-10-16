@@ -5,6 +5,7 @@ import '../providers/security_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/pin_entry_provider.dart';
 import '../constants/const_textstyle.dart';
+import '../constants/constant_colors.dart';
 import '../constants/constant_snackbar.dart';
 import 'app_unlock_screen.dart';
 import 'admin/dashboard/admin_dashboard_screen.dart';
@@ -101,21 +102,18 @@ class _AppUnlockPinSetupScreenState extends State<AppUnlockPinSetupScreen> {
 
   Widget _buildScreen(PinEntryProvider pin) {
     return Scaffold(
+      backgroundColor: ConstColors.backgroundColor,
       appBar: AppBar(
         title: Text(
           pin.isConfirming ? 'Confirm PIN' : 'Setup App Unlock PIN',
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
-        ),
-        backgroundColor: Colors.indigo,
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.indigo.shade600, Colors.indigo.shade400],
+          style: getTextTheme().titleLarge?.copyWith(
+            color: ConstColors.textColor,
           ),
         ),
+        backgroundColor: ConstColors.backgroundColor,
+      ),
+      body: Container(
+        color: ConstColors.backgroundColor,
         // Scrolls on short screens; stays centred when everything fits
         child: SafeArea(
           child: LayoutBuilder(
@@ -125,14 +123,18 @@ class _AppUnlockPinSetupScreenState extends State<AppUnlockPinSetupScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.lock_outline, size: 80.r, color: Colors.white),
+                    Icon(
+                      Icons.lock_outline,
+                      size: 80.r,
+                      color: ConstColors.primaryDeep,
+                    ),
                     SizedBox(height: 24.h),
                     Text(
                       pin.isConfirming
                           ? 'Confirm your 6-digit PIN'
                           : 'Create a 6-digit PIN to unlock the app',
                       style: getTextTheme().titleMedium?.copyWith(
-                        color: Colors.white,
+                        color: ConstColors.textColor,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -148,9 +150,12 @@ class _AppUnlockPinSetupScreenState extends State<AppUnlockPinSetupScreen> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: pin.pin.length > index
-                                ? Colors.white
-                                : Colors.white.withOpacity(0.3),
-                            border: Border.all(color: Colors.white, width: 2),
+                                ? ConstColors.primary
+                                : ConstColors.cardBackground,
+                            border: Border.all(
+                              color: ConstColors.primaryDeep,
+                              width: 2,
+                            ),
                           ),
                         );
                       }),
@@ -196,7 +201,7 @@ class _AppUnlockPinSetupScreenState extends State<AppUnlockPinSetupScreen> {
                               IconButton(
                                 icon: Icon(
                                   Icons.backspace,
-                                  color: Colors.white,
+                                  color: ConstColors.textColor,
                                   size: 28.r,
                                 ),
                                 onPressed: pin.backspace,
@@ -223,15 +228,17 @@ class _AppUnlockPinSetupScreenState extends State<AppUnlockPinSetupScreen> {
       child: TextButton(
         onPressed: () => _handleNumericInput(value),
         style: TextButton.styleFrom(
-          padding: EdgeInsets.all(16.w),
-          shape: const CircleBorder(),
-          backgroundColor: Colors.white.withOpacity(0.2),
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+          shape: const CircleBorder(
+            side: BorderSide(color: ConstColors.borderColor),
+          ),
+          backgroundColor: ConstColors.cardBackground,
         ),
         child: Text(
           value,
           style: getTextTheme().headlineMedium?.copyWith(
             fontWeight: FontWeight.w400,
-            color: Colors.white,
+            color: ConstColors.textColor,
           ),
         ),
       ),

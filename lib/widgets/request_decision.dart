@@ -15,11 +15,7 @@ import '../providers/request_provider.dart';
 class RequestDecision {
   RequestDecision._();
 
-  static void show(
-    BuildContext context,
-    RequestModel request,
-    String status,
-  ) {
+  static void show(BuildContext context, RequestModel request, String status) {
     final approving = status == AppConstants.statusApproved;
     final requests = context.read<RequestProvider>();
 

@@ -13,6 +13,8 @@ import '../../constants/apploading_indicator.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_date_time_picker.dart';
 import '../../constants/constant_dropdown.dart';
+import '../../constants/constant_colors.dart';
+import '../../constants/app_theme.dart';
 import '../../app_constants.dart';
 
 class ApplyLeaveScreen extends StatefulWidget {
@@ -126,13 +128,11 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
         }
 
         // The request must fit the days still available for this leave type
-        final requestedDays = shiftType == 'First Half' ||
-                shiftType == 'Second Half'
+        final requestedDays =
+            shiftType == 'First Half' || shiftType == 'Second Half'
             ? 0.5
             : (toDate.difference(fromDate).inDays + 1).toDouble();
-        final available = requestProvider.availableLeave(
-          rp.selectedLeaveType!,
-        );
+        final available = requestProvider.availableLeave(rp.selectedLeaveType!);
         if (requestedDays > available) {
           ConstantSnackbar.showError(
             title:
@@ -172,12 +172,14 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
       appBar: AppBar(
         title: Text(
           'Apply for Leave',
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+          style: getTextTheme().titleLarge?.copyWith(
+            color: ConstColors.textColor,
+          ),
         ),
       ),
       body: SafeArea(
         child: Padding(
-          padding: EdgeInsets.all(16.w),
+          padding: AppSpacing.screen,
           child: Form(
             key: _formKey,
             child: SingleChildScrollView(
@@ -188,22 +190,30 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                   if (requestProvider.isLoadingBalances)
                     Center(
                       child: Padding(
-                        padding: EdgeInsets.all(20.h),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 20.w,
+                          vertical: 20.h,
+                        ),
                         child: AppLoadingIndicator(size: 40),
                       ),
                     )
                   else if (_getAvailableLeaveTypes(
                     requestProvider.leaveAllocation,
                   ).isEmpty)
-                    Card(
-                      color: Colors.orange.shade50,
+                    NeuCard(
+                      color: ConstColors.inProgressOrange.withValues(
+                        alpha: 0.12,
+                      ),
                       child: Padding(
-                        padding: EdgeInsets.all(16.w),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16.w,
+                          vertical: 16.h,
+                        ),
                         child: Row(
                           children: [
                             Icon(
                               Icons.warning,
-                              color: Colors.orange,
+                              color: ConstColors.inProgressOrange,
                               size: 24.r,
                             ),
                             SizedBox(width: 12.w),
@@ -211,7 +221,7 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                               child: Text(
                                 'No leave balance available. Please contact admin.',
                                 style: getTextTheme().bodyMedium?.copyWith(
-                                  color: Colors.orange.shade900,
+                                  color: ConstColors.textColor,
                                 ),
                               ),
                             ),
@@ -240,7 +250,8 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                           items: types
                               .map((t) => t['value'] as String)
                               .toList(),
-                          itemLabel: (value) => detail(value)['label'] as String,
+                          itemLabel: (value) =>
+                              detail(value)['label'] as String,
                           itemBuilder: (value) {
                             final type = detail(value);
                             return Row(
@@ -257,14 +268,14 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                                       vertical: 4.h,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.indigo.shade50,
+                                      color: ConstColors.lightShade,
                                       borderRadius: BorderRadius.circular(12.r),
                                     ),
                                     child: Text(
                                       '${_formatCount(type['balance'] as num)} left',
                                       style: getTextTheme().labelSmall
                                           ?.copyWith(
-                                            color: Colors.indigo,
+                                            color: ConstColors.primaryDeep,
                                             fontWeight: FontWeight.bold,
                                           ),
                                     ),
@@ -290,289 +301,299 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                       AppConstants.applyCompOffOption)
                     const CompOffRequestForm()
                   else ...[
-                  // Shift Type (Full Day or Half Day)
-                  Text(
-                    'Leave Duration',
-                    style: getTextTheme().titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 8.h),
-                  ConstantDropdown<String>(
-                    hint: 'Select Duration',
-                    value: requestProvider.shift,
-                    items: const ['Full Day', 'Half Day'],
-                    itemLabel: (shift) => shift,
-                    onChanged: (String? newValue) {
-                      if (newValue != null) {
-                        context.read<RequestProvider>().setShift(newValue);
-                      }
-                    },
-                  ),
-                  SizedBox(height: 16.h),
-
-                  // Show different fields based on Full Day or Half Day
-                  if (requestProvider.shift == 'Full Day') ...[
-                    // From Date
+                    // Shift Type (Full Day or Half Day)
                     Text(
-                      'From Date',
+                      'Leave Duration',
                       style: getTextTheme().titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     SizedBox(height: 8.h),
-                    ConstantDatePicker(
-                      value: requestProvider.fromDate,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime(2100),
-                      onChanged: requestProvider.setFromDate,
+                    ConstantDropdown<String>(
+                      hint: 'Select Duration',
+                      value: requestProvider.shift,
+                      items: const ['Full Day', 'Half Day'],
+                      itemLabel: (shift) => shift,
+                      onChanged: (String? newValue) {
+                        if (newValue != null) {
+                          context.read<RequestProvider>().setShift(newValue);
+                        }
+                      },
                     ),
                     SizedBox(height: 16.h),
 
-                    // To Date
-                    Text(
-                      'To Date',
-                      style: getTextTheme().titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                    // Show different fields based on Full Day or Half Day
+                    if (requestProvider.shift == 'Full Day') ...[
+                      // From Date
+                      Text(
+                        'From Date',
+                        style: getTextTheme().titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 8.h),
-                    ConstantDatePicker(
-                      value: requestProvider.toDate,
-                      firstDate: requestProvider.fromDate,
-                      lastDate: DateTime(2100),
-                      onChanged: requestProvider.setToDate,
-                    ),
-                    SizedBox(height: 16.h),
-                  ] else if (requestProvider.shift == 'Half Day') ...[
-                    // Half Day - Show checkboxes and single date
-                    Text(
-                      'Select Half',
-                      style: getTextTheme().titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                      SizedBox(height: 8.h),
+                      ConstantDatePicker(
+                        value: requestProvider.fromDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime(2100),
+                        onChanged: requestProvider.setFromDate,
                       ),
-                    ),
-                    SizedBox(height: 8.h),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: InkWell(
-                            onTap: () {
-                              context.read<RequestProvider>().setHalfDayShift(
-                                'First Half',
-                              );
-                            },
-                            child: Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 16.w,
-                                vertical: 12.h,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    requestProvider.halfDayShift == 'First Half'
-                                    ? Colors.indigo.shade50
-                                    : Colors.white,
-                                border: Border.all(
+                      SizedBox(height: 16.h),
+
+                      // To Date
+                      Text(
+                        'To Date',
+                        style: getTextTheme().titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 8.h),
+                      ConstantDatePicker(
+                        value: requestProvider.toDate,
+                        firstDate: requestProvider.fromDate,
+                        lastDate: DateTime(2100),
+                        onChanged: requestProvider.setToDate,
+                      ),
+                      SizedBox(height: 16.h),
+                    ] else if (requestProvider.shift == 'Half Day') ...[
+                      // Half Day - Show checkboxes and single date
+                      Text(
+                        'Select Half',
+                        style: getTextTheme().titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 8.h),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                context.read<RequestProvider>().setHalfDayShift(
+                                  'First Half',
+                                );
+                              },
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 16.w,
+                                  vertical: 12.h,
+                                ),
+                                decoration: BoxDecoration(
                                   color:
                                       requestProvider.halfDayShift ==
                                           'First Half'
-                                      ? Colors.indigo
-                                      : Colors.grey.shade300,
-                                  width:
-                                      requestProvider.halfDayShift ==
-                                          'First Half'
-                                      ? 2
-                                      : 1,
-                                ),
-                                borderRadius: BorderRadius.circular(8.r),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    requestProvider.halfDayShift == 'First Half'
-                                        ? Icons.check_circle
-                                        : Icons.radio_button_unchecked,
+                                      ? ConstColors.lightShade
+                                      : ConstColors.cardBackground,
+                                  border: Border.all(
                                     color:
                                         requestProvider.halfDayShift ==
                                             'First Half'
-                                        ? Colors.indigo
-                                        : Colors.grey,
-                                    size: 20.r,
+                                        ? ConstColors.primaryDeep
+                                        : ConstColors.borderColor,
+                                    width:
+                                        requestProvider.halfDayShift ==
+                                            'First Half'
+                                        ? 2
+                                        : 1,
                                   ),
-                                  SizedBox(width: 8.w),
-                                  Text(
-                                    'First Half',
-                                    style: getTextTheme().bodyMedium?.copyWith(
-                                      fontWeight:
-                                          requestProvider.halfDayShift ==
+                                  borderRadius: BorderRadius.circular(8.r),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      requestProvider.halfDayShift ==
                                               'First Half'
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
+                                          ? Icons.check_circle
+                                          : Icons.radio_button_unchecked,
                                       color:
                                           requestProvider.halfDayShift ==
                                               'First Half'
-                                          ? Colors.indigo
-                                          : Colors.grey.shade700,
+                                          ? ConstColors.primaryDeep
+                                          : ConstColors.textColorLight,
+                                      size: 20.r,
                                     ),
-                                  ),
-                                ],
+                                    SizedBox(width: 8.w),
+                                    Text(
+                                      'First Half',
+                                      style: getTextTheme().bodyMedium
+                                          ?.copyWith(
+                                            fontWeight:
+                                                requestProvider.halfDayShift ==
+                                                    'First Half'
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                            color:
+                                                requestProvider.halfDayShift ==
+                                                    'First Half'
+                                                ? ConstColors.primaryDeep
+                                                : ConstColors.textColorLight,
+                                          ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: InkWell(
-                            onTap: () {
-                              context.read<RequestProvider>().setHalfDayShift(
-                                'Second Half',
-                              );
-                            },
-                            child: Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 16.w,
-                                vertical: 12.h,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    requestProvider.halfDayShift ==
-                                        'Second Half'
-                                    ? Colors.indigo.shade50
-                                    : Colors.white,
-                                border: Border.all(
+                          SizedBox(width: 12.w),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                context.read<RequestProvider>().setHalfDayShift(
+                                  'Second Half',
+                                );
+                              },
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 16.w,
+                                  vertical: 12.h,
+                                ),
+                                decoration: BoxDecoration(
                                   color:
                                       requestProvider.halfDayShift ==
                                           'Second Half'
-                                      ? Colors.indigo
-                                      : Colors.grey.shade300,
-                                  width:
-                                      requestProvider.halfDayShift ==
-                                          'Second Half'
-                                      ? 2
-                                      : 1,
-                                ),
-                                borderRadius: BorderRadius.circular(8.r),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    requestProvider.halfDayShift ==
-                                            'Second Half'
-                                        ? Icons.check_circle
-                                        : Icons.radio_button_unchecked,
+                                      ? ConstColors.lightShade
+                                      : ConstColors.cardBackground,
+                                  border: Border.all(
                                     color:
                                         requestProvider.halfDayShift ==
                                             'Second Half'
-                                        ? Colors.indigo
-                                        : Colors.grey,
-                                    size: 20.r,
+                                        ? ConstColors.primaryDeep
+                                        : ConstColors.borderColor,
+                                    width:
+                                        requestProvider.halfDayShift ==
+                                            'Second Half'
+                                        ? 2
+                                        : 1,
                                   ),
-                                  SizedBox(width: 8.w),
-                                  Text(
-                                    'Second Half',
-                                    style: getTextTheme().bodyMedium?.copyWith(
-                                      fontWeight:
-                                          requestProvider.halfDayShift ==
+                                  borderRadius: BorderRadius.circular(8.r),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      requestProvider.halfDayShift ==
                                               'Second Half'
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
+                                          ? Icons.check_circle
+                                          : Icons.radio_button_unchecked,
                                       color:
                                           requestProvider.halfDayShift ==
                                               'Second Half'
-                                          ? Colors.indigo
-                                          : Colors.grey.shade700,
+                                          ? ConstColors.primaryDeep
+                                          : ConstColors.textColorLight,
+                                      size: 20.r,
                                     ),
-                                  ),
-                                ],
+                                    SizedBox(width: 8.w),
+                                    Text(
+                                      'Second Half',
+                                      style: getTextTheme().bodyMedium
+                                          ?.copyWith(
+                                            fontWeight:
+                                                requestProvider.halfDayShift ==
+                                                    'Second Half'
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                            color:
+                                                requestProvider.halfDayShift ==
+                                                    'Second Half'
+                                                ? ConstColors.primaryDeep
+                                                : ConstColors.textColorLight,
+                                          ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 16.h),
-
-                    // Date (single picker for half day)
-                    Text(
-                      'Date',
-                      style: getTextTheme().titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 8.h),
-                    ConstantDatePicker(
-                      value: requestProvider.selectedDate,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime(2100),
-                      onChanged: requestProvider.setSelectedDate,
-                    ),
-                    SizedBox(height: 16.h),
-                  ],
-
-                  // Selected Leave Count Display (above Reason)
-                  if (requestProvider.selectedLeaveType != null &&
-                      requestProvider.shift != null)
-                    Container(
-                      padding: EdgeInsets.all(12.w),
-                      decoration: BoxDecoration(
-                        color: Colors.indigo.shade50,
-                        borderRadius: BorderRadius.circular(8.r),
-                        border: Border.all(color: Colors.indigo.shade200),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Selected Leave Days:',
-                            style: getTextTheme().titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.indigo.shade900,
-                            ),
-                          ),
-                          Text(
-                            requestProvider.shift == 'Half Day'
-                                ? '0.5 Day'
-                                : '${requestProvider.calculateLeaveDays()} ${requestProvider.calculateLeaveDays() > 1 ? 'Days' : 'Day'}',
-                            style: getTextTheme().titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.indigo,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  if (requestProvider.selectedLeaveType != null &&
-                      requestProvider.shift != null)
-                    SizedBox(height: 16.h),
+                      SizedBox(height: 16.h),
 
-                  // Reason
-                  Text(
-                    'Reason',
-                    style: getTextTheme().titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 8.h),
-                  TextFormField(
-                    controller: _reasonController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      hintText: 'Enter reason for leave',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8.r),
+                      // Date (single picker for half day)
+                      Text(
+                        'Date',
+                        style: getTextTheme().titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      contentPadding: EdgeInsets.all(16.w),
-                    ),
-                    validator: Validators.required('reason for leave'),
-                  ),
-                  SizedBox(height: 24.h),
+                      SizedBox(height: 8.h),
+                      ConstantDatePicker(
+                        value: requestProvider.selectedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime(2100),
+                        onChanged: requestProvider.setSelectedDate,
+                      ),
+                      SizedBox(height: 16.h),
+                    ],
 
-                  // Submit Button
-                  ConstantButton(
-                    text: 'Submit Request',
-                    isLoading: requestProvider.isLoading,
-                    onPressed: _submitLeave,
-                  ),
+                    // Selected Leave Count Display (above Reason)
+                    if (requestProvider.selectedLeaveType != null &&
+                        requestProvider.shift != null)
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12.w,
+                          vertical: 12.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: ConstColors.lightShade,
+                          borderRadius: BorderRadius.circular(8.r),
+                          border: Border.all(color: ConstColors.primary),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Selected Leave Days:',
+                              style: getTextTheme().titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: ConstColors.textColor,
+                              ),
+                            ),
+                            Text(
+                              requestProvider.shift == 'Half Day'
+                                  ? '0.5 Day'
+                                  : '${requestProvider.calculateLeaveDays()} ${requestProvider.calculateLeaveDays() > 1 ? 'Days' : 'Day'}',
+                              style: getTextTheme().titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: ConstColors.primaryDeep,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (requestProvider.selectedLeaveType != null &&
+                        requestProvider.shift != null)
+                      SizedBox(height: 16.h),
+
+                    // Reason
+                    Text(
+                      'Reason',
+                      style: getTextTheme().titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    TextFormField(
+                      controller: _reasonController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText: 'Enter reason for leave',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8.r),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16.w,
+                          vertical: 16.h,
+                        ),
+                      ),
+                      validator: Validators.required('reason for leave'),
+                    ),
+                    SizedBox(height: 24.h),
+
+                    // Submit Button
+                    ConstantButton(
+                      text: 'Submit Request',
+                      isLoading: requestProvider.isLoading,
+                      onPressed: _submitLeave,
+                    ),
                   ],
                 ],
               ),

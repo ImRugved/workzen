@@ -2,7 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'constants/const_textstyle.dart';
+import 'constants/app_theme.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:workzen/firebase_options.dart';
@@ -105,34 +105,7 @@ class MyApp extends StatelessWidget {
       builder: (context, _) => GetMaterialApp(
         title: 'SeenWork',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          primarySwatch: Colors.indigo,
-          colorScheme: ColorScheme.fromSwatch(
-            primarySwatch: Colors.indigo,
-            accentColor: Colors.amber,
-            backgroundColor: Colors.white,
-            cardColor: Colors.white,
-            errorColor: Colors.red,
-          ),
-          fontFamily: 'Poppins',
-          appBarTheme: AppBarTheme(
-            elevation: 0,
-            backgroundColor: Colors.indigo,
-            iconTheme: const IconThemeData(color: Colors.white),
-            titleTextStyle: getTextTheme().titleLarge?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              padding: EdgeInsets.symmetric(vertical: 15.h, horizontal: 20.w),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.r),
-              ),
-            ),
-          ),
-        ),
+        theme: AppTheme.light(),
         initialRoute: '/splash_screen',
         getPages: Routes.pages,
       ),

@@ -37,8 +37,7 @@ class DashboardProvider with ChangeNotifier {
 
   // Toggle expanded employee
   void toggleExpandedEmployee(String employeeId) {
-    _expandedEmployeeId =
-        _expandedEmployeeId == employeeId ? null : employeeId;
+    _expandedEmployeeId = _expandedEmployeeId == employeeId ? null : employeeId;
     notifyListeners();
   }
 
@@ -81,8 +80,9 @@ class DashboardProvider with ChangeNotifier {
     notifyListeners();
 
     final Map<String, LeaveBalanceModel> leaves = {};
-    final employees =
-        empProvider.employees.where((e) => e.isOnboarded).toList();
+    final employees = empProvider.employees
+        .where((e) => e.isOnboarded)
+        .toList();
     var missing = 0;
 
     for (final emp in employees) {

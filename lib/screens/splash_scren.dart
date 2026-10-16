@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:workzen/utils/logger.dart';
 import '../providers/auth_provider.dart';
+import '../constants/app_theme.dart';
 import '../constants/const_textstyle.dart';
 import '../constants/apploading_indicator.dart';
 import '../constants/constant_colors.dart';
@@ -83,7 +84,8 @@ class _SplashScreenState extends State<SplashScreen>
           authProvider.userModel!.id,
         );
 
-        final targetScreen = (authProvider.isAdmin || authProvider.userModel?.isSubAdmin == true)
+        final targetScreen =
+            (authProvider.isAdmin || authProvider.userModel?.isSubAdmin == true)
             ? const AdminDashboardScreen()
             : const UserDashboardScreen();
 
@@ -125,65 +127,52 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.indigo.shade700, Colors.indigo.shade400],
-          ),
-        ),
-        child: Center(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // App Logo
-                Container(
-                  padding: EdgeInsets.all(20.w),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 15,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    Icons.calendar_today_rounded,
-                    size: 80.r,
-                    color: Colors.indigo,
+      backgroundColor: ConstColors.backgroundColor,
+      body: Center(
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // App Logo
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
+                decoration: BoxDecoration(
+                  color: ConstColors.cardBackground,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: ConstColors.borderColor),
+                  boxShadow: NeuStyle.softShadow(),
+                ),
+                child: Icon(
+                  Icons.calendar_today_rounded,
+                  size: 80.r,
+                  color: ConstColors.primaryDeep,
+                ),
+              ),
+              SizedBox(height: 30.h),
+              // App Name
+              Center(
+                child: Text(
+                  'Attendance Management',
+                  style: getTextTheme().headlineSmall?.copyWith(
+                    color: ConstColors.textColor,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                SizedBox(height: 30.h),
-                // App Name
-                Center(
-                  child: Text(
-                    'Attendance Management',
-                    style: getTextTheme().headlineSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+              ),
 
-                SizedBox(height: 10.h),
-                Text(
-                  'Manage your leaves easily',
-                  style: getTextTheme().bodyLarge?.copyWith(
-                    color: Colors.white70,
-                  ),
+              SizedBox(height: 10.h),
+              Text(
+                'Manage your leaves easily',
+                style: getTextTheme().bodyLarge?.copyWith(
+                  color: ConstColors.textColorLight,
                 ),
-                SizedBox(height: 40.h),
-                // Loading indicator
-                AppLoadingIndicator(size: 40, color: ConstColors.white),
-              ],
-            ),
+              ),
+              SizedBox(height: 40.h),
+              // Loading indicator
+              AppLoadingIndicator(size: 40, color: ConstColors.primaryDeep),
+            ],
           ),
         ),
       ),

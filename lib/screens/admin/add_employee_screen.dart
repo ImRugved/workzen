@@ -10,6 +10,7 @@ import '../../providers/employee_management_provider.dart';
 import '../../constants/constant_textfield.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_snackbar.dart';
+import '../../constants/app_theme.dart';
 import '../../utils/validators.dart';
 import '../../constants/constant_button.dart';
 import '../../constants/constant_dropdown.dart';
@@ -57,7 +58,7 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
 
     if (departments.isEmpty) {
       return Container(
-        padding: EdgeInsets.all(10.w),
+        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
         decoration: BoxDecoration(
           color: ConstColors.warningAmber.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(8.r),
@@ -131,17 +132,17 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
         title: Text(
           'Add New Employee',
           style: getTextTheme().titleMedium?.copyWith(
-            color: ConstColors.textColorWhite,
+            color: ConstColors.textColor,
           ),
         ),
         backgroundColor: ConstColors.primary,
-        foregroundColor: ConstColors.textColorWhite,
+        foregroundColor: ConstColors.textColor,
       ),
       body: Consumer<EmployeeManagementProvider>(
         builder: (context, provider, child) {
           return SafeArea(
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(5.w),
+              padding: AppSpacing.screen,
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -151,7 +152,7 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
                       'Personal Details',
                       style: getTextTheme().titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: ConstColors.primary,
+                        color: ConstColors.primaryDeep,
                       ),
                     ),
                     SizedBox(height: 16.h),
@@ -230,8 +231,10 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
 
                     // What this sub admin may access (admin chooses)
                     if (provider.isSubAdminChecked &&
-                        Provider.of<AuthProvider>(context, listen: false)
-                            .isAdmin) ...[
+                        Provider.of<AuthProvider>(
+                          context,
+                          listen: false,
+                        ).isAdmin) ...[
                       SizedBox(height: 8.h),
                       SubAdminPermissionsPicker(
                         selected: provider.subAdminPermissions,
@@ -242,9 +245,12 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
 
                     SizedBox(height: 12.h),
                     Container(
-                      padding: EdgeInsets.all(10.w),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 10.w,
+                        vertical: 10.h,
+                      ),
                       decoration: BoxDecoration(
-                        color: ConstColors.infoBlue.withOpacity(0.1),
+                        color: ConstColors.infoBlue.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8.r),
                       ),
                       child: Row(

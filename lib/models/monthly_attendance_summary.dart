@@ -72,7 +72,8 @@ class MonthlyAttendanceSummary {
     return list.toList()..sort();
   }
 
-  int count(String status) => days.values.where((d) => d.status == status).length;
+  int count(String status) =>
+      days.values.where((d) => d.status == status).length;
 
   factory MonthlyAttendanceSummary.fromJson(Map<String, dynamic> json) {
     final rawDays = (json['days'] as Map?) ?? const {};

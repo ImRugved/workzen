@@ -627,10 +627,7 @@ class EmployeeManagementProvider with ChangeNotifier {
   }
 
   // Update department name
-  Future<bool> updateDepartmentName(
-    String departmentId,
-    String newName,
-  ) async {
+  Future<bool> updateDepartmentName(String departmentId, String newName) async {
     try {
       _setLoading(true);
 

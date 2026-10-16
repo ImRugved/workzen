@@ -16,13 +16,41 @@ import 'const_textstyle.dart';
 
 /// Wraps a picker dialog in the app colours.
 Widget _themed(BuildContext context, Widget? child) {
+  final base = Theme.of(context);
   return Theme(
-    data: Theme.of(context).copyWith(
-      colorScheme: Theme.of(context).colorScheme.copyWith(
-        primary: ConstColors.primary,
+    data: base.copyWith(
+      // White dialog, black text; the deeper blue marks the selection so it
+      // stays visible on white
+      colorScheme: base.colorScheme.copyWith(
+        primary: ConstColors.primaryDeep,
         onPrimary: ConstColors.white,
         surface: ConstColors.white,
         onSurface: ConstColors.textColor,
+        onSurfaceVariant: ConstColors.textColor,
+        surfaceTint: Colors.transparent,
+      ),
+      dialogTheme: const DialogThemeData(
+        backgroundColor: ConstColors.white,
+        surfaceTintColor: Colors.transparent,
+      ),
+      datePickerTheme: const DatePickerThemeData(
+        backgroundColor: ConstColors.white,
+        surfaceTintColor: Colors.transparent,
+        headerBackgroundColor: ConstColors.white,
+        headerForegroundColor: ConstColors.textColor,
+        dividerColor: ConstColors.borderColor,
+        rangePickerBackgroundColor: ConstColors.white,
+        rangePickerSurfaceTintColor: Colors.transparent,
+        rangeSelectionBackgroundColor: ConstColors.lightShade,
+      ),
+      timePickerTheme: const TimePickerThemeData(
+        backgroundColor: ConstColors.white,
+        hourMinuteTextColor: ConstColors.textColor,
+        dayPeriodTextColor: ConstColors.textColor,
+        dialTextColor: ConstColors.textColor,
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: ConstColors.primaryDeep),
       ),
     ),
     child: child ?? const SizedBox.shrink(),
@@ -59,14 +87,16 @@ class _PickerBox extends StatelessWidget {
         isEmpty: false,
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: getTextTheme().bodyMedium,
+          labelStyle: getTextTheme().bodyMedium?.copyWith(
+            color: ConstColors.textColor,
+          ),
           errorText: errorText,
           isDense: isDense,
           contentPadding: EdgeInsets.symmetric(
             horizontal: 12.w,
             vertical: isDense ? 10.h : 14.h,
           ),
-          suffixIcon: Icon(icon, size: 20.r, color: ConstColors.textColorLight),
+          suffixIcon: Icon(icon, size: 20.r, color: ConstColors.textColor),
           border: OutlineInputBorder(
             borderRadius: radius,
             borderSide: BorderSide(color: ConstColors.darkGrey),
@@ -80,9 +110,7 @@ class _PickerBox extends StatelessWidget {
           text,
           overflow: TextOverflow.ellipsis,
           style: getTextTheme().bodyMedium?.copyWith(
-            color: hasValue
-                ? ConstColors.textColor
-                : ConstColors.textColorLight,
+            color: ConstColors.textColor,
           ),
         ),
       ),
@@ -254,8 +282,7 @@ class ConstantDateRangePicker extends StatelessWidget {
       context: context,
       initialDateRange: initialRange,
       firstDate: firstDate ?? DateTime(2000),
-      lastDate:
-          lastDate ?? DateTime.now().add(const Duration(days: 365 * 5)),
+      lastDate: lastDate ?? DateTime.now().add(const Duration(days: 365 * 5)),
       builder: _themed,
     );
   }

@@ -190,8 +190,7 @@ class RequestModel {
   bool get isCompOffRequest => type == AppConstants.requestTypeCompOff;
 
   /// Days of credit a comp off request asks for (1 or 0.5).
-  double get compOffDays =>
-      ((additionalData?['days'] ?? 1) as num).toDouble();
+  double get compOffDays => ((additionalData?['days'] ?? 1) as num).toDouble();
 
   /// Days a leave request takes (0.5 for a half day, otherwise the inclusive
   /// number of days); for a comp off request the credit asked.
@@ -201,9 +200,11 @@ class RequestModel {
     final to = toDate;
     if (from == null || to == null) return 0;
     if ((shift ?? '').toLowerCase().contains('half')) return 0.5;
-    return (DateTime(to.year, to.month, to.day)
-                .difference(DateTime(from.year, from.month, from.day))
-                .inDays +
+    return (DateTime(
+              to.year,
+              to.month,
+              to.day,
+            ).difference(DateTime(from.year, from.month, from.day)).inDays +
             1)
         .toDouble();
   }
@@ -254,6 +255,30 @@ class RequestModel {
       }
     }
     return 'N/A';
+  }
+
+  /// Full name of a leave type code: 'pl' is 'Privilege Leave' and so on.
+  static String leaveTypeFullName(String? code) {
+    switch ((code ?? '').toLowerCase()) {
+      case AppConstants.leaveTypePL:
+        return 'Privilege Leave';
+      case AppConstants.leaveTypeSL:
+        return 'Sick Leave';
+      case AppConstants.leaveTypeCL:
+        return 'Casual Leave';
+      case AppConstants.leaveTypeCO:
+        return 'Compensatory Off Leave';
+      default:
+        return 'Leave';
+    }
+  }
+
+  /// Name of this request in full, for messages: 'Privilege Leave',
+  /// 'Compensatory Off' (credit request), 'Work From Home'.
+  String get fullTypeName {
+    if (isLeaveRequest) return leaveTypeFullName(leaveType);
+    if (isCompOffRequest) return 'Compensatory Off';
+    return typeDisplayName;
   }
 
   // Get request type display name

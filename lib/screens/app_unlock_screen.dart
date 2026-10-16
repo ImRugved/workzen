@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/security_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/pin_entry_provider.dart';
+import '../constants/app_theme.dart';
 import '../constants/const_textstyle.dart';
 import '../constants/constant_snackbar.dart';
 import '../constants/apploading_indicator.dart';
@@ -115,7 +116,7 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
     if (cooldown) {
       ConstantSnackbar.show(
         title: 'Too many incorrect attempts. Please wait 30 seconds.',
-        backgroundColor: Colors.orange,
+        backgroundColor: ConstColors.inProgressOrange,
       );
     } else {
       ConstantSnackbar.showError(
@@ -142,15 +143,12 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
     if (securityProvider.isLoading) {
       return Scaffold(
         body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Colors.indigo.shade600, Colors.indigo.shade400],
-            ),
-          ),
+          color: ConstColors.backgroundColor,
           child: Center(
-            child: AppLoadingIndicator(size: 40, color: ConstColors.white),
+            child: AppLoadingIndicator(
+              size: 40,
+              color: ConstColors.primaryDeep,
+            ),
           ),
         ),
       );
@@ -159,26 +157,24 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: Colors.indigo.shade400,
+        backgroundColor: ConstColors.backgroundColor,
         body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Colors.indigo.shade600, Colors.indigo.shade400],
-            ),
-          ),
+          color: ConstColors.backgroundColor,
           child: SafeArea(
             child: SingleChildScrollView(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.lock_outline, size: 80.r, color: Colors.white),
+                  Icon(
+                    Icons.lock_outline,
+                    size: 80.r,
+                    color: ConstColors.primaryDeep,
+                  ),
                   SizedBox(height: 24.h),
                   Text(
                     'Unlock using your PIN',
                     style: getTextTheme().titleLarge?.copyWith(
-                      color: Colors.white,
+                      color: ConstColors.textColor,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -187,7 +183,7 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
                     Text(
                       'Please wait 30 seconds',
                       style: getTextTheme().bodyMedium?.copyWith(
-                        color: Colors.white.withOpacity(0.9),
+                        color: ConstColors.textColorLight,
                       ),
                     ),
                   SizedBox(height: 40.h),
@@ -202,9 +198,12 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: pin.pin.length > index
-                              ? Colors.white
-                              : Colors.white.withOpacity(0.3),
-                          border: Border.all(color: Colors.white, width: 2),
+                              ? ConstColors.primary
+                              : ConstColors.cardBackground,
+                          border: Border.all(
+                            color: ConstColors.primaryDeep,
+                            width: 2,
+                          ),
                         ),
                       );
                     }),
@@ -228,11 +227,7 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
                               horizontal: 32.w,
                               vertical: 16.h,
                             ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12.r),
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
+                            decoration: NeuStyle.raised(),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -242,20 +237,20 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
                                     height: 20.w,
                                     child: AppLoadingIndicator(
                                       size: 20,
-                                      color: ConstColors.white,
+                                      color: ConstColors.primaryDeep,
                                     ),
                                   )
                                 else
                                   Icon(
                                     Icons.fingerprint,
-                                    color: Colors.white,
+                                    color: ConstColors.primaryDeep,
                                     size: 28.r,
                                   ),
                                 SizedBox(width: 12.w),
                                 Text(
                                   'Unlock using Biometric',
                                   style: getTextTheme().bodyMedium?.copyWith(
-                                    color: Colors.white,
+                                    color: ConstColors.textColor,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -310,7 +305,7 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
                                 IconButton(
                                   icon: Icon(
                                     Icons.backspace,
-                                    color: Colors.white,
+                                    color: ConstColors.textColor,
                                     size: 28.r,
                                   ),
                                   onPressed: pin.backspace,
@@ -338,15 +333,17 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
       child: TextButton(
         onPressed: () => _handleNumericInput(value),
         style: TextButton.styleFrom(
-          padding: EdgeInsets.all(16.w),
-          shape: const CircleBorder(),
-          backgroundColor: Colors.white.withOpacity(0.2),
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+          shape: const CircleBorder(
+            side: BorderSide(color: ConstColors.borderColor),
+          ),
+          backgroundColor: ConstColors.cardBackground,
         ),
         child: Text(
           value,
           style: getTextTheme().headlineMedium?.copyWith(
             fontWeight: FontWeight.w400,
-            color: Colors.white,
+            color: ConstColors.textColor,
           ),
         ),
       ),

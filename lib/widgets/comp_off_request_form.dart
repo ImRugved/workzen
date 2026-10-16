@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import '../constants/const_textstyle.dart';
+import '../constants/constant_colors.dart';
 import '../constants/constant_date_time_picker.dart';
 import '../constants/constant_snackbar.dart';
 import '../utils/validators.dart';
@@ -72,7 +73,7 @@ class _CompOffRequestFormState extends State<CompOffRequestForm> {
   }
 
   Widget _label(String text) => Padding(
-    padding: EdgeInsets.only(bottom: 8.h),
+    padding: EdgeInsets.symmetric(vertical: 8.h),
     child: Text(
       text,
       style: getTextTheme().titleMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -94,23 +95,27 @@ class _CompOffRequestFormState extends State<CompOffRequestForm> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: EdgeInsets.all(12.w),
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
             decoration: BoxDecoration(
-              color: Colors.teal.shade50,
+              color: ConstColors.lightShade,
               borderRadius: BorderRadius.circular(8.r),
-              border: Border.all(color: Colors.teal.shade200),
+              border: Border.all(color: ConstColors.borderColor),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.info_outline, color: Colors.teal, size: 20.r),
+                Icon(
+                  Icons.info_outline,
+                  color: ConstColors.primaryDeep,
+                  size: 20.r,
+                ),
                 SizedBox(width: 10.w),
                 Expanded(
                   child: Text(
                     'Worked on a holiday or weekly off? Request comp off for that day. '
                     'Once approved, "Comp Off" with your balance appears in the leave type list.',
                     style: getTextTheme().bodySmall?.copyWith(
-                      color: Colors.teal.shade900,
+                      color: ConstColors.textColor,
                     ),
                   ),
                 ),
@@ -146,7 +151,11 @@ class _CompOffRequestFormState extends State<CompOffRequestForm> {
               final firstDay = dates.$1.add(const Duration(days: 1));
               return ConstantDatePicker(
                 value: dates.$2,
-                firstDate: DateTime(firstDay.year, firstDay.month, firstDay.day),
+                firstDate: DateTime(
+                  firstDay.year,
+                  firstDay.month,
+                  firstDay.day,
+                ),
                 lastDate: DateTime.now().add(const Duration(days: 365)),
                 onChanged: context.read<CompOffFormProvider>().setCompOffDate,
               );
@@ -162,20 +171,23 @@ class _CompOffRequestFormState extends State<CompOffRequestForm> {
                 for (final half in [false, true])
                   Expanded(
                     child: Padding(
-                      padding: EdgeInsets.only(right: half ? 0 : 12.w),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: half ? 0 : 12.w,
+                      ),
                       child: InkWell(
-                        onTap: () =>
-                            context.read<CompOffFormProvider>().setHalfDay(half),
+                        onTap: () => context
+                            .read<CompOffFormProvider>()
+                            .setHalfDay(half),
                         child: Container(
                           padding: EdgeInsets.symmetric(vertical: 12.h),
                           decoration: BoxDecoration(
                             color: isHalfDay == half
-                                ? Colors.teal.shade50
-                                : Colors.white,
+                                ? ConstColors.lightShade
+                                : ConstColors.cardBackground,
                             border: Border.all(
                               color: isHalfDay == half
-                                  ? Colors.teal
-                                  : Colors.grey.shade300,
+                                  ? ConstColors.primaryDeep
+                                  : ConstColors.borderColor,
                               width: isHalfDay == half ? 2 : 1,
                             ),
                             borderRadius: BorderRadius.circular(8.r),
@@ -235,9 +247,9 @@ class _CompOffRequestFormState extends State<CompOffRequestForm> {
           ),
 
           Container(
-            padding: EdgeInsets.all(12.w),
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
             decoration: BoxDecoration(
-              color: Colors.teal.shade50,
+              color: ConstColors.lightShade,
               borderRadius: BorderRadius.circular(8.r),
             ),
             child: Row(
@@ -255,7 +267,7 @@ class _CompOffRequestFormState extends State<CompOffRequestForm> {
                     isHalfDay ? '0.5 Day' : '1 Day',
                     style: getTextTheme().titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: Colors.teal,
+                      color: ConstColors.primaryDeep,
                     ),
                   ),
                 ),
@@ -273,7 +285,10 @@ class _CompOffRequestFormState extends State<CompOffRequestForm> {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8.r),
               ),
-              contentPadding: EdgeInsets.all(16.w),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 16.w,
+                vertical: 16.h,
+              ),
             ),
             validator: Validators.required('a reason'),
           ),

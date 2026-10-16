@@ -2,9 +2,17 @@ import 'package:flutter/material.dart';
 
 class ConstColors {
   // Primary brand colors
-  static const Color primary = Color(0xFF005088); // Deep solar panel blue
+  static const Color primary = Color(0xFF8DBFF5); // Soft light blue
+  // A deeper tone of the primary for small icons, links and selected states on
+  // white, where the soft blue alone is too faint
+  static const Color primaryDeep = Color(0xFF4A90D9);
   static const Color secondary = Color(0xFFFFB703); // Sunshine yellow
-  static const Color accent = Color(0xFF219EBC); // Sky blue accent
+  static const Color accent = Color(0xFF6FA8EA); // Light blue accent
+
+  // Neumorphic surface: subtle grey border and soft shadows
+  static const Color borderColor = Color(0xFFE3E7ED);
+  static const Color neuShadowDark = Color(0x24000000); // soft black
+  static const Color neuHighlight = Color(0xFFFFFFFF);
   static const Color loginGreen1 = Color(0xFF84E2CA); // Sky blue accent
   static const Color loginGreen2 = Color(0xFFE0FEB3); //
   static const Color loginbutton = Color(0xFF7BD820); // Sky blue accent
@@ -19,25 +27,28 @@ class ConstColors {
   static const Color docColor = Color(0xFFabdaff);
 
   // Background colors
-  static const Color backgroundColor =
-      Color(0xFFF5F8FA); // Light blue-tinted background
+  // Full white base: cards are told apart by their soft shadows and grey border
+  static const Color backgroundColor = Color(0xFFFFFFFF);
   static const Color cardBackground = Color(0xFFFFFFFF); // White for cards
-  static const Color lightShade = Color(0xFFEDF6FF); // Very light blue shade
+  static const Color lightShade = Color(0xFFEAF3FD); // Very light blue shade
 
   // Text colors
-  static const Color textColor = Color(0xFF1D3557); // Dark blue text
-  static const Color textColorLight = Color(0xFF546A8B); // Medium blue text
-  static const Color textColorWhite =
-      Color(0xFFFFFFFF); // White text for dark backgrounds
+  static const Color textColor = Color(0xFF111111); // Black text
+  static const Color textColorLight = Color(0xFF5C6370); // Grey text
+  static const Color textColorWhite = Color(
+    0xFFFFFFFF,
+  ); // White text for dark backgrounds
 
   // Status colors
-  static const Color successGreen =
-      Color(0xFF4CAF50); // For completed installations
+  static const Color successGreen = Color(
+    0xFF4CAF50,
+  ); // For completed installations
   static const Color warningAmber = Color(0xFFFFC107); // For pending status
   static const Color errorRed = Color(0xFFE53935); // For errors/alerts
   static const Color infoBlue = Color(0xFF2196F3); // For information
-  static const Color inProgressOrange =
-      Color(0xFFFF9800); // For in-progress status
+  static const Color inProgressOrange = Color(
+    0xFFFF9800,
+  ); // For in-progress status
 
   // Installation status colors
   static const Color orderReceived = Color(0xFF8ECAE6); // Light blue
@@ -65,11 +76,13 @@ class ConstColors {
   static const Color calendarLeave = Color(0xFF436FFD);
   static const Color calendarHalfDay = Color(0xFFFF8CE6);
   static const Color calendarLate = Color(0xFFB388FF);
-  static const Color calendarCompOff = Color(0xFF26A69A);  static const Color calendarHoliday = Color(0xFF87CDEA);
+  static const Color calendarCompOff = Color(0xFF26A69A);
+  static const Color calendarHoliday = Color(0xFF87CDEA);
   static const Color calendarWfh = Color(0xFFFD8200);
   static const Color calendarWeekend = Color(0xFFFEE452);
-  static const Color pendingGrey =
-      Color(0xFF8E8E8E); // Medium-dark grey for pending tasks
+  static const Color pendingGrey = Color(
+    0xFF8E8E8E,
+  ); // Medium-dark grey for pending tasks
   static const Color black1 = Colors.black54;
   static const Color black = Color(0xFF1d1d1f);
   static const Color white = Color(0xFFFFFFFF);

@@ -87,11 +87,11 @@ class ConstTextField extends StatelessWidget {
         suffixIcon: iconss,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(enabledBorderRadius ?? 8.r),
-          borderSide: BorderSide(color: ConstColors.primary.withOpacity(0.3)),
+          borderSide: const BorderSide(color: ConstColors.borderColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(focusedBorderRadius ?? 8.r),
-          borderSide: BorderSide(color: ConstColors.primary),
+          borderSide: BorderSide(color: ConstColors.primaryDeep, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(errorBorderRadius ?? 8.r),

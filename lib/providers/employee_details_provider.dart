@@ -25,7 +25,8 @@ class EmployeeDetailsProvider with ChangeNotifier {
   DateTime? _joiningDate;
   String _department = '';
   String _role = '';
-  String _employmentRole = AppConstants.employeeRole; // employee / intern / freelancer
+  String _employmentRole =
+      AppConstants.employeeRole; // employee / intern / freelancer
 
   Set<String> _permissions = {};
 
@@ -45,6 +46,7 @@ class EmployeeDetailsProvider with ChangeNotifier {
     _employmentRole = value;
     notifyListeners();
   }
+
   Set<String> get permissions => _permissions;
 
   Future<void> load(String employeeId) async {

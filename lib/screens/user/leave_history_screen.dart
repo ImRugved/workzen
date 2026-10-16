@@ -10,6 +10,8 @@ import '../../app_constants.dart';
 import '../../constants/apploading_indicator.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_dropdown.dart';
+import '../../constants/constant_colors.dart';
+import '../../constants/app_theme.dart';
 
 class LeaveHistoryScreen extends StatefulWidget {
   const LeaveHistoryScreen({Key? key}) : super(key: key);
@@ -108,9 +110,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       if (searchQuery.isNotEmpty) {
         matchesSearch =
             request.reason.toLowerCase().contains(searchQuery) ||
-            (request.leaveType ?? '')
-                .toLowerCase()
-                .contains(searchQuery) ||
+            (request.leaveType ?? '').toLowerCase().contains(searchQuery) ||
             request.status.toLowerCase().contains(searchQuery);
       }
 
@@ -133,7 +133,9 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
       appBar: AppBar(
         title: Text(
           'Leave History',
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+          style: getTextTheme().titleLarge?.copyWith(
+            color: ConstColors.textColor,
+          ),
         ),
         actions: [
           IconButton(
@@ -149,12 +151,15 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
               children: [
                 // Search and Filter Section
                 Container(
-                  padding: EdgeInsets.all(16.w),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.w,
+                    vertical: 16.h,
+                  ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: ConstColors.cardBackground,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.grey.withOpacity(0.2),
+                        color: ConstColors.neuShadowDark,
                         spreadRadius: 1,
                         blurRadius: 2,
                         offset: const Offset(0, 1),
@@ -231,7 +236,9 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                     stream: filter.stream,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: AppLoadingIndicator(size: 40));
+                        return const Center(
+                          child: AppLoadingIndicator(size: 40),
+                        );
                       }
 
                       if (snapshot.hasError) {
@@ -239,7 +246,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                           child: Text(
                             'Error loading leave history: ${snapshot.error}',
                             style: getTextTheme().bodyMedium?.copyWith(
-                              color: Colors.red,
+                              color: ConstColors.errorRed,
                             ),
                           ),
                         );
@@ -253,20 +260,20 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                               Icon(
                                 Icons.history,
                                 size: 80.r,
-                                color: Colors.grey[400],
+                                color: ConstColors.darkGrey,
                               ),
                               SizedBox(height: 16.h),
                               Text(
                                 'No leave history found',
                                 style: getTextTheme().titleLarge?.copyWith(
-                                  color: Colors.grey,
+                                  color: ConstColors.textColorLight,
                                 ),
                               ),
                               SizedBox(height: 8.h),
                               Text(
                                 'Your leave requests will appear here',
                                 style: getTextTheme().bodyMedium?.copyWith(
-                                  color: Colors.grey,
+                                  color: ConstColors.textColorLight,
                                 ),
                               ),
                             ],
@@ -288,20 +295,20 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                               Icon(
                                 Icons.filter_alt_off,
                                 size: 80.r,
-                                color: Colors.grey[400],
+                                color: ConstColors.darkGrey,
                               ),
                               SizedBox(height: 16.h),
                               Text(
                                 'No leaves match your filters',
                                 style: getTextTheme().titleLarge?.copyWith(
-                                  color: Colors.grey,
+                                  color: ConstColors.textColorLight,
                                 ),
                               ),
                               SizedBox(height: 8.h),
                               Text(
                                 'Try adjusting your search or filters',
                                 style: getTextTheme().bodyMedium?.copyWith(
-                                  color: Colors.grey,
+                                  color: ConstColors.textColorLight,
                                 ),
                               ),
                             ],
@@ -314,7 +321,7 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                           _initializeStream();
                         },
                         child: ListView.builder(
-                          padding: EdgeInsets.all(16.w),
+                          padding: AppSpacing.screen,
                           itemCount: filteredRequests.length,
                           itemBuilder: (context, index) {
                             // Same card as the admin sees, for leave and comp off

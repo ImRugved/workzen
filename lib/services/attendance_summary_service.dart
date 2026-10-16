@@ -64,7 +64,9 @@ class AttendanceSummaryService {
     if (month == current) return builtOn == _dayKey(now);
 
     // Past month: only complete if it was built after the month had ended
-    return builtOn.compareTo(_dayKey(DateTime(month.year, month.month + 1, 1))) >=
+    return builtOn.compareTo(
+          _dayKey(DateTime(month.year, month.month + 1, 1)),
+        ) >=
         0;
   }
 
@@ -208,10 +210,10 @@ class AttendanceSummaryService {
     );
 
     try {
-      await _summaryDoc(user.id, target).set({
-        ...summary.toJson(),
-        'builtOn': _dayKey(DateTime.now()),
-      });
+      await _summaryDoc(
+        user.id,
+        target,
+      ).set({...summary.toJson(), 'builtOn': _dayKey(DateTime.now())});
     } catch (e) {
       // Still return the computed data if the write is not allowed
       logDebug('Could not store attendance summary: $e');

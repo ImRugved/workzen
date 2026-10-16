@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
+import '../constants/app_theme.dart';
 import '../constants/const_textstyle.dart';
 import '../constants/constant_button.dart';
 import '../constants/constant_colors.dart';
@@ -25,10 +26,10 @@ class DeviceInfoCard extends StatelessWidget {
 
   Widget _row(IconData icon, String label, String value) {
     return Padding(
-      padding: EdgeInsets.only(top: 8.h),
+      padding: EdgeInsets.symmetric(vertical: 8.h),
       child: Row(
         children: [
-          Icon(icon, size: 18.r, color: Colors.indigo),
+          Icon(icon, size: 18.r, color: ConstColors.primaryDeep),
           SizedBox(width: 10.w),
           Text('$label: ', style: getTextTheme().bodySmall),
           Expanded(
@@ -48,75 +49,75 @@ class DeviceInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final device = deviceInfo;
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-      child: Padding(
-        padding: EdgeInsets.all(16.w),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Registered Device',
-              style: getTextTheme().titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+    return NeuCard(
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Registered Device',
+            style: getTextTheme().titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
             ),
-            SizedBox(height: 8.h),
-            Text(
-              'Attendance punch in and out works only from this device.',
-              style: getTextTheme().bodySmall?.copyWith(
-                color: Colors.grey[600],
-              ),
+          ),
+          SizedBox(height: 8.h),
+          Text(
+            'Attendance punch in and out works only from this device.',
+            style: getTextTheme().bodySmall?.copyWith(
+              color: ConstColors.textColorLight,
             ),
-            if (device == null) ...[
-              SizedBox(height: 12.h),
-              Row(
-                children: [
-                  Icon(Icons.phonelink_off, color: Colors.orange, size: 20.r),
-                  SizedBox(width: 8.w),
-                  Expanded(
-                    child: Text(
-                      emptyMessage,
-                      style: getTextTheme().bodyMedium?.copyWith(
-                        color: Colors.orange.shade800,
-                      ),
+          ),
+          if (device == null) ...[
+            SizedBox(height: 12.h),
+            Row(
+              children: [
+                Icon(
+                  Icons.phonelink_off,
+                  color: ConstColors.inProgressOrange,
+                  size: 20.r,
+                ),
+                SizedBox(width: 8.w),
+                Expanded(
+                  child: Text(
+                    emptyMessage,
+                    style: getTextTheme().bodyMedium?.copyWith(
+                      color: ConstColors.inProgressOrange,
                     ),
-                  ),
-                ],
-              ),
-            ] else ...[
-              _row(Icons.smartphone, 'Device', device.displayName),
-              _row(Icons.system_update, 'OS', device.displayOs),
-              _row(
-                Icons.event_available,
-                'Registered on',
-                device.registeredAt == null
-                    ? ''
-                    : DateFormat(
-                        'dd MMM yyyy, hh:mm a',
-                      ).format(device.registeredAt!),
-              ),
-              if (onReset != null) ...[
-                SizedBox(height: 12.h),
-                SizedBox(
-                  width: double.infinity,
-                  child: ConstantButton(
-                    text: 'Reset Device',
-                    onPressed: onReset,
-                    icon: Icon(
-                      Icons.phonelink_erase,
-                      color: ConstColors.errorRed,
-                      size: 20.r,
-                    ),
-                    isOutlined: true,
-                    backgroundColor: ConstColors.errorRed,
                   ),
                 ),
               ],
+            ),
+          ] else ...[
+            _row(Icons.smartphone, 'Device', device.displayName),
+            _row(Icons.system_update, 'OS', device.displayOs),
+            _row(
+              Icons.event_available,
+              'Registered on',
+              device.registeredAt == null
+                  ? ''
+                  : DateFormat(
+                      'dd MMM yyyy, hh:mm a',
+                    ).format(device.registeredAt!),
+            ),
+            if (onReset != null) ...[
+              SizedBox(height: 12.h),
+              SizedBox(
+                width: double.infinity,
+                child: ConstantButton(
+                  text: 'Reset Device',
+                  onPressed: onReset,
+                  icon: Icon(
+                    Icons.phonelink_erase,
+                    color: ConstColors.errorRed,
+                    size: 20.r,
+                  ),
+                  isOutlined: true,
+                  backgroundColor: ConstColors.errorRed,
+                ),
+              ),
             ],
           ],
-        ),
+        ],
       ),
     );
   }

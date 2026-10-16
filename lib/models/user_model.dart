@@ -32,6 +32,8 @@ class UserModel {
   final String? mobileNumber;
   final String? alternateNumber;
   final String? bloodGroup;
+  final DateTime? dateOfBirth;
+  final String? gender; // Male / Female / Other
 
   // Documents (admin only)
   final String? aadharNumber;
@@ -63,6 +65,8 @@ class UserModel {
     this.mobileNumber,
     this.alternateNumber,
     this.bloodGroup,
+    this.dateOfBirth,
+    this.gender,
     this.aadharNumber,
     this.panCardNumber,
     String? userId,
@@ -133,6 +137,8 @@ class UserModel {
       mobileNumber: json['mobileNumber']?.toString(),
       alternateNumber: json['alternateNumber']?.toString(),
       bloodGroup: json['bloodGroup']?.toString(),
+      dateOfBirth: _parseDateTime(json['dateOfBirth']),
+      gender: json['gender']?.toString(),
       aadharNumber: json['aadharNumber']?.toString(),
       panCardNumber: json['panCardNumber']?.toString(),
       userId: json['userId'],
@@ -173,6 +179,8 @@ class UserModel {
       'mobileNumber': mobileNumber,
       'alternateNumber': alternateNumber,
       'bloodGroup': bloodGroup,
+      'dateOfBirth': dateOfBirth,
+      'gender': gender,
       'aadharNumber': aadharNumber,
       'panCardNumber': panCardNumber,
       'userId': userId,

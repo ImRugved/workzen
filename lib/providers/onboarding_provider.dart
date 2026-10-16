@@ -172,10 +172,10 @@ class OnboardingProvider extends ChangeNotifier {
       'casualLeaves': _casualLeaves,
     };
     _individualUserLeaves[userId]!['privilegeLeaves'] = value;
-    
+
     // Mark this user as manually modified
     _manuallyModifiedUsers.add(userId);
-    
+
     print('DEBUG: Increased privilegeLeaves for user $userId to $value');
     notifyListeners();
   }
@@ -187,10 +187,10 @@ class OnboardingProvider extends ChangeNotifier {
       'casualLeaves': _casualLeaves,
     };
     _individualUserLeaves[userId]!['sickLeaves'] = value;
-    
+
     // Mark this user as manually modified
     _manuallyModifiedUsers.add(userId);
-    
+
     print('DEBUG: Increased sickLeaves for user $userId to $value');
     notifyListeners();
   }
@@ -202,10 +202,10 @@ class OnboardingProvider extends ChangeNotifier {
       'casualLeaves': _casualLeaves,
     };
     _individualUserLeaves[userId]!['casualLeaves'] = value;
-    
+
     // Mark this user as manually modified
     _manuallyModifiedUsers.add(userId);
-    
+
     print('DEBUG: Increased casualLeaves for user $userId to $value');
     notifyListeners();
   }
@@ -245,10 +245,12 @@ class OnboardingProvider extends ChangeNotifier {
   void calculateLeaves(String userId, {bool notify = true}) {
     // Don't override manually modified users
     if (_manuallyModifiedUsers.contains(userId)) {
-      print('EMPLOYEE ONBOARDING - Skipping calculation for manually modified user: $userId');
+      print(
+        'EMPLOYEE ONBOARDING - Skipping calculation for manually modified user: $userId',
+      );
       return;
     }
-    
+
     final user = _allUsers.firstWhere((u) => u.userId == userId);
     final joiningDate = user.joiningDate ?? user.createdAt ?? DateTime.now();
     final remainingMonths = calculateRemainingMonths(joiningDate);
@@ -554,7 +556,8 @@ class OnboardingProvider extends ChangeNotifier {
           'joiningYear': joiningDate.year,
           'employeeId': employeeId, // Add/update employeeId
           'role': user.role ?? 'employee', // Set role if not already set
-          'isPrivilegeLeave': _enablePrivilegeLeaves, // Set privilege leave preference
+          'isPrivilegeLeave':
+              _enablePrivilegeLeaves, // Set privilege leave preference
           'isCasualLeave': _enableCasualLeaves, // Set casual leave preference
           'isSickLeave': _enableSickLeaves, // Set sick leave preference
         });
@@ -822,8 +825,8 @@ class OnboardingProvider extends ChangeNotifier {
               .collection(FirestoreSubCollections.leaves)
               .doc(FirestoreDocs.compOffBalance);
           final compOffDoc = await compOffRef.get();
-          final compOffBalance =
-              ((compOffDoc.data()?['balance'] ?? 0) as num).toDouble();
+          final compOffBalance = ((compOffDoc.data()?['balance'] ?? 0) as num)
+              .toDouble();
           if (compOffBalance != 0) {
             await compOffRef.set({
               'balance': 0,
@@ -850,16 +853,8 @@ class OnboardingProvider extends ChangeNotifier {
             'used': 0,
             'balance': totalPL,
           },
-          'sickLeaves': {
-            'allocated': freshSL,
-            'used': 0,
-            'balance': freshSL,
-          },
-          'casualLeaves': {
-            'allocated': freshCL,
-            'used': 0,
-            'balance': freshCL,
-          },
+          'sickLeaves': {'allocated': freshSL, 'used': 0, 'balance': freshSL},
+          'casualLeaves': {'allocated': freshCL, 'used': 0, 'balance': freshCL},
           'totalAllocated': totalPL + freshSL + freshCL,
           'totalUsed': 0,
           'totalBalance': totalPL + freshSL + freshCL,

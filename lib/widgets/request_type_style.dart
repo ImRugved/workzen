@@ -14,7 +14,11 @@ class RequestTypeStyle {
 
   static RequestTypeStyle of(RequestModel request) {
     if (request.isCompOffRequest) {
-      return const RequestTypeStyle('+CO', 'Comp Off Credit', Colors.teal);
+      return const RequestTypeStyle(
+        '+CO',
+        'Comp Off Credit',
+        ConstColors.calendarCompOff,
+      );
     }
     switch ((request.leaveType ?? '').toLowerCase()) {
       case AppConstants.leaveTypePL:
@@ -28,12 +32,16 @@ class RequestTypeStyle {
           ConstColors.inProgressOrange,
         );
       case AppConstants.leaveTypeCO:
-        return const RequestTypeStyle('CO', 'Comp Off', Colors.teal);
+        return const RequestTypeStyle(
+          'CO',
+          'Comp Off',
+          ConstColors.calendarCompOff,
+        );
       default:
         return RequestTypeStyle(
           (request.leaveType ?? request.typeDisplayName).toUpperCase(),
           request.typeDisplayName,
-          Colors.grey,
+          ConstColors.textColorLight,
         );
     }
   }

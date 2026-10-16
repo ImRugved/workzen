@@ -32,26 +32,29 @@ class _AppDrawerState extends State<AppDrawer> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final bool isAdmin = authProvider.isAdmin || (authProvider.userModel?.isSubAdmin == true);
+    final bool isAdmin =
+        authProvider.isAdmin || (authProvider.userModel?.isSubAdmin == true);
 
     return Drawer(
       child: Column(
         children: [
           UserAccountsDrawerHeader(
-            decoration: const BoxDecoration(color: Colors.indigo),
+            decoration: const BoxDecoration(color: ConstColors.primary),
             accountName: Text(
               authProvider.userModel?.name ?? "User",
               style: getTextTheme().titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: ConstColors.textColor,
               ),
             ),
             accountEmail: Text(
               authProvider.userModel?.email ?? "",
-              style: getTextTheme().bodyMedium?.copyWith(color: Colors.white70),
+              style: getTextTheme().bodyMedium?.copyWith(
+                color: ConstColors.textColor.withValues(alpha: 0.75),
+              ),
             ),
             currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.white,
+              backgroundColor: ConstColors.cardBackground,
               radius: 30.r,
               child:
                   authProvider.userModel?.profileImageUrl != null &&
@@ -69,9 +72,9 @@ class _AppDrawerState extends State<AppDrawer> {
                               ? authProvider.userModel!.name[0].toUpperCase()
                               : "U",
                           style: getTextTheme().headlineSmall?.copyWith(
-                                color: Colors.indigo,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            color: ConstColors.primaryDeep,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     )
@@ -80,9 +83,9 @@ class _AppDrawerState extends State<AppDrawer> {
                           ? authProvider.userModel!.name[0].toUpperCase()
                           : "U",
                       style: getTextTheme().headlineSmall?.copyWith(
-                            color: Colors.indigo,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        color: ConstColors.primaryDeep,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
             ),
           ),
@@ -190,7 +193,7 @@ class _AppDrawerState extends State<AppDrawer> {
     VoidCallback onTap,
   ) {
     return ListTile(
-      leading: Icon(icon, color: Colors.indigo, size: 22.r),
+      leading: Icon(icon, color: ConstColors.primaryDeep, size: 22.r),
       title: Text(
         title,
         style: getTextTheme().bodyMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -205,7 +208,11 @@ class _AppDrawerState extends State<AppDrawer> {
       value: _loggingOut,
       child: Consumer<ToggleProvider>(
         builder: (context, loggingOut, _) => ListTile(
-          leading: Icon(Icons.logout, color: Colors.indigo, size: 22.r),
+          leading: Icon(
+            Icons.logout,
+            color: ConstColors.primaryDeep,
+            size: 22.r,
+          ),
           title: Text(
             'Logout',
             style: getTextTheme().bodyMedium?.copyWith(

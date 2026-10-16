@@ -14,7 +14,13 @@ class ProfileScreenProvider with ChangeNotifier {
   bool _isEditingPersonal = false;
   bool _isLoggingOut = false;
   bool _disposed = false;
+  // Date of birth picked in the edit form
+  DateTime? _dateOfBirth;
+  // Gender chosen in the edit form
+  String? _gender;
 
+  DateTime? get dateOfBirth => _dateOfBirth;
+  String? get gender => _gender;
   bool get isUploading => _isUploading;
   bool get isEditingPersonal => _isEditingPersonal;
   bool get isLoggingOut => _isLoggingOut;
@@ -29,8 +35,20 @@ class ProfileScreenProvider with ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  void startEditing() {
+  void startEditing({DateTime? dateOfBirth, String? gender}) {
     _isEditingPersonal = true;
+    _dateOfBirth = dateOfBirth;
+    _gender = gender;
+    _notify();
+  }
+
+  void setGender(String? gender) {
+    _gender = gender;
+    _notify();
+  }
+
+  void setDateOfBirth(DateTime date) {
+    _dateOfBirth = date;
     _notify();
   }
 

@@ -40,7 +40,8 @@ class AttendanceModel {
       location: json['location'] != null
           ? Map<String, double>.from(
               (json['location'] as Map).map(
-                (key, value) => MapEntry(key.toString(), (value as num).toDouble()),
+                (key, value) =>
+                    MapEntry(key.toString(), (value as num).toDouble()),
               ),
             )
           : null,

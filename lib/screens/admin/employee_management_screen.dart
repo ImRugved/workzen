@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:workzen/constants/constant_colors.dart';
+import 'package:workzen/constants/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/employee_management_provider.dart';
 import '../../providers/onboarding_provider.dart';
@@ -79,9 +80,9 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             ),
             SizedBox(height: 12.h),
             Container(
-              padding: EdgeInsets.all(10.w),
+              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: ConstColors.lightShade,
                 borderRadius: BorderRadius.circular(8.r),
               ),
               child: Column(
@@ -157,7 +158,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         ConstantSnackbar.show(
           title:
               'Set the default leave counts first: Admin Dashboard > Leave Configuration',
-          backgroundColor: Colors.orange,
+          backgroundColor: ConstColors.inProgressOrange,
         );
       }
       return;
@@ -174,8 +175,9 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         );
       } else {
         ConstantSnackbar.show(
-          title: 'Nothing to renew: leave is already renewed or nobody is onboarded',
-          backgroundColor: Colors.orange,
+          title:
+              'Nothing to renew: leave is already renewed or nobody is onboarded',
+          backgroundColor: ConstColors.inProgressOrange,
         );
       }
     }
@@ -188,11 +190,11 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         title: Text(
           'Employee Management',
           style: getTextTheme().titleMedium?.copyWith(
-            color: ConstColors.textColorWhite,
+            color: ConstColors.textColor,
           ),
         ),
         backgroundColor: ConstColors.primary,
-        foregroundColor: ConstColors.textColorWhite,
+        foregroundColor: ConstColors.textColor,
         actions: [
           if (context.read<AuthProvider>().can(Permissions.onboarding))
             IconButton(
@@ -218,7 +220,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
           ? FloatingActionButton(
               onPressed: _navigateToAddEmployee,
               backgroundColor: ConstColors.primary,
-              child: Icon(Icons.person_add, color: ConstColors.white),
+              child: Icon(Icons.person_add, color: ConstColors.textColor),
             )
           : null,
       body: Consumer<EmployeeManagementProvider>(
@@ -244,12 +246,12 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
 
   Widget _buildSearchAndFilterSection(EmployeeManagementProvider provider) {
     return Container(
-      padding: EdgeInsets.all(10.w),
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
       decoration: BoxDecoration(
-        color: ConstColors.white,
+        color: ConstColors.cardBackground,
         boxShadow: [
           BoxShadow(
-            color: ConstColors.grey.withOpacity(0.2),
+            color: ConstColors.neuShadowDark,
             spreadRadius: 1,
             blurRadius: 2,
             offset: const Offset(0, 1),
@@ -374,47 +376,42 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
     Color color,
     IconData icon,
   ) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 4.h),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 20.r),
-            SizedBox(height: 3.h),
-            Text(
-              value,
-              style: getTextTheme().titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+    return NeuCard(
+      radius: 10,
+      padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 4.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 20.r),
+          SizedBox(height: 3.h),
+          Text(
+            value,
+            style: getTextTheme().titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
             ),
-            SizedBox(height: 1.h),
-            Text(
-              title,
-              style: getTextTheme().labelSmall?.copyWith(
-                fontSize: 9.sp,
-                color: ConstColors.textColorLight,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+          ),
+          SizedBox(height: 1.h),
+          Text(
+            title,
+            style: getTextTheme().labelSmall?.copyWith(
+              fontSize: 9.sp,
+              color: ConstColors.textColorLight,
             ),
-          ],
-        ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildEmployeeList(EmployeeManagementProvider provider) {
     if (provider.isLoading) {
-      return Center(
-        child: AppLoadingIndicator(size: 40),
-      );
+      return Center(child: AppLoadingIndicator(size: 40));
     }
 
     if (provider.errorMessage != null) {
@@ -441,7 +438,11 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
               isFullWidth: false,
               backgroundColor: ConstColors.primary,
               borderRadius: 12.r,
-              icon: Icon(Icons.refresh, size: 20.r, color: ConstColors.white),
+              icon: Icon(
+                Icons.refresh,
+                size: 20.r,
+                color: ConstColors.textColor,
+              ),
             ),
           ],
         ),
@@ -548,7 +549,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                           children: [
                             IconButton(
                               icon: Icon(Icons.edit, size: 20.r),
-                              color: ConstColors.primary,
+                              color: ConstColors.primaryDeep,
                               tooltip: 'Edit',
                               onPressed: () => Get.to(
                                 () => EmployeeDetailsScreen(

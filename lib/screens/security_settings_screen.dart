@@ -8,6 +8,8 @@ import '../constants/apploading_indicator.dart';
 import '../providers/security_provider.dart';
 import '../providers/auth_provider.dart';
 import '../constants/const_textstyle.dart';
+import '../constants/constant_colors.dart';
+import '../constants/app_theme.dart';
 import 'package:local_auth/local_auth.dart';
 import 'app_unlock_pin_setup_screen.dart';
 
@@ -25,33 +27,43 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       if (authProvider.userModel != null) {
-        Provider.of<SecurityProvider>(context, listen: false)
-            .initializeSecurity(authProvider.userModel!.id);
+        Provider.of<SecurityProvider>(
+          context,
+          listen: false,
+        ).initializeSecurity(authProvider.userModel!.id);
       }
     });
   }
 
   Future<void> _setupBiometric() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final securityProvider = Provider.of<SecurityProvider>(context, listen: false);
+    final securityProvider = Provider.of<SecurityProvider>(
+      context,
+      listen: false,
+    );
 
     if (!securityProvider.isDeviceSupported) {
       ConstantSnackbar.show(
         title: 'This device does not support biometric unlock',
-        backgroundColor: Colors.orange,
+        backgroundColor: ConstColors.inProgressOrange,
       );
       return;
     }
 
     // Check if app unlock PIN exists (mandatory)
-    final hasPin = await securityProvider.hasAppUnlockPIN(authProvider.userModel!.id);
-    
+    final hasPin = await securityProvider.hasAppUnlockPIN(
+      authProvider.userModel!.id,
+    );
+
     if (!hasPin) {
       // Show dialog to setup PIN first
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('Setup App Unlock PIN', style: getTextTheme().titleMedium),
+          title: Text(
+            'Setup App Unlock PIN',
+            style: getTextTheme().titleMedium,
+          ),
           content: Text(
             'You need to set up a 6-digit app unlock PIN first before enabling biometric authentication.',
             style: getTextTheme().bodyMedium,
@@ -113,7 +125,9 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
       appBar: AppBar(
         title: Text(
           'Security',
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+          style: getTextTheme().titleLarge?.copyWith(
+            color: ConstColors.textColor,
+          ),
         ),
       ),
       body: Consumer<SecurityProvider>(
@@ -123,15 +137,17 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
           }
 
           return SingleChildScrollView(
-            padding: EdgeInsets.all(16.w),
+            padding: AppSpacing.screen,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Biometric Authentication Section
-                Card(
-                  elevation: 2,
+                NeuCard(
                   child: Padding(
-                    padding: EdgeInsets.all(16.w),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 16.h,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -159,14 +175,14 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                               }
                             }).join(', ')}',
                             style: getTextTheme().bodySmall?.copyWith(
-                              color: Colors.grey[600],
+                              color: ConstColors.textColorLight,
                             ),
                           )
                         else
                           Text(
                             'Not supported on this device',
                             style: getTextTheme().bodySmall?.copyWith(
-                              color: Colors.orange,
+                              color: ConstColors.inProgressOrange,
                             ),
                           ),
                         SizedBox(height: 16.h),
@@ -180,8 +196,10 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                             Switch(
                               value: securityProvider.biometricEnabled,
                               onChanged: (value) async {
-                                final authProvider =
-                                    Provider.of<AuthProvider>(context, listen: false);
+                                final authProvider = Provider.of<AuthProvider>(
+                                  context,
+                                  listen: false,
+                                );
                                 if (value) {
                                   await _setupBiometric();
                                 } else {
@@ -210,10 +228,12 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                 ),
                 SizedBox(height: 16.h),
                 // App Unlock PIN Info
-                Card(
-                  elevation: 2,
+                NeuCard(
                   child: Padding(
-                    padding: EdgeInsets.all(16.w),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 16.h,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -227,13 +247,17 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                         Text(
                           'A 6-digit PIN is required to unlock the app. This is mandatory for app security.',
                           style: getTextTheme().bodySmall?.copyWith(
-                            color: Colors.grey[600],
+                            color: ConstColors.textColorLight,
                           ),
                         ),
                         SizedBox(height: 16.h),
                         Row(
                           children: [
-                            Icon(Icons.check_circle, color: Colors.green, size: 20.r),
+                            Icon(
+                              Icons.check_circle,
+                              color: ConstColors.successGreen,
+                              size: 20.r,
+                            ),
                             SizedBox(width: 8.w),
                             Text(
                               securityProvider.hasAppUnlockPin

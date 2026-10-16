@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/security_provider.dart';
 import '../../providers/toggle_provider.dart';
+import '../../constants/app_theme.dart';
 import '../../constants/constant_button.dart';
+import '../../constants/constant_colors.dart';
 import '../../constants/constant_textfield.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_snackbar.dart';
@@ -50,21 +52,28 @@ class _SignupScreenState extends State<SignupScreen> {
         );
 
         // Check security settings
-        final securityProvider = Provider.of<SecurityProvider>(context, listen: false);
+        final securityProvider = Provider.of<SecurityProvider>(
+          context,
+          listen: false,
+        );
         await securityProvider.initializeSecurity(authProvider.userModel!.id);
-        
+
         // Check if app unlock PIN exists (mandatory)
-        final hasPin = await securityProvider.hasAppUnlockPIN(authProvider.userModel!.id);
-        
-        final targetScreen = (authProvider.isAdmin || authProvider.userModel?.isSubAdmin == true)
+        final hasPin = await securityProvider.hasAppUnlockPIN(
+          authProvider.userModel!.id,
+        );
+
+        final targetScreen =
+            (authProvider.isAdmin || authProvider.userModel?.isSubAdmin == true)
             ? const AdminDashboardScreen()
             : const UserDashboardScreen();
-        
+
         if (!hasPin) {
           // PIN not set - show setup screen
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (context) => const AppUnlockPinSetupScreen(isFirstTime: true),
+              builder: (context) =>
+                  const AppUnlockPinSetupScreen(isFirstTime: true),
             ),
           );
         } else {
@@ -79,13 +88,13 @@ class _SignupScreenState extends State<SignupScreen> {
         // Show specific error message
         String errorMessage =
             result['error'] ?? 'Registration failed. Please try again.';
-        Color backgroundColor = Colors.red;
+        Color backgroundColor = ConstColors.errorRed;
 
         // Special handling for database not found error
         if (result['errorType'] == 'database_not_found') {
-          backgroundColor = Colors.orange;
+          backgroundColor = ConstColors.inProgressOrange;
         } else if (result['errorType'] == 'permission_denied') {
-          backgroundColor = Colors.deepOrange;
+          backgroundColor = ConstColors.inProgressOrange;
         }
 
         ConstantSnackbar.show(
@@ -105,12 +114,12 @@ class _SignupScreenState extends State<SignupScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        iconTheme: const IconThemeData(color: Colors.indigo),
+        iconTheme: const IconThemeData(color: ConstColors.primaryDeep),
       ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(24.w),
+            padding: AppSpacing.screen,
             child: Form(
               key: _formKey,
               child: Column(
@@ -122,17 +131,17 @@ class _SignupScreenState extends State<SignupScreen> {
                     'Create Account',
                     textAlign: TextAlign.center,
                     style: getTextTheme().headlineSmall?.copyWith(
-                          color: Colors.indigo,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      color: ConstColors.textColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   SizedBox(height: 8.h),
                   Text(
                     'Sign up to get started',
                     textAlign: TextAlign.center,
                     style: getTextTheme().bodyLarge?.copyWith(
-                          color: Colors.grey,
-                        ),
+                      color: ConstColors.textColorLight,
+                    ),
                   ),
                   SizedBox(height: 32.h),
 
@@ -169,7 +178,7 @@ class _SignupScreenState extends State<SignupScreen> {
                             visible.value
                                 ? Icons.visibility_off
                                 : Icons.visibility,
-                            color: Colors.grey,
+                            color: ConstColors.textColorLight,
                           ),
                           onPressed: visible.toggle,
                         ),
@@ -193,7 +202,7 @@ class _SignupScreenState extends State<SignupScreen> {
                             visible.value
                                 ? Icons.visibility_off
                                 : Icons.visibility,
-                            color: Colors.grey,
+                            color: ConstColors.textColorLight,
                           ),
                           onPressed: visible.toggle,
                         ),
@@ -227,19 +236,21 @@ class _SignupScreenState extends State<SignupScreen> {
                     children: [
                       Text(
                         "Already have an account? ",
-                        style: getTextTheme()
-                            .bodyMedium
-                            ?.copyWith(color: Colors.grey),
+                        style: getTextTheme().bodyMedium?.copyWith(
+                          color: ConstColors.textColorLight,
+                        ),
                       ),
                       TextButton(
                         onPressed: () {
                           Get.back();
                         },
-                        child: Text('Sign In',
-                            style: getTextTheme().labelLarge?.copyWith(
-                                  color: Colors.indigo,
-                                  fontWeight: FontWeight.bold,
-                                )),
+                        child: Text(
+                          'Sign In',
+                          style: getTextTheme().labelLarge?.copyWith(
+                            color: ConstColors.primaryDeep,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ],
                   ),

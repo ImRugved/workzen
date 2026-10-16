@@ -112,7 +112,9 @@ class UpdateCheckProvider with ChangeNotifier {
       final updateFuture = _updater.update();
 
       // The updater has no progress callback, so the bar is simulated up to 95%
-      progressTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      progressTimer = Timer.periodic(const Duration(milliseconds: 100), (
+        timer,
+      ) {
         if (_downloadProgress < 0.95) {
           _downloadProgress += 0.01;
           _notify();

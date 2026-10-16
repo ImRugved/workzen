@@ -85,5 +85,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'workzen2025.firebasestorage.app',
     measurementId: 'G-RM5QZZDVTT',
   );
-
 }

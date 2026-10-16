@@ -27,15 +27,15 @@ class SubAdminPermissionsPicker extends StatelessWidget {
       color: ConstColors.lightShade,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10.r),
-        side: BorderSide(color: ConstColors.primary.withValues(alpha: 0.2)),
+        side: const BorderSide(color: ConstColors.borderColor),
       ),
       child: Padding(
-        padding: EdgeInsets.all(8.w),
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(8.w, 4.h, 8.w, 0),
+              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
               child: Row(
                 children: [
                   Expanded(
@@ -43,7 +43,7 @@ class SubAdminPermissionsPicker extends StatelessWidget {
                       'Sub admin access',
                       style: getTextTheme().titleSmall?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: ConstColors.primary,
+                        color: ConstColors.primaryDeep,
                       ),
                     ),
                   ),

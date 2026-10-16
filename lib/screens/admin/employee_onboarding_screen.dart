@@ -10,6 +10,7 @@ import 'package:workzen/widgets/app_drawer.dart';
 import '../../constants/apploading_indicator.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_button.dart';
+import '../../constants/app_theme.dart';
 import '../../constants/constant_colors.dart';
 import '../../constants/constant_date_time_picker.dart';
 import '../../constants/constant_snackbar.dart';
@@ -67,10 +68,12 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       appBar: AppBar(
         title: Text(
           'Employee Onboarding',
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+          style: getTextTheme().titleLarge?.copyWith(
+            color: ConstColors.textColor,
+          ),
         ),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
+        backgroundColor: ConstColors.backgroundColor,
+        foregroundColor: ConstColors.textColor,
       ),
       drawer: const AppDrawer(),
       body: Consumer<OnboardingProvider>(
@@ -92,7 +95,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               // Main content area
               Expanded(
                 child: Padding(
-                  padding: EdgeInsets.all(10.w),
+                  padding: AppSpacing.screen,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -113,12 +116,12 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
               // Fixed bottom button
               Container(
-                padding: EdgeInsets.all(16.w),
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: ConstColors.cardBackground,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.3),
+                      color: ConstColors.neuShadowDark,
                       spreadRadius: 1,
                       blurRadius: 5,
                       offset: Offset(0, -2.h),
@@ -143,7 +146,6 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             decoration: const InputDecoration(
               labelText: 'Search users...',
               prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
             ),
             onChanged: provider.filterUsers,
           ),
@@ -170,11 +172,11 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
     final selectedUsers = provider.getSelectedUsers();
 
     return Container(
-      padding: EdgeInsets.all(12.w),
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
+        color: ConstColors.lightShade,
         borderRadius: BorderRadius.circular(8.r),
-        border: Border.all(color: Colors.blue.shade200),
+        border: Border.all(color: ConstColors.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,7 +217,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
           'No users available for onboarding',
           style: getTextTheme().bodyLarge?.copyWith(
             fontWeight: FontWeight.normal,
-            color: Colors.grey,
+            color: ConstColors.textColorLight,
           ),
         ),
       );
@@ -227,7 +229,8 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
         final user = provider.filteredUsers[index];
         final isSelected = provider.selectedUserIds.contains(user.userId);
 
-        return Card(
+        return NeuCard(
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           child: CheckboxListTile(
             title: Text(user.name),
             subtitle: Column(
@@ -240,7 +243,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                       child: Text(
                         'Joining Date: ${_getDisplayJoiningDate(user)}',
                         style: getTextTheme().bodySmall?.copyWith(
-                          color: Colors.grey,
+                          color: ConstColors.textColorLight,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -248,15 +251,19 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                     SizedBox(width: 8.w),
                     GestureDetector(
                       onTap: () => _editJoiningDate(provider, user),
-                      child: Icon(Icons.edit, size: 16.r, color: Colors.blue),
+                      child: Icon(
+                        Icons.edit,
+                        size: 16.r,
+                        color: ConstColors.primaryDeep,
+                      ),
                     ),
                     if (user.joiningDate != null)
                       Padding(
-                        padding: EdgeInsets.only(left: 4.w),
+                        padding: EdgeInsets.symmetric(horizontal: 4.w),
                         child: Icon(
                           Icons.edit_calendar,
                           size: 12.r,
-                          color: Colors.orange,
+                          color: ConstColors.inProgressOrange,
                         ),
                       ),
                   ],
@@ -282,24 +289,22 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
         selectedUsers.isEmpty
             ? 'Leave Configuration'
             : 'Leave Configuration (${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''})',
-        style: getTextTheme().bodyMedium?.copyWith(
-          fontWeight: FontWeight.bold,
-        ),
+        style: getTextTheme().bodyMedium?.copyWith(fontWeight: FontWeight.bold),
       ),
       initiallyExpanded: true,
       children: [
         Padding(
-          padding: EdgeInsets.all(10.w),
+          padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
           child: Column(
             children: [
               // Leave calculation explanation and preview
               Container(
-                padding: EdgeInsets.all(12.w),
-                margin: EdgeInsets.only(bottom: 16.h),
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+                margin: EdgeInsets.symmetric(vertical: 16.h),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: ConstColors.lightShade,
                   borderRadius: BorderRadius.circular(8.r),
-                  border: Border.all(color: Colors.blue.shade200),
+                  border: Border.all(color: ConstColors.borderColor),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,19 +319,19 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                     Text(
                       '• Leaves are calculated based on remaining months in the year',
                       style: getTextTheme().bodySmall?.copyWith(
-                        color: Colors.grey,
+                        color: ConstColors.textColorLight,
                       ),
                     ),
                     Text(
                       '• January joining = Full year allocation',
                       style: getTextTheme().bodySmall?.copyWith(
-                        color: Colors.grey,
+                        color: ConstColors.textColorLight,
                       ),
                     ),
                     Text(
                       _getCurrentMonthExample(),
                       style: getTextTheme().bodySmall?.copyWith(
-                        color: Colors.grey,
+                        color: ConstColors.textColorLight,
                       ),
                     ),
                     // const SizedBox(height: 8),
@@ -338,9 +343,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
               // Leave Type Checkboxes
               Container(
-                padding: EdgeInsets.all(12.w),
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: ConstColors.borderColor),
                   borderRadius: BorderRadius.circular(8.r),
                 ),
                 child: Consumer<OnboardingProvider>(
@@ -356,7 +361,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                                   provider.setEnablePrivilegeLeaves(value);
                                 }
                               },
-                              activeColor: Colors.blue,
+                              activeColor: ConstColors.primary,
                             ),
                             Text(
                               'Enable Privilege Leave',
@@ -375,7 +380,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                                   provider.setEnableSickLeaves(value);
                                 }
                               },
-                              activeColor: Colors.blue,
+                              activeColor: ConstColors.primary,
                             ),
                             Text(
                               'Enable Sick Leave',
@@ -394,7 +399,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                                   provider.setEnableCasualLeaves(value);
                                 }
                               },
-                              activeColor: Colors.blue,
+                              activeColor: ConstColors.primary,
                             ),
                             Text(
                               'Enable Casual Leave',
@@ -446,11 +451,11 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       );
 
       return Container(
-        padding: EdgeInsets.all(8.w),
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: ConstColors.cardBackground,
           borderRadius: BorderRadius.circular(6.r),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: ConstColors.borderColor),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -466,7 +471,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               'PL: ${currentMonthLeaves['privilegeLeaves']} | SL: ${currentMonthLeaves['sickLeaves']}${provider.enableCasualLeaves ? ' | CL: ${currentMonthLeaves['casualLeaves']}' : ''}',
               style: getTextTheme().labelSmall?.copyWith(
                 fontSize: 11.sp,
-                color: Colors.black87,
+                color: ConstColors.textColor,
               ),
             ),
           ],
@@ -476,11 +481,11 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
     // Show calculated leaves for selected users based on their createdAt dates using default values
     return Container(
-      padding: EdgeInsets.all(8.w),
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ConstColors.cardBackground,
         borderRadius: BorderRadius.circular(6.r),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: ConstColors.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -497,12 +502,12 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             final joiningDate = user.joiningDate ?? user.createdAt;
             if (joiningDate == null) {
               return Padding(
-                padding: EdgeInsets.only(bottom: 4.h),
+                padding: EdgeInsets.symmetric(vertical: 4.h),
                 child: Text(
                   '${user.name}: No joining date available',
                   style: getTextTheme().labelSmall?.copyWith(
                     fontSize: 11.sp,
-                    color: Colors.red,
+                    color: ConstColors.errorRed,
                   ),
                 ),
               );
@@ -517,23 +522,23 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             );
 
             return Padding(
-              padding: EdgeInsets.only(bottom: 4.h),
+              padding: EdgeInsets.symmetric(vertical: 4.h),
               child: Text(
                 '${user.name}: PL: ${calculatedLeaves['privilegeLeaves']} | SL: ${calculatedLeaves['sickLeaves']}${provider.enableCasualLeaves ? ' | CL: ${calculatedLeaves['casualLeaves']}' : ''}',
                 style: getTextTheme().labelSmall?.copyWith(
                   fontSize: 11.sp,
-                  color: Colors.black87,
+                  color: ConstColors.textColor,
                 ),
               ),
             );
           }).toList(),
           if (selectedUsers.length > 3)
             Padding(
-              padding: EdgeInsets.only(top: 4.h),
+              padding: EdgeInsets.symmetric(vertical: 4.h),
               child: Text(
                 '... and ${selectedUsers.length - 3} more users',
                 style: getTextTheme().labelSmall?.copyWith(
-                  color: Colors.grey,
+                  color: ConstColors.textColorLight,
                 ),
               ),
             ),
@@ -573,7 +578,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       ConstantSnackbar.show(
         title:
             'Set the default leave counts first: Admin Dashboard > Leave Configuration',
-        backgroundColor: Colors.orange,
+        backgroundColor: ConstColors.inProgressOrange,
       );
       return;
     }
@@ -608,7 +613,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       builder: (context) => Container(
         height: MediaQuery.of(context).size.height, // Use full screen height
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: ConstColors.cardBackground,
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(20.r),
             topRight: Radius.circular(20.r),
@@ -617,249 +622,268 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
         child: Material(
           type: MaterialType.transparency,
           child: Column(
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            // Handle bar
-            Container(
-              margin: EdgeInsets.only(top: 12.h),
-              width: 40.w,
-              height: 4.h,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2.r),
-              ),
-            ),
-
-            // Title
-            Padding(
-              padding: EdgeInsets.all(10.w),
-              child: Text(
-                'Confirm Onboarding',
-                style: getTextTheme().titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              // Handle bar
+              Container(
+                margin: EdgeInsets.symmetric(vertical: 12.h),
+                width: 40.w,
+                height: 4.h,
+                decoration: BoxDecoration(
+                  color: ConstColors.borderColor,
+                  borderRadius: BorderRadius.circular(2.r),
                 ),
               ),
-            ),
 
-            // Scrollable content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.symmetric(horizontal: 10.w),
-                child: Column(
-                  children: [
-                    // Header text
-                    Text(
-                      'Selected Users for Onboarding',
-                      style: getTextTheme().titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
+              // Title
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
+                child: Text(
+                  'Confirm Onboarding',
+                  style: getTextTheme().titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: ConstColors.textColor,
+                  ),
+                ),
+              ),
+
+              // Scrollable content
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(horizontal: 10.w),
+                  child: Column(
+                    children: [
+                      // Header text
+                      Text(
+                        'Selected Users for Onboarding',
+                        style: getTextTheme().titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
 
-                    SizedBox(height: 16.h),
+                      SizedBox(height: 16.h),
 
-                    // Leave Configuration Section
-                    Consumer<OnboardingProvider>(
-                      builder: (context, provider, child) {
-                        return _buildLeaveConfigurationSection(provider);
-                      },
-                    ),
+                      // Leave Configuration Section
+                      Consumer<OnboardingProvider>(
+                        builder: (context, provider, child) {
+                          return _buildLeaveConfigurationSection(provider);
+                        },
+                      ),
 
-                    SizedBox(height: 16.h),
+                      SizedBox(height: 16.h),
 
-                    // Selected users list with checkboxes and edit buttons
-                    Consumer<OnboardingProvider>(
-                      builder: (context, provider, child) {
-                        final selectedUsers = provider.getSelectedUsers();
+                      // Selected users list with checkboxes and edit buttons
+                      Consumer<OnboardingProvider>(
+                        builder: (context, provider, child) {
+                          final selectedUsers = provider.getSelectedUsers();
 
-                        return Column(
-                          children: selectedUsers.map((user) {
-                            final joiningDate =
-                                user.joiningDate ?? DateTime.now();
-                            // Calculate leaves for this user without notifying during build
-                            provider.calculateLeaves(
-                              user.userId,
-                              notify: false,
-                            );
+                          return Column(
+                            children: selectedUsers.map((user) {
+                              final joiningDate =
+                                  user.joiningDate ?? DateTime.now();
+                              // Calculate leaves for this user without notifying during build
+                              provider.calculateLeaves(
+                                user.userId,
+                                notify: false,
+                              );
 
-                            return Container(
-                              margin: EdgeInsets.only(bottom: 16.h),
-                              padding: EdgeInsets.all(16.w),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.shade50,
-                                borderRadius: BorderRadius.circular(12.r),
-                                border: Border.all(color: Colors.blue.shade200),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // User Header
-                                  Row(
-                                    children: [
-                                      // Checkbox
-                                      Icon(
-                                        Icons.check_circle,
-                                        color: Colors.green,
-                                        size: 24.r,
+                              return Container(
+                                margin: EdgeInsets.symmetric(vertical: 16.h),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 16.w,
+                                  vertical: 16.h,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: ConstColors.lightShade,
+                                  borderRadius: BorderRadius.circular(12.r),
+                                  border: Border.all(
+                                    color: ConstColors.borderColor,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // User Header
+                                    Row(
+                                      children: [
+                                        // Checkbox
+                                        Icon(
+                                          Icons.check_circle,
+                                          color: ConstColors.successGreen,
+                                          size: 24.r,
+                                        ),
+                                        SizedBox(width: 12.w),
+
+                                        // User avatar
+                                        _buildUserAvatar(user, radius: 20.r),
+                                        SizedBox(width: 12.w),
+
+                                        // User info
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                user.name,
+                                                style: getTextTheme().bodyLarge,
+                                              ),
+                                              Text(
+                                                user.email,
+                                                style: getTextTheme().bodySmall
+                                                    ?.copyWith(
+                                                      color: ConstColors
+                                                          .textColorLight,
+                                                    ),
+                                              ),
+                                              Text(
+                                                'Joining: ${_getDisplayJoiningDate(user)}',
+                                                style: getTextTheme().bodySmall
+                                                    ?.copyWith(
+                                                      color: ConstColors
+                                                          .primaryDeep,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+
+                                    SizedBox(height: 16.h),
+
+                                    // Leave Information Section
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 12.w,
+                                        vertical: 12.h,
                                       ),
-                                      SizedBox(width: 12.w),
-
-                                      // User avatar
-                                      _buildUserAvatar(user, radius: 20.r),
-                                      SizedBox(width: 12.w),
-
-                                      // User info
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              user.name,
-                                              style: getTextTheme().bodyLarge,
-                                            ),
-                                            Text(
-                                              user.email,
-                                              style: getTextTheme().bodySmall
-                                                  ?.copyWith(
-                                                    color: Colors.grey[600],
-                                                  ),
-                                            ),
-                                            Text(
-                                              'Joining: ${_getDisplayJoiningDate(user)}',
-                                              style: getTextTheme().bodySmall
-                                                  ?.copyWith(
-                                                    color: Colors.blue[700],
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                            ),
-                                          ],
+                                      decoration: BoxDecoration(
+                                        color: ConstColors.cardBackground,
+                                        borderRadius: BorderRadius.circular(
+                                          8.r,
+                                        ),
+                                        border: Border.all(
+                                          color: ConstColors.borderColor,
                                         ),
                                       ),
-                                    ],
-                                  ),
-
-                                  SizedBox(height: 16.h),
-
-                                  // Leave Information Section
-                                  Container(
-                                    padding: EdgeInsets.all(12.w),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(8.r),
-                                      border: Border.all(
-                                        color: Colors.grey.shade300,
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              'Leave Allocation (${provider.calculatedLeaves[user.userId]?['remainingMonths'] ?? 0} months)',
-                                              style: getTextTheme().bodyMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w600,
-                                                    color:
-                                                        Colors.blue.shade800,
-                                                  ),
-                                            ),
-                                            TextButton(
-                                              onPressed: () {
-                                                final isCurrentlyEditing =
-                                                    provider.editingUserId ==
-                                                    user.userId;
-                                                if (isCurrentlyEditing) {
-                                                  // Stop editing
-                                                  provider.setEditingUserId(
-                                                    null,
-                                                  );
-                                                } else {
-                                                  // Start editing
-                                                  provider.setEditingUserId(
-                                                    user.userId,
-                                                  );
-                                                }
-                                              },
-                                              style: TextButton.styleFrom(
-                                                padding: EdgeInsets.symmetric(
-                                                  horizontal: 5.w,
-                                                  vertical: 4.h,
-                                                ),
-                                                minimumSize: Size.zero,
-                                                tapTargetSize:
-                                                    MaterialTapTargetSize
-                                                        .shrinkWrap,
-                                              ),
-                                              child: Text(
-                                                provider.editingUserId ==
-                                                        user.userId
-                                                    ? 'Done'
-                                                    : 'Edit',
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                'Leave Allocation (${provider.calculatedLeaves[user.userId]?['remainingMonths'] ?? 0} months)',
                                                 style: getTextTheme().bodyMedium
                                                     ?.copyWith(
                                                       fontWeight:
                                                           FontWeight.w600,
-                                                      color:
-                                                          provider.editingUserId ==
-                                                              user.userId
-                                                          ? Colors
-                                                                .green
-                                                                .shade700
-                                                          : Colors
-                                                                .blue
-                                                                .shade700,
+                                                      color: ConstColors
+                                                          .primaryDeep,
                                                     ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                        SizedBox(height: 12.h),
+                                              TextButton(
+                                                onPressed: () {
+                                                  final isCurrentlyEditing =
+                                                      provider.editingUserId ==
+                                                      user.userId;
+                                                  if (isCurrentlyEditing) {
+                                                    // Stop editing
+                                                    provider.setEditingUserId(
+                                                      null,
+                                                    );
+                                                  } else {
+                                                    // Start editing
+                                                    provider.setEditingUserId(
+                                                      user.userId,
+                                                    );
+                                                  }
+                                                },
+                                                style: TextButton.styleFrom(
+                                                  padding: EdgeInsets.symmetric(
+                                                    horizontal: 5.w,
+                                                    vertical: 4.h,
+                                                  ),
+                                                  minimumSize: Size.zero,
+                                                  tapTargetSize:
+                                                      MaterialTapTargetSize
+                                                          .shrinkWrap,
+                                                ),
+                                                child: Text(
+                                                  provider.editingUserId ==
+                                                          user.userId
+                                                      ? 'Done'
+                                                      : 'Edit',
+                                                  style: getTextTheme()
+                                                      .bodyMedium
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color:
+                                                            provider.editingUserId ==
+                                                                user.userId
+                                                            ? ConstColors
+                                                                  .successGreen
+                                                            : ConstColors
+                                                                  .primaryDeep,
+                                                      ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          SizedBox(height: 12.h),
 
-                                        // Individual user leave preview with edit functionality
-                                        _buildUserLeavePreview(user, provider),
-                                      ],
+                                          // Individual user leave preview with edit functionality
+                                          _buildUserLeavePreview(
+                                            user,
+                                            provider,
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        );
-                      },
-                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
 
-                    SizedBox(height: 30.h),
+                      SizedBox(height: 30.h),
 
-                    // Confirm button
-                    Consumer<OnboardingProvider>(
-                      builder: (context, provider, child) {
-                        return Padding(
-                          padding: EdgeInsets.all(20.w),
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: ConstantButton(
-                              text: 'Confirm Onboarding',
-                              onPressed: provider.isLoading
-                                  ? null
-                                  : () => _confirmOnboarding(provider),
-                              backgroundColor: ConstColors.primary,
-                              isLoading: provider.isLoading,
+                      // Confirm button
+                      Consumer<OnboardingProvider>(
+                        builder: (context, provider, child) {
+                          return Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 20.w,
+                              vertical: 20.h,
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: ConstantButton(
+                                text: 'Confirm Onboarding',
+                                onPressed: provider.isLoading
+                                    ? null
+                                    : () => _confirmOnboarding(provider),
+                                backgroundColor: ConstColors.primary,
+                                isLoading: provider.isLoading,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );
@@ -927,14 +951,14 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
     return Container(
       width: 320.w,
-      padding: EdgeInsets.all(16.w),
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ConstColors.cardBackground,
         borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: ConstColors.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: ConstColors.neuShadowDark,
             spreadRadius: 1,
             blurRadius: 4,
             offset: Offset(0, 2.h),
@@ -963,7 +987,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                     Text(
                       user.email,
                       style: getTextTheme().bodyMedium?.copyWith(
-                        color: Colors.grey,
+                        color: ConstColors.textColorLight,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -978,7 +1002,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: ConstColors.backgroundColor,
               borderRadius: BorderRadius.circular(8.r),
             ),
             child: Text(
@@ -992,11 +1016,11 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
           // Pro-rated Calculation Section
           Container(
-            padding: EdgeInsets.all(12.w),
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: ConstColors.lightShade,
               borderRadius: BorderRadius.circular(8.r),
-              border: Border.all(color: Colors.blue.shade200),
+              border: Border.all(color: ConstColors.borderColor),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1062,11 +1086,13 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
           // Final Calculated leaves preview
           Container(
-            padding: EdgeInsets.all(12.w),
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: ConstColors.successGreen.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(8.r),
-              border: Border.all(color: Colors.green.shade200),
+              border: Border.all(
+                color: ConstColors.successGreen.withValues(alpha: 0.35),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1217,11 +1243,11 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
     return Container(
       margin: EdgeInsets.symmetric(vertical: 8.h),
-      padding: EdgeInsets.all(12.w),
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
+        color: ConstColors.lightShade,
         borderRadius: BorderRadius.circular(8.r),
-        border: Border.all(color: Colors.blue.shade200, width: 1),
+        border: Border.all(color: ConstColors.borderColor, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1230,7 +1256,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             'Edit Leave Allocation:',
             style: getTextTheme().bodySmall?.copyWith(
               fontWeight: FontWeight.bold,
-              color: Colors.blue,
+              color: ConstColors.primaryDeep,
             ),
           ),
           SizedBox(height: 8.h),
@@ -1305,9 +1331,11 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                   // Decrease button
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: ConstColors.errorRed.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8.r),
-                      border: Border.all(color: Colors.red.shade200),
+                      border: Border.all(
+                        color: ConstColors.errorRed.withValues(alpha: 0.35),
+                      ),
                     ),
                     child: IconButton(
                       onPressed: value > 0
@@ -1321,7 +1349,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                           : null,
                       icon: Icon(
                         Icons.remove,
-                        color: value > 0 ? Colors.red.shade600 : Colors.grey,
+                        color: value > 0
+                            ? ConstColors.errorRed
+                            : ConstColors.textColorLight,
                         size: 20.r,
                       ),
                       constraints: BoxConstraints(
@@ -1338,9 +1368,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                     child: Container(
                       height: 45.h,
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
+                        color: ConstColors.lightShade,
                         borderRadius: BorderRadius.circular(8.r),
-                        border: Border.all(color: Colors.blue.shade200),
+                        border: Border.all(color: ConstColors.borderColor),
                       ),
                       child: TextFormField(
                         key: ValueKey(
@@ -1362,7 +1392,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                           suffix: Text(
                             'days',
                             style: getTextTheme().bodySmall?.copyWith(
-                              color: Colors.blue.shade600,
+                              color: ConstColors.primaryDeep,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -1385,9 +1415,11 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                   // Increase button
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.green.shade50,
+                      color: ConstColors.successGreen.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8.r),
-                      border: Border.all(color: Colors.green.shade200),
+                      border: Border.all(
+                        color: ConstColors.successGreen.withValues(alpha: 0.35),
+                      ),
                     ),
                     child: IconButton(
                       onPressed: value < 30
@@ -1401,7 +1433,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                           : null,
                       icon: Icon(
                         Icons.add,
-                        color: value < 30 ? Colors.green.shade600 : Colors.grey,
+                        color: value < 30
+                            ? ConstColors.successGreen
+                            : ConstColors.textColorLight,
                         size: 20.r,
                       ),
                       constraints: BoxConstraints(
@@ -1419,14 +1453,14 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade100,
+                  color: ConstColors.primary,
                   borderRadius: BorderRadius.circular(12.r),
                 ),
                 child: Text(
                   'Current: $value days',
                   style: getTextTheme().bodySmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade700,
+                    color: ConstColors.textColor,
                   ),
                 ),
               ),
@@ -1467,7 +1501,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                 '$finalPL days',
                 style: getTextTheme().bodySmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Colors.green,
+                  color: ConstColors.successGreen,
                 ),
               ),
             ],
@@ -1480,7 +1514,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               '$finalSL days',
               style: getTextTheme().bodySmall?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: Colors.green,
+                color: ConstColors.successGreen,
               ),
             ),
           ],
@@ -1494,7 +1528,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                 '$finalCL days',
                 style: getTextTheme().bodySmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Colors.green,
+                  color: ConstColors.successGreen,
                 ),
               ),
             ],
@@ -1571,13 +1605,13 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
     if (!hasProfileImage) {
       return CircleAvatar(
         radius: avatarRadius,
-        backgroundColor: Colors.blue.shade100,
+        backgroundColor: ConstColors.primary,
         child: Text(
           user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
           style: getTextTheme().bodyLarge?.copyWith(
             fontSize: avatarRadius * 0.8,
             fontWeight: FontWeight.bold,
-            color: Colors.blue.shade800,
+            color: ConstColors.textColor,
           ),
         ),
       );
@@ -1585,7 +1619,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
     return CircleAvatar(
       radius: avatarRadius,
-      backgroundColor: Colors.blue.shade100,
+      backgroundColor: ConstColors.primary,
       child: ClipOval(
         child: Image.network(
           user.profileImageUrl!,
@@ -1606,14 +1640,14 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             return Container(
               width: avatarRadius * 2,
               height: avatarRadius * 2,
-              color: Colors.blue.shade100,
+              color: ConstColors.primary,
               child: Center(
                 child: Text(
                   user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
                   style: getTextTheme().bodyLarge?.copyWith(
                     fontSize: avatarRadius * 0.8,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade800,
+                    color: ConstColors.textColor,
                   ),
                 ),
               ),

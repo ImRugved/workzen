@@ -72,9 +72,11 @@ class ConstantButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final baseColor = backgroundColor ?? ConstColors.primary;
-    final fillColor = isOutlined ? Colors.transparent : baseColor;
+    final fillColor = isOutlined ? ConstColors.cardBackground : baseColor;
+    // Black on the soft blue fill; blue text on white when outlined
     final labelColor =
-        textColor ?? (isOutlined ? baseColor : ConstColors.white);
+        textColor ??
+        (isOutlined ? ConstColors.primaryDeep : ConstColors.textColor);
     final outlineColor = borderColor ?? baseColor;
     final disabled = isDisabled || isLoading || onPressed == null;
 
@@ -93,7 +95,9 @@ class ConstantButton extends StatelessWidget {
           // A disabled button is dimmed so it never looks tappable
           disabledBackgroundColor:
               disabledBackgroundColor ??
-              (isOutlined ? Colors.transparent : baseColor.withValues(alpha: 0.4)),
+              (isOutlined
+                  ? Colors.transparent
+                  : baseColor.withValues(alpha: 0.4)),
           foregroundColor: labelColor,
           disabledForegroundColor: labelColor.withValues(alpha: 0.6),
           padding: EdgeInsets.symmetric(

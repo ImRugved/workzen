@@ -135,7 +135,8 @@ class AttendanceDayCalculator {
         results[day] = isCompOff
             ? const DayResult(CalendarDayStatus.compOff, 'Comp off')
             : const DayResult(CalendarDayStatus.leave, 'On leave');
-      } else if (leave != null || record?.status == AppConstants.statusHalfDay) {
+      } else if (leave != null ||
+          record?.status == AppConstants.statusHalfDay) {
         results[day] = const DayResult(CalendarDayStatus.halfDay, 'Half day');
       } else if (record != null &&
           (record.punchInTime != null ||
@@ -158,11 +159,7 @@ class AttendanceDayCalculator {
             punchStatus,
           );
         } else if (punchStatus == PunchInStatus.late) {
-          results[day] = DayResult(
-            CalendarDayStatus.late,
-            'Late',
-            punchStatus,
-          );
+          results[day] = DayResult(CalendarDayStatus.late, 'Late', punchStatus);
         } else {
           results[day] = DayResult(
             CalendarDayStatus.present,
@@ -171,10 +168,7 @@ class AttendanceDayCalculator {
           );
         }
       } else if (wfh != null) {
-        results[day] = const DayResult(
-          CalendarDayStatus.wfh,
-          'Work from home',
-        );
+        results[day] = const DayResult(CalendarDayStatus.wfh, 'Work from home');
       } else if (isWeekend) {
         results[day] = const DayResult(CalendarDayStatus.weekend, 'Weekly off');
       } else if (record?.status == AppConstants.statusAbsent ||

@@ -243,11 +243,17 @@ class AttendanceProvider with ChangeNotifier {
   }
 
   // Calculate distance between two coordinates in meters using Haversine formula
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+  double _calculateDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
     const double earthRadius = 6371000; // Earth's radius in meters
     final double dLat = _degreesToRadians(lat2 - lat1);
     final double dLon = _degreesToRadians(lon2 - lon1);
-    final double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+    final double a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
         math.cos(_degreesToRadians(lat1)) *
             math.cos(_degreesToRadians(lat2)) *
             math.sin(dLon / 2) *
@@ -371,7 +377,12 @@ class AttendanceProvider with ChangeNotifier {
   }
 
   // Punch in
-  Future<Map<String, dynamic>> punchIn(UserModel user, {double? latitude, double? longitude, double? accuracy}) async {
+  Future<Map<String, dynamic>> punchIn(
+    UserModel user, {
+    double? latitude,
+    double? longitude,
+    double? accuracy,
+  }) async {
     _isLoading = true;
     notifyListeners();
 
@@ -382,7 +393,11 @@ class AttendanceProvider with ChangeNotifier {
       if (latitude == null || longitude == null) {
         _isLoading = false;
         notifyListeners();
-        return {'success': false, 'error': 'Unable to get your location. Please enable location services.'};
+        return {
+          'success': false,
+          'error':
+              'Unable to get your location. Please enable location services.',
+        };
       }
       final rangeError = _officeRangeError(
         latitude,
@@ -486,18 +501,30 @@ class AttendanceProvider with ChangeNotifier {
       logDebug("Error punching in: $e");
       _isLoading = false;
       notifyListeners();
-      return {'success': false, 'error': 'Failed to punch in. Please try again.'};
+      return {
+        'success': false,
+        'error': 'Failed to punch in. Please try again.',
+      };
     }
   }
 
   // Punch out
-  Future<Map<String, dynamic>> punchOut(UserModel user, {double? latitude, double? longitude, double? accuracy}) async {
+  Future<Map<String, dynamic>> punchOut(
+    UserModel user, {
+    double? latitude,
+    double? longitude,
+    double? accuracy,
+  }) async {
     try {
       // Validate office location (fallback to default office coordinates)
       final officeLat = user.officeLatitude ?? 18.5679456;
       final officeLng = user.officeLongitude ?? 73.7686132;
       if (latitude == null || longitude == null) {
-        return {'success': false, 'error': 'Unable to get your location. Please enable location services.'};
+        return {
+          'success': false,
+          'error':
+              'Unable to get your location. Please enable location services.',
+        };
       }
       final rangeError = _officeRangeError(
         latitude,
@@ -565,7 +592,10 @@ class AttendanceProvider with ChangeNotifier {
       return {'success': true};
     } catch (e) {
       logDebug('Error punching out: $e');
-      return {'success': false, 'error': 'Failed to punch out. Please try again.'};
+      return {
+        'success': false,
+        'error': 'Failed to punch out. Please try again.',
+      };
     }
   }
 

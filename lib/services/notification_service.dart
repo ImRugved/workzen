@@ -173,7 +173,8 @@ class PushNotificationsService {
   Future<void> _showLocalNotification(RemoteMessage message) async {
     try {
       final String title = message.notification?.title ?? 'WorkZen';
-      final String body = message.notification?.body ?? 'You have a new notification';
+      final String body =
+          message.notification?.body ?? 'You have a new notification';
 
       final AndroidNotificationDetails androidPlatformChannelSpecifics =
           AndroidNotificationDetails(

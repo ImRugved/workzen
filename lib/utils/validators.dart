@@ -45,9 +45,7 @@ class Validators {
   }
 
   /// Must match the password read from [original] when the form is checked.
-  static String? Function(String?) confirmPassword(
-    String Function() original,
-  ) {
+  static String? Function(String?) confirmPassword(String Function() original) {
     return (value) {
       if (value == null || value.isEmpty) {
         return 'Please confirm your password';

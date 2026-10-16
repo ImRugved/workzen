@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../constants/firestore_constants.dart';
+import '../models/birthday_model.dart';
 import '../models/holiday_model.dart';
 import '../models/leave_config_model.dart';
 import '../models/office_hours_model.dart';
@@ -57,10 +58,24 @@ class OrganizationProvider with ChangeNotifier {
       _org.doc(FirestoreDocs.leaveConfig);
   DocumentReference<Map<String, dynamic>> get _hoursDoc =>
       _org.doc(FirestoreDocs.officeHours);
-  CollectionReference<Map<String, dynamic>> get _holidayItems =>
-      _org.doc(FirestoreDocs.holidays).collection(
-        FirestoreSubCollections.holidayItems,
-      );
+  CollectionReference<Map<String, dynamic>> get _holidayItems => _org
+      .doc(FirestoreDocs.holidays)
+      .collection(FirestoreSubCollections.holidayItems);
+
+  /// Live list of the employees whose birthday is today. Only those entries
+  /// are read, so the cost does not grow with the number of employees.
+  Stream<List<BirthdayModel>> todaysBirthdaysStream() {
+    return _org
+        .doc(FirestoreDocs.birthdays)
+        .collection(FirestoreSubCollections.birthdayItems)
+        .where('monthDay', isEqualTo: BirthdayModel.keyFor(DateTime.now()))
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => BirthdayModel.fromJson(doc.data()))
+              .toList(),
+        );
+  }
 
   /// The holiday falling on [date], or null.
   HolidayModel? holidayOn(DateTime date) {

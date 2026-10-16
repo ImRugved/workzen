@@ -21,6 +21,7 @@ import '../../constants/constant_button.dart';
 import '../../constants/constant_dropdown.dart';
 import '../../constants/constant_date_time_picker.dart';
 import '../../constants/constant_colors.dart';
+import '../../constants/app_theme.dart';
 import '../../constants/apploading_indicator.dart';
 
 /// Admin view of one employee. All state (loaded data, edit mode, the values
@@ -178,10 +179,12 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
         appBar: AppBar(
           title: Text(
             'Employee Details',
-            style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+            style: getTextTheme().titleLarge?.copyWith(
+              color: ConstColors.textColor,
+            ),
           ),
-          backgroundColor: Colors.indigo,
-          foregroundColor: Colors.white,
+          backgroundColor: ConstColors.primary,
+          foregroundColor: ConstColors.textColor,
           actions: [
             // Only the edit mode flag matters here, so Selector
             Selector<EmployeeDetailsProvider, bool>(
@@ -207,7 +210,10 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
           builder: (context, details, _) {
             if (details.isLoading) {
               return const Center(
-                child: AppLoadingIndicator(size: 40, color: ConstColors.primary),
+                child: AppLoadingIndicator(
+                  size: 40,
+                  color: ConstColors.primaryDeep,
+                ),
               );
             }
 
@@ -225,7 +231,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
 
             return SafeArea(
               child: SingleChildScrollView(
-                padding: EdgeInsets.all(16.w),
+                padding: AppSpacing.screen,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -291,17 +297,15 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
   Widget _buildProfileSection() {
     final employee = widget.employee;
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+    return NeuCard(
       child: Container(
         width: double.infinity,
-        padding: EdgeInsets.all(24.w),
+        padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
         child: Column(
           children: [
             CircleAvatar(
               radius: 60.r,
-              backgroundColor: Colors.indigo.shade100,
+              backgroundColor: ConstColors.lightShade,
               child:
                   employee.profileImageUrl != null &&
                       employee.profileImageUrl!.isNotEmpty
@@ -314,7 +318,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
                         placeholder: (context, url) =>
                             const AppLoadingIndicator(
                               size: 40,
-                              color: ConstColors.primary,
+                              color: ConstColors.primaryDeep,
                             ),
                         errorWidget: (context, url, error) =>
                             _avatarInitial(employee),
@@ -334,7 +338,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
             Text(
               employee.email,
               style: getTextTheme().bodyLarge?.copyWith(
-                color: Colors.grey.shade600,
+                color: ConstColors.textColorLight,
               ),
               textAlign: TextAlign.center,
             ),
@@ -342,12 +346,16 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
             Container(
               padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
               decoration: BoxDecoration(
-                color: employee.isOnboarded
-                    ? Colors.green.shade50
-                    : Colors.orange.shade50,
+                color:
+                    (employee.isOnboarded
+                            ? ConstColors.successGreen
+                            : ConstColors.inProgressOrange)
+                        .withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20.r),
                 border: Border.all(
-                  color: employee.isOnboarded ? Colors.green : Colors.orange,
+                  color: employee.isOnboarded
+                      ? ConstColors.successGreen
+                      : ConstColors.inProgressOrange,
                 ),
               ),
               child: Row(
@@ -355,7 +363,9 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
                 children: [
                   Icon(
                     employee.isOnboarded ? Icons.check_circle : Icons.pending,
-                    color: employee.isOnboarded ? Colors.green : Colors.orange,
+                    color: employee.isOnboarded
+                        ? ConstColors.successGreen
+                        : ConstColors.inProgressOrange,
                     size: 18.r,
                   ),
                   SizedBox(width: 8.w),
@@ -363,8 +373,8 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
                     employee.isOnboarded ? 'Onboarded' : 'Pending',
                     style: getTextTheme().bodyMedium?.copyWith(
                       color: employee.isOnboarded
-                          ? Colors.green
-                          : Colors.orange,
+                          ? ConstColors.successGreen
+                          : ConstColors.inProgressOrange,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -381,7 +391,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     return Text(
       employee.name.isNotEmpty ? employee.name[0].toUpperCase() : 'E',
       style: getTextTheme().displayLarge?.copyWith(
-        color: Colors.indigo,
+        color: ConstColors.primaryDeep,
         fontWeight: FontWeight.bold,
       ),
     );
@@ -413,7 +423,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
       title,
       style: getTextTheme().titleLarge?.copyWith(
         fontWeight: FontWeight.bold,
-        color: Colors.indigo,
+        color: ConstColors.primaryDeep,
       ),
     );
   }
@@ -421,13 +431,13 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
   Widget _infoNote(String text, {Color? color}) {
     return Row(
       children: [
-        Icon(Icons.info_outline, color: Colors.blue.shade700, size: 18.r),
+        Icon(Icons.info_outline, color: ConstColors.primaryDeep, size: 18.r),
         SizedBox(width: 8.w),
         Expanded(
           child: Text(
             text,
             style: getTextTheme().bodySmall?.copyWith(
-              color: color ?? Colors.blue.shade900,
+              color: color ?? ConstColors.primaryDeep,
               fontStyle: FontStyle.italic,
             ),
           ),
@@ -440,12 +450,9 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
       (value == null || value.isEmpty) ? 'Not Set' : value;
 
   Widget _buildPersonalInfoCard(UserModel user) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-      color: Colors.grey.shade50,
+    return NeuCard(
       child: Padding(
-        padding: EdgeInsets.all(16.w),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
         child: Column(
           children: [
             _infoNote('User manages this information from their profile'),
@@ -461,6 +468,20 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
               _orNotSet(user.bloodGroup),
               Icons.bloodtype,
             ),
+            Divider(height: 24.h),
+            _buildStaticDetailRow(
+              'Date of Birth',
+              user.dateOfBirth == null
+                  ? 'Not Set'
+                  : DateFormat('dd/MM/yyyy').format(user.dateOfBirth!),
+              Icons.cake_outlined,
+            ),
+            Divider(height: 24.h),
+            _buildStaticDetailRow(
+              'Gender',
+              _orNotSet(user.gender),
+              Icons.wc_outlined,
+            ),
           ],
         ),
       ),
@@ -471,11 +492,9 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     final dateFormat = DateFormat('dd/MM/yyyy');
     final editing = details.isEditing;
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+    return NeuCard(
       child: Padding(
-        padding: EdgeInsets.all(16.w),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
         child: Column(
           children: [
             _buildDetailRow(
@@ -525,7 +544,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
             ),
           ),
           IconButton(
-            icon: Icon(Icons.edit, size: 18.r, color: Colors.indigo),
+            icon: Icon(Icons.edit, size: 18.r, color: ConstColors.primaryDeep),
             onPressed: details.startEditing,
             tooltip: 'Edit Work Info',
           ),
@@ -544,7 +563,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.work, size: 20.r, color: Colors.indigo),
+            Icon(Icons.work, size: 20.r, color: ConstColors.primaryDeep),
             SizedBox(width: 12.w),
             Expanded(
               child: ConstantDropdown<String>(
@@ -577,7 +596,11 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
 
     return Row(
       children: [
-        Icon(Icons.admin_panel_settings, size: 20.r, color: Colors.indigo),
+        Icon(
+          Icons.admin_panel_settings,
+          size: 20.r,
+          color: ConstColors.primaryDeep,
+        ),
         SizedBox(width: 12.w),
         Expanded(
           child: ConstantDropdown<String>(
@@ -625,7 +648,11 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.person_outline, size: 20.r, color: Colors.indigo),
+            Icon(
+              Icons.person_outline,
+              size: 20.r,
+              color: ConstColors.primaryDeep,
+            ),
             SizedBox(width: 12.w),
             Expanded(
               child: ConstantDropdown<String>(
@@ -646,13 +673,13 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
   Widget _warningRow(IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, size: 20.r, color: Colors.orange),
+        Icon(icon, size: 20.r, color: ConstColors.inProgressOrange),
         SizedBox(width: 12.w),
         Expanded(
           child: Text(
             text,
             style: getTextTheme().bodyMedium?.copyWith(
-              color: Colors.orange.shade800,
+              color: ConstColors.inProgressOrange,
               fontStyle: FontStyle.italic,
             ),
           ),
@@ -661,13 +688,13 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     );
   }
 
-  Widget _buildContactInfoCard(EmployeeDetailsProvider details, UserModel user) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-      color: Colors.grey.shade50,
+  Widget _buildContactInfoCard(
+    EmployeeDetailsProvider details,
+    UserModel user,
+  ) {
+    return NeuCard(
       child: Padding(
-        padding: EdgeInsets.all(16.w),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
         child: Column(
           children: [
             _infoNote('User manages this information from their profile'),
@@ -707,23 +734,25 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     EmployeeDetailsProvider details,
     UserModel user,
   ) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-      color: Colors.amber.shade50,
+    return NeuCard(
+      color: ConstColors.warningAmber.withValues(alpha: 0.12),
       child: Padding(
-        padding: EdgeInsets.all(16.w),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
         child: Column(
           children: [
             Row(
               children: [
-                Icon(Icons.security, color: Colors.amber.shade700, size: 20.r),
+                Icon(
+                  Icons.security,
+                  color: ConstColors.inProgressOrange,
+                  size: 20.r,
+                ),
                 SizedBox(width: 8.w),
                 Expanded(
                   child: Text(
                     'These fields are visible and editable only by admins',
                     style: getTextTheme().bodySmall?.copyWith(
-                      color: Colors.amber.shade900,
+                      color: ConstColors.inProgressOrange,
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -757,7 +786,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20.r, color: Colors.indigo),
+        Icon(icon, size: 20.r, color: ConstColors.primaryDeep),
         SizedBox(width: 12.w),
         Expanded(
           child: Column(
@@ -766,7 +795,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
               Text(
                 label,
                 style: getTextTheme().bodySmall?.copyWith(
-                  color: Colors.grey.shade600,
+                  color: ConstColors.textColorLight,
                 ),
               ),
               SizedBox(height: 4.h),
@@ -799,7 +828,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20.r, color: Colors.indigo),
+        Icon(icon, size: 20.r, color: ConstColors.primaryDeep),
         SizedBox(width: 12.w),
         Expanded(
           child: details.isEditing
@@ -817,7 +846,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
                     Text(
                       label,
                       style: getTextTheme().bodySmall?.copyWith(
-                        color: Colors.grey.shade600,
+                        color: ConstColors.textColorLight,
                       ),
                     ),
                     SizedBox(height: 4.h),
@@ -825,7 +854,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
                       isEmpty ? 'Not Set' : savedValue,
                       style: getTextTheme().bodyLarge?.copyWith(
                         fontWeight: FontWeight.w500,
-                        color: isEmpty ? Colors.grey.shade400 : null,
+                        color: isEmpty ? ConstColors.textColorLight : null,
                       ),
                     ),
                   ],
@@ -844,7 +873,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.calendar_today, size: 20.r, color: Colors.indigo),
+        Icon(Icons.calendar_today, size: 20.r, color: ConstColors.primaryDeep),
         SizedBox(width: 12.w),
         Expanded(
           child: Column(
@@ -853,7 +882,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
               Text(
                 label,
                 style: getTextTheme().bodySmall?.copyWith(
-                  color: Colors.grey.shade600,
+                  color: ConstColors.textColorLight,
                 ),
               ),
               SizedBox(height: editing ? 8.h : 4.h),
@@ -870,7 +899,7 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
                   date != null ? format.format(date) : 'Not Set',
                   style: getTextTheme().bodyLarge?.copyWith(
                     fontWeight: FontWeight.w500,
-                    color: date == null ? Colors.grey.shade400 : null,
+                    color: date == null ? ConstColors.textColorLight : null,
                   ),
                 ),
             ],

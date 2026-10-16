@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/value_provider.dart';
+import '../../../widgets/floating_nav_bar.dart';
 import '../admin_home.dart';
 import 'admin_page.dart';
 import '../../profile_screen.dart';
@@ -89,44 +89,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         bottomNavigationBar: ChangeNotifierProvider.value(
           value: _selectedIndex,
-          child: Container(
-            decoration: BoxDecoration(
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, -2),
+          child: Selector<ValueProvider<int>, int>(
+            selector: (_, tab) => tab.value,
+            builder: (context, selected, _) => FloatingNavBar(
+              currentIndex: selected,
+              onTap: _onItemTapped,
+              items: const [
+                NavBarItem(
+                  icon: Icons.dashboard_outlined,
+                  activeIcon: Icons.dashboard,
+                  label: 'Dashboard',
+                ),
+                NavBarItem(
+                  icon: Icons.settings_outlined,
+                  activeIcon: Icons.settings,
+                  label: 'Settings',
+                ),
+                NavBarItem(
+                  icon: Icons.person_outline,
+                  activeIcon: Icons.person,
+                  label: 'Profile',
                 ),
               ],
-            ),
-            child: Selector<ValueProvider<int>, int>(
-              selector: (_, tab) => tab.value,
-              builder: (context, selected, _) => BottomNavigationBar(
-                type: BottomNavigationBarType.fixed,
-                currentIndex: selected,
-                selectedItemColor: Colors.blue,
-                unselectedItemColor: Colors.grey,
-                backgroundColor: Colors.white,
-                elevation: 0,
-                onTap: _onItemTapped,
-                items: [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.dashboard_outlined, size: 22.r),
-                    activeIcon: Icon(Icons.dashboard, size: 22.r),
-                    label: 'Dashboard',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.settings_outlined, size: 22.r),
-                    activeIcon: Icon(Icons.settings, size: 22.r),
-                    label: 'Settings',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.person_outline, size: 22.r),
-                    activeIcon: Icon(Icons.person, size: 22.r),
-                    label: 'Profile',
-                  ),
-                ],
-              ),
             ),
           ),
         ),

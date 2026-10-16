@@ -194,9 +194,10 @@ class FCMService {
 
           // Remove token from Firestore only
           try {
-            await _firestore.collection(FirestoreCollections.users).doc(userId).update({
-              'fcmToken': '',
-            });
+            await _firestore
+                .collection(FirestoreCollections.users)
+                .doc(userId)
+                .update({'fcmToken': ''});
             logDebug('Invalid token removed from Firestore for user: $userId');
           } catch (firestoreError) {
             logDebug(

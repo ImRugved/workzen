@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 import '../../constants/apploading_indicator.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_colors.dart';
+import '../../constants/app_theme.dart';
 import '../../constants/constant_date_time_picker.dart';
 import '../../constants/constant_dropdown.dart';
 import '../../constants/constant_snackbar.dart';
@@ -94,7 +95,8 @@ class _HistoryView extends StatelessWidget {
       context,
       initialRange: DateTimeRange(start: provider.from, end: provider.to),
       // The earliest day to pick is the joining date
-      firstDate: AttendanceHistoryProvider.joiningDateOf(user) ?? DateTime(2020),
+      firstDate:
+          AttendanceHistoryProvider.joiningDateOf(user) ?? DateTime(2020),
       lastDate: DateTime.now(),
     );
     if (picked == null) return;
@@ -108,7 +110,7 @@ class _HistoryView extends StatelessWidget {
     if (rows.isEmpty) {
       ConstantSnackbar.show(
         title: 'No attendance records to export',
-        backgroundColor: Colors.orange,
+        backgroundColor: ConstColors.inProgressOrange,
       );
       return;
     }
@@ -122,7 +124,7 @@ class _HistoryView extends StatelessWidget {
       pdf.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(32),
+          margin: const pw.EdgeInsets.symmetric(horizontal: 32, vertical: 32),
           build: (_) => [
             pw.Header(
               level: 0,
@@ -226,7 +228,7 @@ class _HistoryView extends StatelessWidget {
                       height: 18.r,
                       child: const AppLoadingIndicator(
                         size: 18,
-                        color: ConstColors.white,
+                        color: ConstColors.textColor,
                       ),
                     )
                   : const Icon(Icons.picture_as_pdf_outlined),
@@ -244,9 +246,10 @@ class _HistoryView extends StatelessWidget {
                   : () {
                       final user = context.read<AuthProvider>().userModel;
                       if (user != null) {
-                        context
-                            .read<AttendanceHistoryProvider>()
-                            .load(user, force: true);
+                        context.read<AttendanceHistoryProvider>().load(
+                          user,
+                          force: true,
+                        );
                       }
                     },
             ),
@@ -276,29 +279,27 @@ class _RangePicker extends StatelessWidget {
     final fmt = DateFormat('dd MMM yyyy');
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(12.w, 12.h, 12.w, 0),
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(8.r),
         child: Container(
           width: double.infinity,
           padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8.r),
-          ),
+          decoration: NeuStyle.raised(),
           child: Row(
             children: [
               Icon(Icons.date_range, size: 18.r, color: ConstColors.primary),
               SizedBox(width: 8.w),
               Expanded(
-                child: Selector<AttendanceHistoryProvider, (DateTime, DateTime)>(
-                  selector: (_, p) => (p.from, p.to),
-                  builder: (context, range, _) => Text(
-                    '${fmt.format(range.$1)}  -  ${fmt.format(range.$2)}',
-                    style: getTextTheme().bodyMedium,
-                  ),
-                ),
+                child:
+                    Selector<AttendanceHistoryProvider, (DateTime, DateTime)>(
+                      selector: (_, p) => (p.from, p.to),
+                      builder: (context, range, _) => Text(
+                        '${fmt.format(range.$1)}  -  ${fmt.format(range.$2)}',
+                        style: getTextTheme().bodyMedium,
+                      ),
+                    ),
               ),
               const Icon(Icons.arrow_drop_down),
             ],
@@ -332,7 +333,7 @@ class _SearchFieldState extends State<_SearchField> {
     final provider = context.read<AttendanceHistoryProvider>();
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(12.w, 10.h, 12.w, 4.h),
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
       child: TextField(
         controller: _controller,
         onChanged: provider.setSearch,
@@ -418,7 +419,9 @@ class _HistoryBody extends StatelessWidget {
           return Center(
             child: Text(
               'Failed to load attendance history',
-              style: getTextTheme().bodyMedium?.copyWith(color: Colors.red),
+              style: getTextTheme().bodyMedium?.copyWith(
+                color: ConstColors.errorRed,
+              ),
             ),
           );
         }
@@ -430,7 +433,9 @@ class _HistoryBody extends StatelessWidget {
               provider.allRows.isEmpty
                   ? 'No attendance records for this period'
                   : 'No records match your filter',
-              style: getTextTheme().bodyMedium?.copyWith(color: Colors.grey),
+              style: getTextTheme().bodyMedium?.copyWith(
+                color: ConstColors.textColorLight,
+              ),
             ),
           );
         }
@@ -448,7 +453,8 @@ class _HistoryBody extends StatelessWidget {
               columns: [
                 DataColumn(
                   label: const Text('Date'),
-                  onSort: (_, ascending) => provider.setSortAscending(ascending),
+                  onSort: (_, ascending) =>
+                      provider.setSortAscending(ascending),
                 ),
                 const DataColumn(label: Text('Day')),
                 const DataColumn(label: Text('Status')),

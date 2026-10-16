@@ -70,7 +70,7 @@ class EmployeeModel {
   // Helper method to parse DateTime from various formats
   static DateTime? _parseDateTime(dynamic dateValue) {
     if (dateValue == null) return null;
-    
+
     if (dateValue is DateTime) {
       return dateValue;
     } else if (dateValue is String) {
@@ -83,7 +83,7 @@ class EmployeeModel {
       // Handle Firestore Timestamp
       return dateValue.toDate();
     }
-    
+
     return null;
   }
 
@@ -146,7 +146,8 @@ class EmployeeModel {
       createdAt: createdAt ?? this.createdAt,
       fcmToken: fcmToken ?? this.fcmToken,
       totalExperience: totalExperience ?? this.totalExperience,
-      emergencyContactNumber: emergencyContactNumber ?? this.emergencyContactNumber,
+      emergencyContactNumber:
+          emergencyContactNumber ?? this.emergencyContactNumber,
       isSubAdmin: isSubAdmin ?? this.isSubAdmin,
       mobileNumber: mobileNumber ?? this.mobileNumber,
     );

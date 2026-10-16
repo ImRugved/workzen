@@ -56,12 +56,13 @@ class LeaveBalanceModel {
       clTotal: clTotal.toInt(),
       clUsed: clUsed.toInt(),
       clBalance: clBalance.toInt(),
-      totalAllocated: (data['totalAllocated'] ?? (plTotal + slTotal + clTotal)) as int,
+      totalAllocated:
+          (data['totalAllocated'] ?? (plTotal + slTotal + clTotal)) as int,
       totalUsed: (data['totalUsed'] ?? (plUsed + slUsed + clUsed)) as int,
-      totalBalance: (data['totalBalance'] ?? (plBalance + slBalance + clBalance)) as int,
+      totalBalance:
+          (data['totalBalance'] ?? (plBalance + slBalance + clBalance)) as int,
     );
   }
 
   bool get hasAnyLeaves => totalAllocated > 0;
 }
-

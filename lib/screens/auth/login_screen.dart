@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/security_provider.dart';
 import '../../providers/toggle_provider.dart';
+import '../../constants/app_theme.dart';
 import '../../constants/constant_button.dart';
+import '../../constants/constant_colors.dart';
 import '../../constants/constant_textfield.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_snackbar.dart';
@@ -64,13 +66,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   resetEmailController.text.trim(),
                 );
                 if (result['success']) {
-                  ConstantSnackbar.showSuccess(
-                    title: result['message'],
-                  );
+                  ConstantSnackbar.showSuccess(title: result['message']);
                 } else {
-                  ConstantSnackbar.showError(
-                    title: result['error'],
-                  );
+                  ConstantSnackbar.showError(title: result['error']);
                 }
               }
             },
@@ -102,7 +100,8 @@ class _LoginScreenState extends State<LoginScreen> {
           authProvider.userModel!.id,
         );
 
-        final targetScreen = (authProvider.isAdmin || authProvider.userModel?.isSubAdmin == true)
+        final targetScreen =
+            (authProvider.isAdmin || authProvider.userModel?.isSubAdmin == true)
             ? const AdminDashboardScreen()
             : const UserDashboardScreen();
 
@@ -137,7 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(24.w),
+            padding: AppSpacing.screen,
             child: Form(
               key: _formKey,
               child: Column(
@@ -148,14 +147,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   Icon(
                     Icons.calendar_today_rounded,
                     size: 80.r,
-                    color: Colors.indigo,
+                    color: ConstColors.primaryDeep,
                   ),
                   SizedBox(height: 16.h),
                   Text(
                     'Attendance Management',
                     textAlign: TextAlign.center,
                     style: getTextTheme().headlineSmall?.copyWith(
-                      color: Colors.indigo,
+                      color: ConstColors.textColor,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -164,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     'Sign in to continue',
                     textAlign: TextAlign.center,
                     style: getTextTheme().bodyLarge?.copyWith(
-                      color: Colors.grey,
+                      color: ConstColors.textColorLight,
                     ),
                   ),
                   SizedBox(height: 48.h),
@@ -193,7 +192,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             visible.value
                                 ? Icons.visibility_off
                                 : Icons.visibility,
-                            color: Colors.grey,
+                            color: ConstColors.textColorLight,
                           ),
                           onPressed: visible.toggle,
                         ),
@@ -218,7 +217,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Text(
                         'Forgot Password?',
                         style: getTextTheme().bodyMedium?.copyWith(
-                          color: Colors.indigo,
+                          color: ConstColors.primaryDeep,
                         ),
                       ),
                     ),
@@ -232,7 +231,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       Text(
                         "Don't have an account? ",
                         style: getTextTheme().bodyMedium?.copyWith(
-                          color: Colors.grey,
+                          color: ConstColors.textColorLight,
                         ),
                       ),
                       TextButton(
@@ -242,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Text(
                           'Sign Up',
                           style: getTextTheme().labelLarge?.copyWith(
-                            color: Colors.indigo,
+                            color: ConstColors.primaryDeep,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

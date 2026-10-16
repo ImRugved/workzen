@@ -55,6 +55,12 @@ class AppConstants {
     'CO': 'CO (Compensatory Off)',
   };
 
+  /// Gender options on the profile.
+  static const String genderMale = 'Male';
+  static const String genderFemale = 'Female';
+  static const String genderOther = 'Other';
+  static const List<String> genders = [genderMale, genderFemale, genderOther];
+
   static String roleLabel(String? role) {
     switch (role) {
       case adminRole:

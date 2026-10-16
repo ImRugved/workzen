@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import '../constants/const_textstyle.dart';
-import '../constants/constant_button.dart';
 import '../constants/constant_colors.dart';
 import '../constants/constant_snackbar.dart';
 import '../models/department_model.dart';
 import '../providers/employee_management_provider.dart';
 import '../providers/toggle_provider.dart';
+import 'app_dialog_card.dart';
 
 /// Dialogs and sheets for creating and managing departments and roles.
 /// Used from the admin dashboard page.
@@ -80,22 +80,15 @@ class DepartmentRoleManager {
   ) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c, false),
-            child: const Text('Cancel'),
-          ),
-          ConstantButton(
-            text: 'Delete',
-            onPressed: () => Navigator.pop(c, true),
-            backgroundColor: ConstColors.errorRed,
-            isFullWidth: false,
-            height: 40.h,
-          ),
-        ],
+      builder: (c) => AppDialogCard(
+        icon: Icons.delete_outline,
+        iconColor: ConstColors.errorRed,
+        title: title,
+        message: message,
+        confirmLabel: 'Delete',
+        confirmColor: ConstColors.errorRed,
+        onCancel: () => Navigator.pop(c, false),
+        onConfirm: () => Navigator.pop(c, true),
       ),
     );
     return confirm == true;
@@ -110,198 +103,361 @@ class DepartmentRoleManager {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.8,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
-        ),
-        // ListTile paints ink on the nearest Material, so keep one above it
-        child: Material(
-          type: MaterialType.transparency,
-          child: SafeArea(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(16.w),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.business, color: ConstColors.primary),
-                      SizedBox(width: 8.w),
-                      Expanded(
-                        child: Text(
-                          dept.name,
-                          style: getTextTheme().titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+      builder: (sheetContext) => _ManageSheet(
+        parentContext: context,
+        sheetContext: sheetContext,
+        provider: provider,
+        dept: dept,
+      ),
+    );
+  }
+
+  static void _renameDepartment(
+    BuildContext context,
+    EmployeeManagementProvider provider,
+    DepartmentModel dept,
+  ) {
+    showEditDialog(
+      context: context,
+      title: 'Edit Department',
+      initialValue: dept.name,
+      onSave: (newName) async {
+        final success = await provider.updateDepartmentName(dept.id, newName);
+        if (success) {
+          ConstantSnackbar.showSuccess(title: 'Department updated');
+        } else {
+          ConstantSnackbar.showError(title: 'Failed to update');
+        }
+      },
+    );
+  }
+
+  static Future<void> _deleteDepartment(
+    BuildContext context,
+    EmployeeManagementProvider provider,
+    DepartmentModel dept,
+  ) async {
+    final confirmed = await _confirmDelete(
+      context,
+      'Delete Department?',
+      'Delete "${dept.name}" and all its roles?',
+    );
+    if (!confirmed) return;
+    final success = await provider.deleteDepartment(dept.id);
+    if (success) {
+      ConstantSnackbar.showSuccess(title: 'Department deleted');
+    } else {
+      ConstantSnackbar.showError(title: 'Failed to delete');
+    }
+  }
+
+  static void _renameRole(
+    BuildContext context,
+    EmployeeManagementProvider provider,
+    DepartmentModel dept,
+    String role,
+  ) {
+    showEditDialog(
+      context: context,
+      title: 'Edit Role',
+      initialValue: role,
+      onSave: (newName) async {
+        final success = await provider.updateRoleName(dept.id, role, newName);
+        if (success) {
+          ConstantSnackbar.showSuccess(title: 'Role updated');
+        } else {
+          ConstantSnackbar.showError(title: 'Failed to update');
+        }
+      },
+    );
+  }
+
+  static Future<void> _deleteRole(
+    BuildContext context,
+    EmployeeManagementProvider provider,
+    DepartmentModel dept,
+    String role,
+  ) async {
+    final confirmed = await _confirmDelete(
+      context,
+      'Delete Role?',
+      'Delete "$role"?',
+    );
+    if (!confirmed) return;
+    final success = await provider.removeRoleFromDepartment(dept.id, role);
+    if (success) {
+      ConstantSnackbar.showSuccess(title: 'Role deleted');
+    } else {
+      ConstantSnackbar.showError(title: 'Failed to delete');
+    }
+  }
+}
+
+/// Bottom sheet to manage one department: three actions on top, then its
+/// roles, each with rename and delete.
+class _ManageSheet extends StatelessWidget {
+  // The screen's context opens the follow-up dialogs once the sheet is closed
+  final BuildContext parentContext;
+  final BuildContext sheetContext;
+  final EmployeeManagementProvider provider;
+  final DepartmentModel dept;
+
+  const _ManageSheet({
+    required this.parentContext,
+    required this.sheetContext,
+    required this.provider,
+    required this.dept,
+  });
+
+  void _closeThen(VoidCallback action) {
+    Navigator.pop(sheetContext);
+    action();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.8,
+      ),
+      // InkWell paints its ink on the nearest Material
+      child: Material(
+        type: MaterialType.transparency,
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Drag handle
+                Center(
+                  child: Container(
+                    width: 40.w,
+                    height: 4.h,
+                    decoration: BoxDecoration(
+                      color: ConstColors.borderColor,
+                      borderRadius: BorderRadius.circular(2.r),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 12.h),
+                _header(),
+                SizedBox(height: 14.h),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _action(
+                        Icons.edit_outlined,
+                        'Rename',
+                        ConstColors.primaryDeep,
+                        () => _closeThen(
+                          () => DepartmentRoleManager._renameDepartment(
+                            parentContext,
+                            provider,
+                            dept,
                           ),
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  const Divider(),
-                  ListTile(
-                    leading: Icon(Icons.edit, color: ConstColors.primary),
-                    title: const Text('Edit Department Name'),
-                    contentPadding: EdgeInsets.zero,
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      showEditDialog(
-                        context: context,
-                        title: 'Edit Department',
-                        initialValue: dept.name,
-                        onSave: (newName) async {
-                          final success = await provider.updateDepartmentName(
-                            dept.id,
-                            newName,
-                          );
-                          if (success) {
-                            ConstantSnackbar.showSuccess(
-                              title: 'Department updated',
-                            );
-                          } else {
-                            ConstantSnackbar.showError(
-                              title: 'Failed to update',
-                            );
-                          }
-                        },
-                      );
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.add_circle_outline,
-                        color: ConstColors.primary),
-                    title: const Text('Add Role(s)'),
-                    contentPadding: EdgeInsets.zero,
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      showAddRoleDialog(context, provider, dept);
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.delete, color: ConstColors.errorRed),
-                    title: const Text('Delete Department'),
-                    subtitle: Text(
-                      'This will delete all roles',
-                      style: getTextTheme().bodySmall?.copyWith(
-                        color: ConstColors.textColorLight,
+                    ),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: _action(
+                        Icons.add_circle_outline,
+                        'Add Role',
+                        ConstColors.primaryDeep,
+                        () => _closeThen(
+                          () => DepartmentRoleManager.showAddRoleDialog(
+                            parentContext,
+                            provider,
+                            dept,
+                          ),
+                        ),
                       ),
                     ),
-                    contentPadding: EdgeInsets.zero,
-                    onTap: () async {
-                      Navigator.pop(ctx);
-                      final confirmed = await _confirmDelete(
-                        context,
-                        'Delete Department?',
-                        'Delete "${dept.name}" and all its roles?',
-                      );
-                      if (!confirmed) return;
-                      final success = await provider.deleteDepartment(dept.id);
-                      if (success) {
-                        ConstantSnackbar.showSuccess(
-                          title: 'Department deleted',
-                        );
-                      } else {
-                        ConstantSnackbar.showError(title: 'Failed to delete');
-                      }
-                    },
-                  ),
-                  if (dept.roles.isNotEmpty) ...[
-                    SizedBox(height: 8.h),
-                    const Divider(),
-                    Text(
-                      'Roles',
-                      style: getTextTheme().titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: 8.h),
-                    ...dept.roles.map(
-                      (role) => ListTile(
-                        leading: Icon(Icons.badge_outlined, size: 20.r),
-                        title: Text(role),
-                        contentPadding: EdgeInsets.zero,
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: Icon(
-                                Icons.edit,
-                                size: 20.r,
-                                color: ConstColors.primary,
-                              ),
-                              onPressed: () {
-                                Navigator.pop(ctx);
-                                showEditDialog(
-                                  context: context,
-                                  title: 'Edit Role',
-                                  initialValue: role,
-                                  onSave: (newName) async {
-                                    final success =
-                                        await provider.updateRoleName(
-                                          dept.id,
-                                          role,
-                                          newName,
-                                        );
-                                    if (success) {
-                                      ConstantSnackbar.showSuccess(
-                                        title: 'Role updated',
-                                      );
-                                    } else {
-                                      ConstantSnackbar.showError(
-                                        title: 'Failed to update',
-                                      );
-                                    }
-                                  },
-                                );
-                              },
-                            ),
-                            IconButton(
-                              icon: Icon(
-                                Icons.delete,
-                                size: 20.r,
-                                color: ConstColors.errorRed,
-                              ),
-                              onPressed: () async {
-                                Navigator.pop(ctx);
-                                final confirmed = await _confirmDelete(
-                                  context,
-                                  'Delete Role?',
-                                  'Delete "$role"?',
-                                );
-                                if (!confirmed) return;
-                                final success = await provider
-                                    .removeRoleFromDepartment(dept.id, role);
-                                if (success) {
-                                  ConstantSnackbar.showSuccess(
-                                    title: 'Role deleted',
-                                  );
-                                } else {
-                                  ConstantSnackbar.showError(
-                                    title: 'Failed to delete',
-                                  );
-                                }
-                              },
-                            ),
-                          ],
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: _action(
+                        Icons.delete_outline,
+                        'Delete',
+                        ConstColors.errorRed,
+                        () => _closeThen(
+                          () => DepartmentRoleManager._deleteDepartment(
+                            parentContext,
+                            provider,
+                            dept,
+                          ),
                         ),
                       ),
                     ),
                   ],
-                  SizedBox(height: 8.h),
-                ],
-              ),
+                ),
+                SizedBox(height: 16.h),
+                Text(
+                  'Roles (${dept.roles.length})',
+                  style: getTextTheme().titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: ConstColors.textColor,
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                if (dept.roles.isEmpty)
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16.h),
+                    child: Center(
+                      child: Text(
+                        'No roles yet. Tap Add Role to create one.',
+                        style: getTextTheme().bodySmall?.copyWith(
+                          color: ConstColors.textColorLight,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  for (final role in dept.roles) _roleRow(role),
+                SizedBox(height: 8.h),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _header() {
+    return Row(
+      children: [
+        Container(
+          width: 40.r,
+          height: 40.r,
+          decoration: BoxDecoration(
+            color: ConstColors.lightShade,
+            borderRadius: BorderRadius.circular(12.r),
+          ),
+          child: Icon(
+            Icons.business,
+            size: 22.r,
+            color: ConstColors.primaryDeep,
+          ),
+        ),
+        SizedBox(width: 10.w),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                dept.name,
+                overflow: TextOverflow.ellipsis,
+                style: getTextTheme().titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: ConstColors.textColor,
+                ),
+              ),
+              Text(
+                'Manage department',
+                style: getTextTheme().labelSmall?.copyWith(
+                  color: ConstColors.textColorLight,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          icon: Icon(Icons.close, size: 22.r, color: ConstColors.textColor),
+          onPressed: () => Navigator.pop(sheetContext),
+        ),
+      ],
+    );
+  }
+
+  // A tinted tile with an icon above its label
+  Widget _action(
+    IconData icon,
+    String label,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14.r),
+      child: Ink(
+        padding: EdgeInsets.symmetric(vertical: 12.h),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(14.r),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 22.r, color: color),
+            SizedBox(height: 4.h),
+            Text(
+              label,
+              style: getTextTheme().labelMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: ConstColors.textColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _roleRow(String role) {
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: 4.h),
+      padding: EdgeInsets.only(left: 12.w, right: 4.w),
+      decoration: BoxDecoration(
+        color: ConstColors.cardBackground,
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: ConstColors.borderColor),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.badge_outlined, size: 18.r, color: ConstColors.primaryDeep),
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Text(
+              role,
+              overflow: TextOverflow.ellipsis,
+              style: getTextTheme().bodyMedium?.copyWith(
+                color: ConstColors.textColor,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.edit_outlined,
+              size: 20.r,
+              color: ConstColors.primaryDeep,
+            ),
+            tooltip: 'Rename',
+            onPressed: () => _closeThen(
+              () => DepartmentRoleManager._renameRole(
+                parentContext,
+                provider,
+                dept,
+                role,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.delete_outline,
+              size: 20.r,
+              color: ConstColors.errorRed,
+            ),
+            tooltip: 'Delete',
+            onPressed: () => _closeThen(
+              () => DepartmentRoleManager._deleteRole(
+                parentContext,
+                provider,
+                dept,
+                role,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -377,10 +533,14 @@ class _AddNamesDialogState extends State<_AddNamesDialog> {
   }
 
   Widget _buildDialog(bool isSaving) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
+    return AppDialogCard(
+      icon: widget.icon,
+      title: widget.title,
+      confirmLabel: 'Add',
+      isBusy: isSaving,
+      onCancel: () => Navigator.of(context).pop(),
+      onConfirm: _save,
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextField(
@@ -391,9 +551,6 @@ class _AddNamesDialogState extends State<_AddNamesDialog> {
             decoration: InputDecoration(
               labelText: widget.label,
               prefixIcon: Icon(widget.icon, size: 20.r),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8.r),
-              ),
             ),
           ),
           SizedBox(height: 8.h),
@@ -405,20 +562,6 @@ class _AddNamesDialogState extends State<_AddNamesDialog> {
           ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: isSaving ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        ConstantButton(
-          text: 'Add',
-          onPressed: isSaving ? null : _save,
-          backgroundColor: ConstColors.primary,
-          isLoading: isSaving,
-          isFullWidth: false,
-          height: 40.h,
-        ),
-      ],
     );
   }
 }
@@ -446,31 +589,21 @@ class _EditNameDialogState extends State<_EditNameDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: TextField(
+    return AppDialogCard(
+      icon: Icons.edit_outlined,
+      title: widget.title,
+      confirmLabel: 'Save',
+      onCancel: () => Navigator.of(context).pop(),
+      onConfirm: () {
+        final value = _controller.text.trim();
+        if (value.isNotEmpty) Navigator.of(context).pop(value);
+      },
+      child: TextField(
         controller: _controller,
         autofocus: true,
-        decoration: InputDecoration(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.r)),
-        ),
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(labelText: 'Name'),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        ConstantButton(
-          text: 'Save',
-          onPressed: () {
-            final value = _controller.text.trim();
-            if (value.isNotEmpty) Navigator.of(context).pop(value);
-          },
-          backgroundColor: ConstColors.primary,
-          isFullWidth: false,
-          height: 40.h,
-        ),
-      ],
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../constants/app_theme.dart';
 import '../constants/const_textstyle.dart';
 import '../constants/constant_colors.dart';
 import '../constants/constant_snackbar.dart';
@@ -107,32 +108,27 @@ class _AttendanceCalendarCardState extends State<AttendanceCalendarCard> {
           children: [
             _buildPunchRow(provider.todayAttendance),
             SizedBox(height: 12.h),
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12.r),
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(12.w),
-                child: Column(
-                  children: [
-                    _buildHeader(provider),
-                    SizedBox(height: 4.h),
-                    SizedBox(
-                      height: 2.h,
-                      child: provider.isLoading
-                          ? const LinearProgressIndicator()
-                          : null,
-                    ),
-                    SizedBox(height: 6.h),
-                    _buildOfficeHoursNote(provider),
-                    _buildWeekDayRow(),
-                    SizedBox(height: 4.h),
-                    _buildGrid(provider),
-                    SizedBox(height: 8.h),
-                    _buildLegend(),
-                  ],
-                ),
+            NeuCard(
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 5.h),
+              child: Column(
+                children: [
+                  _buildHeader(provider),
+                  SizedBox(height: 2.h),
+                  SizedBox(
+                    height: 2.h,
+                    child: provider.isLoading
+                        ? const LinearProgressIndicator()
+                        : null,
+                  ),
+                  SizedBox(height: 2.h),
+                  // SizedBox(height: 6.h),
+                  // _buildOfficeHoursNote(provider),
+                  _buildWeekDayRow(),
+                  SizedBox(height: 4.h),
+                  _buildGrid(provider),
+                  SizedBox(height: 8.h),
+                  _buildLegend(),
+                ],
               ),
             ),
           ],
@@ -173,17 +169,13 @@ class _AttendanceCalendarCardState extends State<AttendanceCalendarCard> {
   }) {
     return Container(
       padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 10.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: ConstColors.primary, width: .5),
-      ),
+      decoration: NeuStyle.raised(),
       child: Row(
         children: [
           Container(
             height: 36.h,
             width: 3.w,
-            margin: EdgeInsets.only(right: 10.w),
+            margin: EdgeInsets.symmetric(horizontal: 10.w),
             color: color,
           ),
           Expanded(
@@ -191,7 +183,9 @@ class _AttendanceCalendarCardState extends State<AttendanceCalendarCard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  time == null ? '--:-- --' : DateFormat('hh:mm a').format(time),
+                  time == null
+                      ? '--:-- --'
+                      : DateFormat('hh:mm a').format(time),
                   style: getTextTheme().titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -238,7 +232,7 @@ class _AttendanceCalendarCardState extends State<AttendanceCalendarCard> {
     final lateAfter = hours.lateAfterMinutes;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: 8.h),
+      padding: EdgeInsets.symmetric(vertical: 8.h),
       child: Text(
         'Office ${hours.startTime.format(context)} - ${hours.endTime.format(context)}'
         '${lateAfter != null ? ' • Late after ${hours.startPlus(lateAfter).format(context)}' : ''}',
@@ -258,8 +252,8 @@ class _AttendanceCalendarCardState extends State<AttendanceCalendarCard> {
               child: Text(
                 d,
                 textAlign: TextAlign.center,
-                style: getTextTheme().labelMedium?.copyWith(
-                  color: ConstColors.primary,
+                style: getTextTheme().bodyMedium?.copyWith(
+                  color: ConstColors.primaryDeep,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -287,26 +281,24 @@ class _AttendanceCalendarCardState extends State<AttendanceCalendarCard> {
 
         final day = index - leadingBlanks + 1;
         final status = provider.statusFor(day);
-        final isToday =
-            provider.isCurrentMonth && day == now.day;
-
+        final isToday = provider.isCurrentMonth && day == now.day;
         return GestureDetector(
           onTap: () => _onDayTap(provider, day),
           child: Container(
-            margin: EdgeInsets.all(3.r),
+            margin: EdgeInsets.symmetric(horizontal: 3.r, vertical: 3.r),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: status == CalendarDayStatus.none
                   ? Colors.transparent
                   : _colorFor(status),
               border: isToday
-                  ? Border.all(color: ConstColors.primary, width: 2)
+                  ? Border.all(color: ConstColors.primaryDeep, width: 2)
                   : null,
             ),
             child: Center(
               child: Text(
                 '$day',
-                style: getTextTheme().bodySmall?.copyWith(
+                style: getTextTheme().bodyMedium?.copyWith(
                   color: _textColorFor(status),
                   fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
                 ),
@@ -348,7 +340,12 @@ class _AttendanceCalendarCardState extends State<AttendanceCalendarCard> {
                   ),
                 ),
                 SizedBox(width: 4.w),
-                Text(item.$1, style: getTextTheme().labelSmall),
+                Text(
+                  item.$1,
+                  style: getTextTheme().labelMedium?.copyWith(
+                    color: ConstColors.textColorLight,
+                  ),
+                ),
               ],
             ),
           )

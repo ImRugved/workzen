@@ -20,6 +20,7 @@ import '../../constants/constant_dropdown.dart';
 import '../../constants/constant_date_time_picker.dart';
 import '../../constants/constant_colors.dart';
 import '../../constants/apploading_indicator.dart';
+import '../../constants/app_theme.dart';
 import '../../utils/logger.dart';
 
 class AdminAttendanceScreen extends StatefulWidget {
@@ -84,7 +85,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       pdf.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(32),
+          margin: const pw.EdgeInsets.symmetric(horizontal: 32, vertical: 32),
           build: (pw.Context context) {
             return [
               pw.Header(
@@ -231,7 +232,9 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       appBar: AppBar(
         title: Text(
           'Employee Attendance',
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+          style: getTextTheme().titleLarge?.copyWith(
+            color: ConstColors.textColor,
+          ),
         ),
         actions: [
           IconButton(
@@ -245,12 +248,12 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
         children: [
           // Filter section
           Container(
-            padding: EdgeInsets.all(16.w),
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: ConstColors.cardBackground,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
+                  color: ConstColors.neuShadowDark,
                   spreadRadius: 1,
                   blurRadius: 2,
                   offset: const Offset(0, 1),
@@ -337,13 +340,13 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                         Icon(
                           Icons.error_outline,
                           size: 64.r,
-                          color: Colors.orange,
+                          color: ConstColors.inProgressOrange,
                         ),
                         SizedBox(height: 16.h),
                         Text(
                           errorMessage,
                           style: getTextTheme().bodyLarge?.copyWith(
-                            color: Colors.grey,
+                            color: ConstColors.textColorLight,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -354,7 +357,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                           icon: Icon(
                             Icons.refresh,
                             size: 20.r,
-                            color: ConstColors.white,
+                            color: ConstColors.textColor,
                           ),
                           isFullWidth: false,
                         ),
@@ -412,13 +415,13 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                 return Stack(
                   children: [
                     SingleChildScrollView(
-                      padding: EdgeInsets.all(16.w),
+                      padding: AppSpacing.screen,
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: DataTable(
                           columnSpacing: 20.w,
                           headingRowColor: WidgetStatePropertyAll(
-                            Colors.blue.withValues(alpha: 0.1),
+                            ConstColors.primary.withValues(alpha: 0.1),
                           ),
                           columns: const [
                             DataColumn(label: Text('Employee')),
@@ -492,7 +495,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                     ),
                     if (filter.isLoading)
                       Container(
-                        color: Colors.black.withOpacity(0.3),
+                        color: ConstColors.textColor.withValues(alpha: 0.3),
                         child: const Center(
                           child: AppLoadingIndicator(
                             size: 40,
@@ -520,7 +523,8 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
         },
         icon: Icon(Icons.download, size: 20.r),
         label: Text('Export PDF', style: getTextTheme().labelLarge),
-        backgroundColor: Colors.blue,
+        backgroundColor: ConstColors.primary,
+        foregroundColor: ConstColors.textColor,
       ),
     );
   }
@@ -560,11 +564,13 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       } else {
         ConstantSnackbar.show(
           title: 'All employees already have attendance records for this date',
-          backgroundColor: Colors.orange,
+          backgroundColor: ConstColors.inProgressOrange,
         );
       }
     } catch (e) {
-      ConstantSnackbar.showError(title: 'Error marking employees as absent: $e');
+      ConstantSnackbar.showError(
+        title: 'Error marking employees as absent: $e',
+      );
     } finally {
       if (mounted) _filter.setLoading(false);
     }
@@ -582,7 +588,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       return Text(
         'IN PROGRESS',
         style: getTextTheme().labelSmall?.copyWith(
-          color: Colors.amber,
+          color: ConstColors.warningAmber,
           fontWeight: FontWeight.bold,
         ),
       );
@@ -594,7 +600,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       return Text(
         'INCOMPLETE',
         style: getTextTheme().labelSmall?.copyWith(
-          color: Colors.grey,
+          color: ConstColors.textColorLight,
           fontWeight: FontWeight.bold,
         ),
       );
@@ -605,20 +611,20 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
 
     switch (status.toLowerCase()) {
       case 'present':
-        textColor = Colors.green;
+        textColor = ConstColors.successGreen;
         break;
       case 'absent':
-        textColor = Colors.red;
+        textColor = ConstColors.errorRed;
         break;
       case 'half-day':
-        textColor = Colors.orange;
+        textColor = ConstColors.inProgressOrange;
         break;
       case 'on-leave':
-        textColor = Colors.blue;
+        textColor = ConstColors.primaryDeep;
         displayText = 'ON LEAVE';
         break;
       default:
-        textColor = Colors.grey;
+        textColor = ConstColors.textColorLight;
     }
 
     return Text(

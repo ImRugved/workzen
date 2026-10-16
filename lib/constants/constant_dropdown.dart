@@ -68,7 +68,7 @@ class ConstantDropdown<T> extends StatelessWidget {
         isDense: isDense,
         contentPadding: EdgeInsets.symmetric(
           horizontal: 12.w,
-          vertical: isDense ? 10.h : 14.h,
+          vertical: isDense ? 10.h : 5.h,
         ),
         border: border(ConstColors.darkGrey),
         enabledBorder: border(ConstColors.darkGrey),

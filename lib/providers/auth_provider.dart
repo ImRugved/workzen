@@ -8,6 +8,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:workzen/utils/logger.dart';
 import '../app_constants.dart';
 import '../constants/firestore_constants.dart';
+import '../models/birthday_model.dart';
 import '../models/personal_info_model.dart';
 import '../models/user_model.dart';
 import '../services/device_service.dart';
@@ -66,15 +67,12 @@ class AuthProvider with ChangeNotifier {
         .collection(FirestoreCollections.users)
         .doc(uid)
         .snapshots()
-        .listen(
-          (doc) {
-            final data = doc.data();
-            if (data == null) return;
-            _userModel = UserModel.fromJson(data);
-            notifyListeners();
-          },
-          onError: (Object e) => logDebug('User document listener error: $e'),
-        );
+        .listen((doc) {
+          final data = doc.data();
+          if (data == null) return;
+          _userModel = UserModel.fromJson(data);
+          notifyListeners();
+        }, onError: (Object e) => logDebug('User document listener error: $e'));
   }
 
   void _stopListeningToUserDoc() {
@@ -97,15 +95,33 @@ class AuthProvider with ChangeNotifier {
 
       if (userDoc.exists) {
         Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
-        logDebug("User data from Firestore - profileImageUrl: ${userData['profileImageUrl']}");
-        logDebug("User data from Firestore - profileImageUrl type: ${userData['profileImageUrl'].runtimeType}");
-        logDebug("User data from Firestore - all keys: ${userData.keys.toList()}");
+        logDebug(
+          "User data from Firestore - profileImageUrl: ${userData['profileImageUrl']}",
+        );
+        logDebug(
+          "User data from Firestore - profileImageUrl type: ${userData['profileImageUrl'].runtimeType}",
+        );
+        logDebug(
+          "User data from Firestore - all keys: ${userData.keys.toList()}",
+        );
         _userModel = UserModel.fromJson(userData);
         logDebug("User data fetched successfully: ${_userModel?.name}");
-        logDebug("User role: ${_userModel?.isAdmin == true ? 'Admin' : _userModel?.isSubAdmin == true ? 'Sub Admin' : 'User'}");
-        logDebug("UserModel - id: ${_userModel?.id}, email: ${_userModel?.email}, employeeId: ${_userModel?.employeeId}, department: ${_userModel?.department}, role: ${_userModel?.role}, isAdmin: ${_userModel?.isAdmin}, isSubAdmin: ${_userModel?.isSubAdmin}, officeLatitude: ${_userModel?.officeLatitude}, officeLongitude: ${_userModel?.officeLongitude}");
-        logDebug("UserModel profileImageUrl after parsing: ${_userModel?.profileImageUrl}");
-        logDebug("UserModel profileImageUrl type after parsing: ${_userModel?.profileImageUrl.runtimeType}");
+        logDebug(
+          "User role: ${_userModel?.isAdmin == true
+              ? 'Admin'
+              : _userModel?.isSubAdmin == true
+              ? 'Sub Admin'
+              : 'User'}",
+        );
+        logDebug(
+          "UserModel - id: ${_userModel?.id}, email: ${_userModel?.email}, employeeId: ${_userModel?.employeeId}, department: ${_userModel?.department}, role: ${_userModel?.role}, isAdmin: ${_userModel?.isAdmin}, isSubAdmin: ${_userModel?.isSubAdmin}, officeLatitude: ${_userModel?.officeLatitude}, officeLongitude: ${_userModel?.officeLongitude}",
+        );
+        logDebug(
+          "UserModel profileImageUrl after parsing: ${_userModel?.profileImageUrl}",
+        );
+        logDebug(
+          "UserModel profileImageUrl type after parsing: ${_userModel?.profileImageUrl.runtimeType}",
+        );
       } else {
         logDebug("User document does not exist in Firestore");
       }
@@ -168,7 +184,9 @@ class AuthProvider with ChangeNotifier {
     if (_user != null) {
       logDebug("refreshUserData called for user: ${_user!.uid}");
       await _fetchUserData();
-      logDebug("After _fetchUserData - _userModel profileImageUrl: ${_userModel?.profileImageUrl}");
+      logDebug(
+        "After _fetchUserData - _userModel profileImageUrl: ${_userModel?.profileImageUrl}",
+      );
       notifyListeners();
       logDebug("notifyListeners() called");
     } else {
@@ -423,10 +441,31 @@ class AuthProvider with ChangeNotifier {
   Future<String?> updatePersonalInfo(PersonalInfoModel info) async {
     if (_user == null) return 'You are not logged in';
     try {
-      await _firestore
-          .collection(FirestoreCollections.users)
-          .doc(_user!.uid)
-          .update(info.toJson());
+      final uid = _user!.uid;
+      final batch = _firestore.batch();
+      batch.update(
+        _firestore.collection(FirestoreCollections.users).doc(uid),
+        info.toJson(),
+      );
+      // Month and day of the birthday go to the organization details too, so
+      // every user can see today's birthdays without reading user documents
+      final dateOfBirth = info.dateOfBirth;
+      if (dateOfBirth != null) {
+        batch.set(
+          _firestore
+              .collection(FirestoreCollections.organizationDetails)
+              .doc(FirestoreDocs.birthdays)
+              .collection(FirestoreSubCollections.birthdayItems)
+              .doc(uid),
+          BirthdayModel.fromDate(
+            userId: uid,
+            name: _userModel?.name ?? '',
+            dateOfBirth: dateOfBirth,
+            gender: info.gender ?? _userModel?.gender,
+          ).toJson(),
+        );
+      }
+      await batch.commit();
       return null;
     } catch (e) {
       logDebug('Error updating personal info: $e');
@@ -520,10 +559,7 @@ class AuthProvider with ChangeNotifier {
       } else if (e.code == 'invalid-email') {
         errorMessage = 'Invalid email address.';
       }
-      return {
-        'success': false,
-        'error': errorMessage,
-      };
+      return {'success': false, 'error': errorMessage};
     } catch (e) {
       logDebug("Reset password error: $e");
       logDebug("Error type: ${e.runtimeType}");

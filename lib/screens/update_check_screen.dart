@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../constants/const_textstyle.dart';
 import '../constants/constant_button.dart';
 import '../constants/constant_colors.dart';
+import '../constants/app_theme.dart';
 import '../providers/update_check_provider.dart';
 
 /// The update state lives in [UpdateCheckProvider]; this State only owns the
@@ -78,12 +79,17 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
       ..hideCurrentMaterialBanner()
       ..showMaterialBanner(
         MaterialBanner(
-          backgroundColor: Colors.green[100],
+          backgroundColor: ConstColors.successGreen.withValues(alpha: 0.15),
           content: Text(
             'Your app is up to date!',
-            style: getTextTheme().bodyMedium?.copyWith(color: Colors.green),
+            style: getTextTheme().bodyMedium?.copyWith(
+              color: ConstColors.textColor,
+            ),
           ),
-          leading: const Icon(Icons.check_circle, color: Colors.green),
+          leading: const Icon(
+            Icons.check_circle,
+            color: ConstColors.successGreen,
+          ),
           actions: [
             TextButton(
               onPressed: () =>
@@ -100,12 +106,17 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
       ..hideCurrentMaterialBanner()
       ..showMaterialBanner(
         MaterialBanner(
-          backgroundColor: Colors.blue[100],
+          backgroundColor: ConstColors.primary.withValues(alpha: 0.35),
           content: Text(
             'Update available: ${_updates.latestVersion}',
-            style: getTextTheme().bodyMedium?.copyWith(color: Colors.blue),
+            style: getTextTheme().bodyMedium?.copyWith(
+              color: ConstColors.textColor,
+            ),
           ),
-          leading: const Icon(Icons.system_update, color: Colors.blue),
+          leading: const Icon(
+            Icons.system_update,
+            color: ConstColors.primaryDeep,
+          ),
           actions: [
             TextButton(
               onPressed: () =>
@@ -126,12 +137,17 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
       ..hideCurrentMaterialBanner()
       ..showMaterialBanner(
         MaterialBanner(
-          backgroundColor: Colors.green[100],
+          backgroundColor: ConstColors.successGreen.withValues(alpha: 0.15),
           content: Text(
             'Update installed! Restart app to apply changes.',
-            style: getTextTheme().bodyMedium?.copyWith(color: Colors.green),
+            style: getTextTheme().bodyMedium?.copyWith(
+              color: ConstColors.textColor,
+            ),
           ),
-          leading: const Icon(Icons.check_circle, color: Colors.green),
+          leading: const Icon(
+            Icons.check_circle,
+            color: ConstColors.successGreen,
+          ),
           actions: [
             TextButton(
               onPressed: () =>
@@ -148,12 +164,14 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
       ..hideCurrentMaterialBanner()
       ..showMaterialBanner(
         MaterialBanner(
-          backgroundColor: Colors.red[100],
+          backgroundColor: ConstColors.errorRed.withValues(alpha: 0.12),
           content: Text(
             message,
-            style: getTextTheme().bodyMedium?.copyWith(color: Colors.red),
+            style: getTextTheme().bodyMedium?.copyWith(
+              color: ConstColors.textColor,
+            ),
           ),
-          leading: const Icon(Icons.error, color: Colors.red),
+          leading: const Icon(Icons.error, color: ConstColors.errorRed),
           actions: [
             TextButton(
               onPressed: () =>
@@ -181,37 +199,38 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: theme.colorScheme.primary,
         title: Text(
           'Software Update',
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+          style: getTextTheme().titleLarge?.copyWith(
+            color: ConstColors.textColor,
+          ),
         ),
-        foregroundColor: Colors.white,
       ),
       body: Padding(
-        padding: EdgeInsets.all(16.w),
+        padding: AppSpacing.screen,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Update status card
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16.r),
-              ),
+            NeuCard(
               child: Padding(
-                padding: EdgeInsets.all(20.w),
+                padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
                         Container(
-                          padding: EdgeInsets.all(12.w),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12.w,
+                            vertical: 12.h,
+                          ),
                           decoration: BoxDecoration(
                             color: isUpdateAvailable
-                                ? Colors.blue.withValues(alpha: 0.2)
-                                : Colors.green.withValues(alpha: 0.2),
+                                ? ConstColors.primary.withValues(alpha: 0.35)
+                                : ConstColors.successGreen.withValues(
+                                    alpha: 0.2,
+                                  ),
                             borderRadius: BorderRadius.circular(12.r),
                           ),
                           child: Icon(
@@ -220,8 +239,8 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
                                 : Icons.check_circle_outline,
                             size: 28.r,
                             color: isUpdateAvailable
-                                ? Colors.blue
-                                : Colors.green,
+                                ? ConstColors.primaryDeep
+                                : ConstColors.successGreen,
                           ),
                         ),
                         SizedBox(width: 16.w),
@@ -236,8 +255,8 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
                                 style: theme.textTheme.titleLarge?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: isUpdateAvailable
-                                      ? Colors.blue
-                                      : Colors.green,
+                                      ? ConstColors.primaryDeep
+                                      : ConstColors.successGreen,
                                 ),
                               ),
                               SizedBox(height: 4.h),
@@ -261,7 +280,7 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
                       SizedBox(height: 8.h),
                       LinearProgressIndicator(
                         value: updates.downloadProgress,
-                        backgroundColor: Colors.grey[200],
+                        backgroundColor: ConstColors.borderColor,
                         valueColor: AlwaysStoppedAnimation<Color>(
                           theme.colorScheme.primary,
                         ),
@@ -283,18 +302,14 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
             Text(
               'VERSION INFORMATION',
               style: theme.textTheme.labelLarge?.copyWith(
-                color: Colors.grey[600],
+                color: ConstColors.textColorLight,
                 fontWeight: FontWeight.bold,
               ),
             ),
             SizedBox(height: 8.h),
-            Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16.r),
-              ),
+            NeuCard(
               child: Padding(
-                padding: EdgeInsets.all(16.w),
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
                 child: Column(
                   children: [
                     _buildInfoRow('Current version', updates.currentVersion),
@@ -328,7 +343,7 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
                     ? _downloadAndInstallUpdate
                     : _checkForUpdates,
                 backgroundColor: ConstColors.primary,
-                textColor: ConstColors.white,
+                textColor: ConstColors.textColor,
               ),
             ),
             SizedBox(height: 16.h),
@@ -346,7 +361,9 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
         children: [
           Text(
             label,
-            style: getTextTheme().bodyMedium?.copyWith(color: Colors.grey),
+            style: getTextTheme().bodyMedium?.copyWith(
+              color: ConstColors.textColorLight,
+            ),
           ),
           Text(
             value,

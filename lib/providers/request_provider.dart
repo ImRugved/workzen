@@ -195,9 +195,7 @@ class RequestProvider with ChangeNotifier {
 
   // Get real-time stream of all requests (for admin view)
   Stream<List<RequestModel>> getAllRequestsStream({String? type}) {
-    Query query = _firestore.collectionGroup(
-      FirestoreSubCollections.requests,
-    );
+    Query query = _firestore.collectionGroup(FirestoreSubCollections.requests);
 
     if (type != null) {
       query = query.where('type', isEqualTo: type);
@@ -426,7 +424,7 @@ class RequestProvider with ChangeNotifier {
         additionalData: {'leaveType': leaveType},
       ),
       AppConstants.leaveRequestNotification,
-      "${user.name} has applied for ${leaveType.toUpperCase()} leave from ${_formatDate(fromDate)} to ${_formatDate(toDate)}",
+      "${user.name} has applied for ${RequestModel.leaveTypeFullName(leaveType)} ${_datePhrase(fromDate, toDate)}",
     );
   }
 
@@ -443,7 +441,11 @@ class RequestProvider with ChangeNotifier {
     TimeOfDay? toTime,
   }) async {
     final day = DateTime(workedDate.year, workedDate.month, workedDate.day);
-    final offDay = DateTime(compOffDate.year, compOffDate.month, compOffDate.day);
+    final offDay = DateTime(
+      compOffDate.year,
+      compOffDate.month,
+      compOffDate.day,
+    );
 
     try {
       // One request per worked day (a rejected one may be filed again)
@@ -494,7 +496,9 @@ class RequestProvider with ChangeNotifier {
       "${user.name} has applied for ${isHalfDay ? 'half day' : 'full day'} comp off (worked ${_formatDate(day)}, off on ${_formatDate(offDay)})",
     );
 
-    return success ? null : 'Failed to submit comp off request. Please try again.';
+    return success
+        ? null
+        : 'Failed to submit comp off request. Please try again.';
   }
 
   // Apply WFH request
@@ -515,7 +519,7 @@ class RequestProvider with ChangeNotifier {
         appliedOn: DateTime.now(),
       ),
       AppConstants.wfhRequestNotification,
-      "${user.name} has applied for work from home from ${_formatDate(fromDate)} to ${_formatDate(toDate)}",
+      "${user.name} has applied for work from home ${_datePhrase(fromDate, toDate)}",
     );
   }
 
@@ -623,7 +627,7 @@ class RequestProvider with ChangeNotifier {
 
           bool notificationSent = await _fcmService.sendNotificationToUser(
             userId: adminId,
-            title: "${request.typeDisplayName} Request",
+            title: "${request.fullTypeName} Request",
             body: notificationBody,
             data: notificationData,
           );
@@ -706,15 +710,15 @@ class RequestProvider with ChangeNotifier {
         String notificationBody;
         if (request.isLeaveRequest || request.isWFHRequest) {
           notificationBody =
-              "Your ${request.typeDisplayName.toLowerCase()} request from ${_formatDate(request.fromDate!)} to ${_formatDate(request.toDate!)} has been $statusText";
+              "Your ${request.fullTypeName} request ${_datePhrase(request.fromDate!, request.toDate!)} has been $statusText";
         } else {
           notificationBody =
-              "Your ${request.typeDisplayName.toLowerCase()} request for ${request.displayDate} has been $statusText";
+              "Your ${request.fullTypeName} request for ${request.displayDate} has been $statusText";
         }
 
         bool notificationSent = await _fcmService.sendNotificationToUser(
           userId: request.userId,
-          title: "${request.typeDisplayName} Status Update",
+          title: "${request.fullTypeName} Status Update",
           body: notificationBody,
           data: notificationData,
         );
@@ -822,6 +826,15 @@ class RequestProvider with ChangeNotifier {
   // Helper method for date formatting
   String _formatDate(DateTime date) {
     return "${date.day}/${date.month}/${date.year}";
+  }
+
+  // "on 30/10/2026" for one day, "from 30/10/2026 to 1/11/2026" for more
+  String _datePhrase(DateTime from, DateTime to) {
+    final sameDay =
+        from.year == to.year && from.month == to.month && from.day == to.day;
+    return sameDay
+        ? "on ${_formatDate(from)}"
+        : "from ${_formatDate(from)} to ${_formatDate(to)}";
   }
 
   // Deduct leave balance when admin approves leave

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart';
 import 'package:provider/provider.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../../../providers/employee_management_provider.dart';
 import '../../../providers/onboarding_provider.dart';
 import '../../../providers/attendance_provider.dart';
@@ -9,16 +10,17 @@ import '../../../providers/dashboard_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/organization_provider.dart';
 import '../../../providers/admin_settings_form_provider.dart';
-import '../../../providers/value_provider.dart';
 import '../../../constants/permissions.dart';
 import 'package:intl/intl.dart';
 import '../../../models/attendance_model.dart';
-import '../../../models/holiday_model.dart';
 import '../../../models/office_hours_model.dart';
 import '../../../widgets/department_role_manager.dart';
+import '../../../widgets/holiday_calendar_card.dart';
+import '../../../widgets/donut_stat_card.dart';
 import '../../../constants/const_textstyle.dart';
 import '../../../constants/constant_button.dart';
 import '../../../constants/constant_colors.dart';
+import '../../../constants/app_theme.dart';
 import '../../../constants/constant_date_time_picker.dart';
 import '../../../constants/constant_snackbar.dart';
 import 'package:shimmer/shimmer.dart';
@@ -84,7 +86,9 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
       appBar: AppBar(
         title: Text(
           'Settings',
-          style: getTextTheme().titleMedium?.copyWith(color: Colors.white),
+          style: getTextTheme().titleMedium?.copyWith(
+            color: ConstColors.textColor,
+          ),
         ),
         actions: [
           IconButton(
@@ -109,7 +113,7 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                 onRefresh: () async => _loadData(),
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.all(12.w),
+                  padding: AppSpacing.screen,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -140,13 +144,23 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                             ),
                             if (empProvider.departments.isNotEmpty)
                               TextButton.icon(
-                                onPressed: () => DepartmentRoleManager
-                                    .showAddDepartmentDialog(
+                                onPressed: () =>
+                                    DepartmentRoleManager.showAddDepartmentDialog(
                                       context,
                                       empProvider,
                                     ),
-                                icon: Icon(Icons.add, size: 18.r),
-                                label: const Text('Add'),
+                                icon: Icon(
+                                  Icons.add,
+                                  size: 18.r,
+                                  color: ConstColors.primaryDeep,
+                                ),
+                                label: Text(
+                                  'Add',
+                                  style: getTextTheme().labelLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: ConstColors.primaryDeep,
+                                  ),
+                                ),
                               ),
                           ],
                         ),
@@ -209,20 +223,17 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
   Widget _buildAssignLeaveBanner(int missing) {
     final year = DateTime.now().year;
 
-    return Card(
-      color: Colors.orange.shade50,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12.r),
-        side: BorderSide(color: Colors.orange.shade200),
-      ),
+    return NeuCard(
+      color: ConstColors.inProgressOrange.withValues(alpha: 0.08),
+      borderColor: ConstColors.inProgressOrange.withValues(alpha: 0.4),
+      radius: NeuStyle.radiusSmall,
       child: Padding(
-        padding: EdgeInsets.all(12.w),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
         child: Row(
           children: [
             Icon(
               Icons.notifications_active,
-              color: Colors.orange.shade800,
+              color: ConstColors.inProgressOrange,
               size: 26.r,
             ),
             SizedBox(width: 12.w),
@@ -234,7 +245,7 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                     'Assign $year leaves',
                     style: getTextTheme().titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: Colors.orange.shade900,
+                      color: ConstColors.inProgressOrange,
                     ),
                   ),
                   Text(
@@ -268,7 +279,7 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
     if (!onboarding.isLeaveConfigured) {
       ConstantSnackbar.show(
         title: 'Set the default leave counts first (Leave Configuration)',
-        backgroundColor: Colors.orange,
+        backgroundColor: ConstColors.inProgressOrange,
       );
       return;
     }
@@ -312,7 +323,7 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
     } else {
       ConstantSnackbar.show(
         title: 'No employees needed $year leaves',
-        backgroundColor: Colors.orange,
+        backgroundColor: ConstColors.inProgressOrange,
       );
     }
     _loadData();
@@ -322,7 +333,7 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, size: 22.r, color: ConstColors.primary),
+        Icon(icon, size: 22.r, color: ConstColors.primaryDeep),
         SizedBox(width: 8.w),
         Text(
           title,
@@ -360,121 +371,46 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
         final halfDay = todayRecords
             .where((a) => a.status == 'half-day')
             .length;
-        final total = present + absent + onLeave + halfDay;
+        // Onboarded employees with no record today have not punched in yet
+        final headcount = empProvider.employees
+            .where((e) => e.isOnboarded)
+            .length;
+        final recorded = present + absent + onLeave + halfDay;
+        final notMarked = (headcount - recorded).clamp(0, headcount);
+        final total = recorded + notMarked;
 
         if (total == 0) return const SizedBox.shrink();
-
-        final chartData = [
-          _ChartItem('Present', present, ConstColors.successGreen),
-          _ChartItem('Absent', absent, ConstColors.errorRed),
-          _ChartItem('On Leave', onLeave, ConstColors.inProgressOrange),
-          _ChartItem('Half Day', halfDay, ConstColors.warningAmber),
-        ];
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionHeader("Today's Attendance", Icons.access_time),
-            SizedBox(height: 10.h),
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12.r),
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(10.w),
-                child: Column(
-                  children: [
-                    // Pie Chart
-                    SizedBox(
-                      width: 180.w,
-                      height: 180.h,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          PieChart(
-                            PieChartData(
-                              sectionsSpace: 2,
-                              centerSpaceRadius: 45.r,
-                              sections: chartData
-                                  .where((d) => d.count > 0)
-                                  .map(
-                                    (d) => PieChartSectionData(
-                                      value: d.count.toDouble(),
-                                      title: '${d.count}',
-                                      color: d.color,
-                                      radius: 32.r,
-                                      titleStyle: getTextTheme().bodySmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                          ),
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                          ),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '$total',
-                                style: getTextTheme().titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: ConstColors.primary,
-                                ),
-                              ),
-                              Text(
-                                'Today',
-                                style: getTextTheme().labelSmall?.copyWith(
-                                  color: ConstColors.textColorLight,
-                                  fontSize: 10.sp,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 12.h),
-                    // Legend
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: chartData
-                          .map(
-                            (d) => Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 10.w,
-                                  height: 10.h,
-                                  decoration: BoxDecoration(
-                                    color: d.color,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                SizedBox(width: 4.w),
-                                Text(
-                                  '${d.label} ',
-                                  style: getTextTheme().labelMedium?.copyWith(
-                                    color: ConstColors.textColorLight,
-                                  ),
-                                ),
-                                Text(
-                                  '${d.count}',
-                                  style: getTextTheme().labelMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: d.color,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ],
+            Row(
+              children: [
+                Expanded(
+                  child: _buildSectionHeader(
+                    "Today's Attendance",
+                    Icons.access_time,
+                  ),
                 ),
-              ),
+                Text(
+                  DateFormat('EEE, dd MMM').format(now),
+                  style: getTextTheme().labelMedium?.copyWith(
+                    color: ConstColors.textColorLight,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 10.h),
+            // The app's donut: today's employees by attendance type
+            DonutStatCard(
+              centerLabel: 'Employees',
+              items: [
+                DonutStatItem('Present', present, ConstColors.successGreen),
+                DonutStatItem('Half Day', halfDay, ConstColors.warningAmber),
+                DonutStatItem('On Leave', onLeave, ConstColors.inProgressOrange),
+                DonutStatItem('Absent', absent, ConstColors.errorRed),
+                DonutStatItem('Not in yet', notMarked, ConstColors.pendingGrey),
+              ],
             ),
             SizedBox(height: 24.h),
           ],
@@ -486,17 +422,13 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
   // --- 2. Department & Roles ---
   Widget _buildDepartmentSection(EmployeeManagementProvider provider) {
     if (provider.departments.isEmpty) {
-      return Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.r),
-        ),
+      return NeuCard(
         child: Padding(
-          padding: EdgeInsets.all(16.w),
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
           child: Column(
             children: [
               Container(
-                padding: EdgeInsets.all(12.w),
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
                 decoration: BoxDecoration(
                   color: ConstColors.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
@@ -504,7 +436,7 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                 child: Icon(
                   Icons.business,
                   size: 28.r,
-                  color: ConstColors.primary,
+                  color: ConstColors.primaryDeep,
                 ),
               ),
               SizedBox(height: 10.h),
@@ -528,11 +460,16 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                 width: double.infinity,
                 child: ConstantButton(
                   text: 'Add Department',
-                  onPressed: () => DepartmentRoleManager.showAddDepartmentDialog(
-                    context,
-                    provider,
+                  onPressed: () =>
+                      DepartmentRoleManager.showAddDepartmentDialog(
+                        context,
+                        provider,
+                      ),
+                  icon: Icon(
+                    Icons.add,
+                    size: 20.r,
+                    color: ConstColors.textColor,
                   ),
-                  icon: Icon(Icons.add, size: 20.r, color: ConstColors.white),
                   backgroundColor: ConstColors.primary,
                 ),
               ),
@@ -542,138 +479,104 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
       );
     }
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-      child: Padding(
-        padding: EdgeInsets.all(12.w),
-        child: Column(
-          children: provider.departments.asMap().entries.map((entry) {
-            final dept = entry.value;
-            final isLast = entry.key == provider.departments.length - 1;
+    // One tappable card per department; tapping opens its manage sheet
+    return Column(
+      children: provider.departments.map((dept) {
+        final empCount = provider.employees
+            .where((e) => e.department == dept.name)
+            .length;
 
-            final empCount = provider.employees
-                .where((e) => e.department == dept.name)
-                .length;
-
-            return Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(8.r),
-                      decoration: BoxDecoration(
-                        color: ConstColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8.r),
+        return Padding(
+          padding: EdgeInsets.symmetric(vertical: 5.h),
+          child: NeuCard(
+            onTap: () => DepartmentRoleManager.showManageSheet(
+              context,
+              provider,
+              dept,
+            ),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 36.r,
+                        height: 36.r,
+                        decoration: BoxDecoration(
+                          color: ConstColors.lightShade,
+                          borderRadius: BorderRadius.circular(10.r),
+                        ),
+                        child: Icon(
+                          Icons.business,
+                          size: 20.r,
+                          color: ConstColors.primaryDeep,
+                        ),
                       ),
-                      child: Icon(
-                        Icons.business,
-                        color: ConstColors.primary,
-                        size: 20.r,
+                      SizedBox(width: 10.w),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              dept.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: getTextTheme().bodyMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: ConstColors.textColor,
+                              ),
+                            ),
+                            Text(
+                              '$empCount ${empCount == 1 ? 'employee' : 'employees'}'
+                              '  •  ${dept.roles.length} ${dept.roles.length == 1 ? 'role' : 'roles'}',
+                              style: getTextTheme().bodySmall?.copyWith(
+                                color: ConstColors.textColorLight,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    SizedBox(width: 12.w),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  dept.name,
-                                  style: getTextTheme().titleSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                      Icon(
+                        Icons.chevron_right,
+                        size: 22.r,
+                        color: ConstColors.textColorLight,
+                      ),
+                    ],
+                  ),
+                  if (dept.roles.isNotEmpty) ...[
+                    SizedBox(height: 8.h),
+                    Wrap(
+                      spacing: 6.w,
+                      runSpacing: 4.h,
+                      children: [
+                        for (final role in dept.roles)
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 8.w,
+                              vertical: 3.h,
+                            ),
+                            decoration: BoxDecoration(
+                              color: ConstColors.lightShade,
+                              borderRadius: BorderRadius.circular(10.r),
+                            ),
+                            child: Text(
+                              role,
+                              style: getTextTheme().labelSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: ConstColors.textColor,
                               ),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 8.w,
-                                  vertical: 2.h,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: ConstColors.infoBlue.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12.r),
-                                ),
-                                child: Text(
-                                  '$empCount emp',
-                                  style: getTextTheme().labelSmall?.copyWith(
-                                    color: ConstColors.infoBlue,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                          SizedBox(height: 6.h),
-                          dept.roles.isEmpty
-                              ? Text(
-                                  'No roles assigned',
-                                  style: getTextTheme().bodySmall?.copyWith(
-                                    color: ConstColors.textColorLight,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                )
-                              : Wrap(
-                                  spacing: 6.w,
-                                  runSpacing: 4.h,
-                                  children: dept.roles.map((role) {
-                                    return Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 8.w,
-                                        vertical: 4.h,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: ConstColors.accent.withOpacity(
-                                          0.12,
-                                        ),
-                                        borderRadius: BorderRadius.circular(
-                                          6.r,
-                                        ),
-                                        border: Border.all(
-                                          color: ConstColors.accent.withOpacity(
-                                            0.3,
-                                          ),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        role,
-                                        style: getTextTheme().labelSmall
-                                            ?.copyWith(
-                                              color: ConstColors.primary,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.settings,
-                        size: 20.r,
-                        color: ConstColors.primary,
-                      ),
-                      tooltip: 'Manage ${dept.name}',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => DepartmentRoleManager.showManageSheet(
-                        context,
-                        provider,
-                        dept,
-                      ),
+                      ],
                     ),
                   ],
-                ),
-                if (!isLast) Divider(height: 20.h),
-              ],
-            );
-          }).toList(),
-        ),
-      ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -699,187 +602,187 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
         final leave = dashProvider.employeeLeaves[emp.id];
         final isExpanded = dashProvider.expandedEmployeeId == emp.id;
 
-        return Card(
-          elevation: isExpanded ? 3 : 1,
-          margin: EdgeInsets.only(bottom: 8.h),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.r),
-            side: isExpanded
-                ? BorderSide(color: ConstColors.primary.withOpacity(0.3))
-                : BorderSide.none,
-          ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12.r),
-            onTap: () => dashProvider.toggleExpandedEmployee(emp.id),
-            child: Padding(
-              padding: EdgeInsets.all(12.w),
-              child: Column(
-                children: [
-                  // Header row
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 18.r,
-                        backgroundColor: ConstColors.primary.withOpacity(0.1),
-                        child: Text(
-                          emp.name.isNotEmpty ? emp.name[0].toUpperCase() : 'E',
-                          style: getTextTheme().titleSmall?.copyWith(
-                            color: ConstColors.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
+        return NeuCard(
+          margin: EdgeInsets.symmetric(vertical: 8.h),
+          radius: NeuStyle.radiusSmall,
+          borderColor: isExpanded
+              ? ConstColors.primary.withValues(alpha: 0.6)
+              : null,
+          onTap: () => dashProvider.toggleExpandedEmployee(emp.id),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+            child: Column(
+              children: [
+                // Header row
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18.r,
+                      backgroundColor: ConstColors.primary.withValues(
+                        alpha: 0.1,
+                      ),
+                      child: Text(
+                        emp.name.isNotEmpty ? emp.name[0].toUpperCase() : 'E',
+                        style: getTextTheme().titleSmall?.copyWith(
+                          color: ConstColors.primaryDeep,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      SizedBox(width: 10.w),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              emp.name,
-                              style: getTextTheme().bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              '${emp.department ?? 'N/A'} • ${emp.jobRole ?? 'N/A'}',
-                              style: getTextTheme().labelSmall?.copyWith(
-                                color: ConstColors.textColorLight,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (leave != null) ...[
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 8.w,
-                            vertical: 4.h,
-                          ),
-                          decoration: BoxDecoration(
-                            color: ConstColors.successGreen.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8.r),
-                          ),
-                          child: Text(
-                            '${leave.totalBalance} left',
-                            style: getTextTheme().labelSmall?.copyWith(
-                              color: ConstColors.successGreen,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ] else ...[
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 8.w,
-                            vertical: 4.h,
-                          ),
-                          decoration: BoxDecoration(
-                            color: ConstColors.warningAmber.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8.r),
-                          ),
-                          child: Text(
-                            'No data',
-                            style: getTextTheme().labelSmall?.copyWith(
-                              color: ConstColors.warningAmber,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                      SizedBox(width: 4.w),
-                      Icon(
-                        isExpanded
-                            ? Icons.keyboard_arrow_up
-                            : Icons.keyboard_arrow_down,
-                        color: ConstColors.textColorLight,
-                        size: 20.r,
-                      ),
-                    ],
-                  ),
-                  // Expanded details
-                  if (isExpanded && leave != null) ...[
-                    SizedBox(height: 12.h),
-                    const Divider(height: 1),
-                    SizedBox(height: 12.h),
-                    _buildLeaveBalanceRow(
-                      'Privilege Leave (PL)',
-                      leave.plTotal,
-                      leave.plUsed,
-                      leave.plBalance,
-                      ConstColors.infoBlue,
-                      emp.id,
-                      'pl',
-                      dashProvider,
                     ),
-                    SizedBox(height: 10.h),
-                    _buildLeaveBalanceRow(
-                      'Sick Leave (SL)',
-                      leave.slTotal,
-                      leave.slUsed,
-                      leave.slBalance,
-                      ConstColors.successGreen,
-                      emp.id,
-                      'sl',
-                      dashProvider,
-                    ),
-                    SizedBox(height: 10.h),
-                    _buildLeaveBalanceRow(
-                      'Casual Leave (CL)',
-                      leave.clTotal,
-                      leave.clUsed,
-                      leave.clBalance,
-                      ConstColors.inProgressOrange,
-                      emp.id,
-                      'cl',
-                      dashProvider,
-                    ),
-                    SizedBox(height: 12.h),
-                    // Summary bar
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        vertical: 8.h,
-                        horizontal: 12.w,
-                      ),
-                      decoration: BoxDecoration(
-                        color: ConstColors.primary.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(8.r),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    SizedBox(width: 10.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildSummaryItem(
-                            'Allocated',
-                            leave.totalAllocated,
-                            ConstColors.primary,
+                          Text(
+                            emp.name,
+                            style: getTextTheme().bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          _buildSummaryItem(
-                            'Used',
-                            leave.totalUsed,
-                            ConstColors.errorRed,
-                          ),
-                          _buildSummaryItem(
-                            'Balance',
-                            leave.totalBalance,
-                            ConstColors.successGreen,
+                          Text(
+                            '${emp.department ?? 'N/A'} • ${emp.jobRole ?? 'N/A'}',
+                            style: getTextTheme().labelSmall?.copyWith(
+                              color: ConstColors.textColorLight,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
-                  ],
-                  if (isExpanded && leave == null) ...[
-                    SizedBox(height: 12.h),
-                    Text(
-                      'Leave balance not allocated yet',
-                      style: getTextTheme().bodySmall?.copyWith(
-                        color: ConstColors.textColorLight,
-                        fontStyle: FontStyle.italic,
+                    if (leave != null) ...[
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8.w,
+                          vertical: 4.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: ConstColors.successGreen.withValues(
+                            alpha: 0.1,
+                          ),
+                          borderRadius: BorderRadius.circular(8.r),
+                        ),
+                        child: Text(
+                          '${leave.totalBalance} left',
+                          style: getTextTheme().labelSmall?.copyWith(
+                            color: ConstColors.successGreen,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
+                    ] else ...[
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8.w,
+                          vertical: 4.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: ConstColors.warningAmber.withValues(
+                            alpha: 0.1,
+                          ),
+                          borderRadius: BorderRadius.circular(8.r),
+                        ),
+                        child: Text(
+                          'No data',
+                          style: getTextTheme().labelSmall?.copyWith(
+                            color: ConstColors.warningAmber,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                    SizedBox(width: 4.w),
+                    Icon(
+                      isExpanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: ConstColors.textColorLight,
+                      size: 20.r,
                     ),
                   ],
+                ),
+                // Expanded details
+                if (isExpanded && leave != null) ...[
+                  SizedBox(height: 12.h),
+                  const Divider(height: 1),
+                  SizedBox(height: 12.h),
+                  _buildLeaveBalanceRow(
+                    'Privilege Leave (PL)',
+                    leave.plTotal,
+                    leave.plUsed,
+                    leave.plBalance,
+                    ConstColors.infoBlue,
+                    emp.id,
+                    'pl',
+                    dashProvider,
+                  ),
+                  SizedBox(height: 10.h),
+                  _buildLeaveBalanceRow(
+                    'Sick Leave (SL)',
+                    leave.slTotal,
+                    leave.slUsed,
+                    leave.slBalance,
+                    ConstColors.successGreen,
+                    emp.id,
+                    'sl',
+                    dashProvider,
+                  ),
+                  SizedBox(height: 10.h),
+                  _buildLeaveBalanceRow(
+                    'Casual Leave (CL)',
+                    leave.clTotal,
+                    leave.clUsed,
+                    leave.clBalance,
+                    ConstColors.inProgressOrange,
+                    emp.id,
+                    'cl',
+                    dashProvider,
+                  ),
+                  SizedBox(height: 12.h),
+                  // Summary bar
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      vertical: 8.h,
+                      horizontal: 12.w,
+                    ),
+                    decoration: BoxDecoration(
+                      color: ConstColors.primary.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildSummaryItem(
+                          'Allocated',
+                          leave.totalAllocated,
+                          ConstColors.primaryDeep,
+                        ),
+                        _buildSummaryItem(
+                          'Used',
+                          leave.totalUsed,
+                          ConstColors.errorRed,
+                        ),
+                        _buildSummaryItem(
+                          'Balance',
+                          leave.totalBalance,
+                          ConstColors.successGreen,
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
-              ),
+                if (isExpanded && leave == null) ...[
+                  SizedBox(height: 12.h),
+                  Text(
+                    'Leave balance not allocated yet',
+                    style: getTextTheme().bodySmall?.copyWith(
+                      color: ConstColors.textColorLight,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         );
@@ -943,7 +846,10 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                   ),
                   borderRadius: BorderRadius.circular(4.r),
                   child: Padding(
-                    padding: EdgeInsets.all(2.r),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 2.r,
+                      vertical: 2.r,
+                    ),
                     child: Icon(
                       Icons.edit_outlined,
                       size: 14.r,
@@ -960,7 +866,7 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
           borderRadius: BorderRadius.circular(4.r),
           child: LinearProgressIndicator(
             value: progress.clamp(0.0, 1.0),
-            backgroundColor: color.withOpacity(0.12),
+            backgroundColor: color.withValues(alpha: 0.12),
             valueColor: AlwaysStoppedAnimation<Color>(color),
             minHeight: 6.h,
           ),
@@ -1089,78 +995,116 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
       _form.initLeaveConfig(config);
     }
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+    return NeuCard(
       child: Padding(
-        padding: EdgeInsets.all(12.w),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Set default annual leave allocation for new employees',
+              'Default leave days each employee gets per year',
               style: getTextTheme().bodySmall?.copyWith(
                 color: ConstColors.textColorLight,
               ),
             ),
-            SizedBox(height: 16.h),
-            _buildLeaveConfigField(
-              'Privilege Leave (PL)',
-              _plController,
-              ConstColors.infoBlue,
-            ),
             SizedBox(height: 12.h),
             _buildLeaveConfigField(
-              'Sick Leave (SL)',
+              'PL',
+              'Privilege Leave',
+              _plController,
+              ConstColors.primary,
+            ),
+            SizedBox(height: 8.h),
+            _buildLeaveConfigField(
+              'SL',
+              'Sick Leave',
               _slController,
               ConstColors.successGreen,
             ),
-            SizedBox(height: 12.h),
+            SizedBox(height: 8.h),
             _buildLeaveConfigField(
-              'Casual Leave (CL)',
+              'CL',
+              'Casual Leave',
               _clController,
               ConstColors.inProgressOrange,
             ),
+            SizedBox(height: 8.h),
+            // Live total of the three fields
+            ListenableBuilder(
+              listenable: Listenable.merge([
+                _plController,
+                _slController,
+                _clController,
+              ]),
+              builder: (context, _) {
+                final total =
+                    (int.tryParse(_plController.text) ?? 0) +
+                    (int.tryParse(_slController.text) ?? 0) +
+                    (int.tryParse(_clController.text) ?? 0);
+                return Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'Total $total days a year',
+                    style: getTextTheme().labelMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: ConstColors.textColor,
+                    ),
+                  ),
+                );
+              },
+            ),
             SizedBox(height: 12.h),
-            const Divider(height: 1),
+            Divider(height: 1, color: ConstColors.borderColor),
+            SizedBox(height: 12.h),
             Text(
               'When next year\'s leave is assigned',
               style: getTextTheme().labelLarge?.copyWith(
                 fontWeight: FontWeight.bold,
+                color: ConstColors.textColor,
               ),
             ),
-            Text(
-              'Ticked: unused days move to the new year. Unticked: they reset to 0. '
-              'Sick and casual leave always reset.',
-              style: getTextTheme().bodySmall?.copyWith(
-                color: ConstColors.textColorLight,
-              ),
-            ),
+            SizedBox(height: 8.h),
             Consumer<AdminSettingsFormProvider>(
               builder: (context, form, _) => Column(
                 children: [
-                  CheckboxListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    activeColor: ConstColors.primary,
-                    title: const Text('Carry forward Privilege Leave (PL)'),
-                    value: form.carryForwardPL,
-                    onChanged: (v) => form.setCarryForwardPL(v ?? false),
+                  _buildCarryForwardTile(
+                    'Carry forward Privilege Leave',
+                    'Unused PL moves to the new year',
+                    form.carryForwardPL,
+                    form.setCarryForwardPL,
                   ),
-                  CheckboxListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    activeColor: ConstColors.primary,
-                    title: const Text('Carry forward Comp Off'),
-                    value: form.carryForwardCompOff,
-                    onChanged: (v) => form.setCarryForwardCompOff(v ?? false),
+                  SizedBox(height: 8.h),
+                  _buildCarryForwardTile(
+                    'Carry forward Comp Off',
+                    'Unused comp off moves to the new year',
+                    form.carryForwardCompOff,
+                    form.setCarryForwardCompOff,
                   ),
                 ],
               ),
             ),
             SizedBox(height: 8.h),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 16.r,
+                  color: ConstColors.textColorLight,
+                ),
+                SizedBox(width: 6.w),
+                Expanded(
+                  child: Text(
+                    'Switched off, unused days reset to 0. Sick and casual '
+                    'leave always reset.',
+                    style: getTextTheme().bodySmall?.copyWith(
+                      color: ConstColors.textColorLight,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 14.h),
             SizedBox(
               width: double.infinity,
               child: ConstantButton(
@@ -1178,53 +1122,152 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
     );
   }
 
+  // One leave type: coloured code badge, its name and a - / number / + stepper
   Widget _buildLeaveConfigField(
-    String label,
+    String code,
+    String name,
     TextEditingController controller,
-    Color accentColor,
+    Color color,
   ) {
-    return Row(
-      children: [
-        Container(
-          width: 8.w,
-          height: 8.h,
-          decoration: BoxDecoration(
-            color: accentColor,
-            shape: BoxShape.circle,
-          ),
-        ),
-        SizedBox(width: 8.w),
-        Expanded(
-          child: Text(
-            label,
-            style: getTextTheme().bodySmall?.copyWith(
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        SizedBox(
-          width: 80.w,
-          child: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            style: getTextTheme().bodyMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-            decoration: InputDecoration(
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 8.w,
-                vertical: 8.h,
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14.r),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34.r,
+            height: 34.r,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            child: Text(
+              code,
+              style: getTextTheme().labelMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: ConstColors.textColor,
               ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8.r),
-              ),
-              suffixText: 'days',
-              suffixStyle: getTextTheme().labelSmall,
             ),
           ),
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: getTextTheme().bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: ConstColors.textColor,
+                  ),
+                ),
+                Text(
+                  'days per year',
+                  style: getTextTheme().labelSmall?.copyWith(
+                    color: ConstColors.textColorLight,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _stepButton(Icons.remove, () => _stepLeave(controller, -1)),
+          SizedBox(
+            width: 46.w,
+            child: TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(3),
+              ],
+              style: getTextTheme().bodyLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: ConstColors.textColor,
+              ),
+              decoration: InputDecoration(
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 4.w,
+                  vertical: 8.h,
+                ),
+              ),
+            ),
+          ),
+          _stepButton(Icons.add, () => _stepLeave(controller, 1)),
+        ],
+      ),
+    );
+  }
+
+  // Round white button, 40 wide so it is easy to tap
+  Widget _stepButton(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: Container(
+        width: 40.r,
+        height: 40.r,
+        decoration: BoxDecoration(
+          color: ConstColors.cardBackground,
+          shape: BoxShape.circle,
+          border: Border.all(color: ConstColors.borderColor),
         ),
-      ],
+        child: Icon(icon, size: 20.r, color: ConstColors.textColor),
+      ),
+    );
+  }
+
+  // Moves a leave field by one day, never below 0 or above 365
+  void _stepLeave(TextEditingController controller, int delta) {
+    final current = int.tryParse(controller.text) ?? 0;
+    controller.text = (current + delta).clamp(0, 365).toString();
+  }
+
+  // A switch row for a carry forward rule
+  Widget _buildCarryForwardTile(
+    String title,
+    String subtitle,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
+    return Container(
+      padding: EdgeInsets.only(left: 12.w, right: 4.w, top: 4.h, bottom: 4.h),
+      decoration: BoxDecoration(
+        color: ConstColors.lightShade,
+        borderRadius: BorderRadius.circular(14.r),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: getTextTheme().bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: ConstColors.textColor,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: getTextTheme().bodySmall?.copyWith(
+                    color: ConstColors.textColorLight,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            activeThumbColor: ConstColors.white,
+            activeTrackColor: ConstColors.primaryDeep,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
     );
   }
 
@@ -1271,35 +1314,35 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
       _form.initOfficeHours(saved);
     }
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+    return NeuCard(
       child: Padding(
-        padding: EdgeInsets.all(12.w),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Set the office timing and when a punch in counts as late or a half day',
+              'Office timing, and when a punch in counts as late or a half day',
               style: getTextTheme().bodySmall?.copyWith(
                 color: ConstColors.textColorLight,
               ),
             ),
-            SizedBox(height: 16.h),
+            SizedBox(height: 12.h),
             Consumer<AdminSettingsFormProvider>(
               builder: (context, form, _) => Row(
                 children: [
                   Expanded(
                     child: _buildTimeButton(
                       'Office start',
+                      Icons.wb_sunny_outlined,
                       form.officeStart,
                       form.setOfficeStart,
                     ),
                   ),
-                  SizedBox(width: 12.w),
+                  SizedBox(width: 10.w),
                   Expanded(
                     child: _buildTimeButton(
                       'Office end',
+                      Icons.nightlight_outlined,
                       form.officeEnd,
                       form.setOfficeEnd,
                     ),
@@ -1307,16 +1350,26 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                 ],
               ),
             ),
-            SizedBox(height: 16.h),
+            SizedBox(height: 14.h),
+            Text(
+              'Attendance rules (optional)',
+              style: getTextTheme().labelLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: ConstColors.textColor,
+              ),
+            ),
+            SizedBox(height: 8.h),
             _buildMinutesField(
-              'Late after (optional)',
+              'Late after',
+              Icons.schedule,
               _lateAfterController,
               ConstColors.calendarLate,
               _form.setLateAfterText,
             ),
-            SizedBox(height: 12.h),
+            SizedBox(height: 8.h),
             _buildMinutesField(
-              'Half day after (optional)',
+              'Half day after',
+              Icons.timelapse,
               _halfDayAfterController,
               ConstColors.calendarHalfDay,
               _form.setHalfDayAfterText,
@@ -1326,25 +1379,41 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                 final preview = _officeHoursPreview(context, form);
                 if (preview == null) return const SizedBox.shrink();
                 return Padding(
-                  padding: EdgeInsets.only(top: 12.h),
+                  padding: EdgeInsets.only(top: 10.h),
                   child: Container(
                     width: double.infinity,
-                    padding: EdgeInsets.all(10.w),
-                    decoration: BoxDecoration(
-                      color: ConstColors.infoBlue.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8.r),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 10.w,
+                      vertical: 10.h,
                     ),
-                    child: Text(
-                      preview,
-                      style: getTextTheme().bodySmall?.copyWith(
-                        color: ConstColors.infoBlue,
-                      ),
+                    decoration: BoxDecoration(
+                      color: ConstColors.lightShade,
+                      borderRadius: BorderRadius.circular(14.r),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 16.r,
+                          color: ConstColors.primaryDeep,
+                        ),
+                        SizedBox(width: 6.w),
+                        Expanded(
+                          child: Text(
+                            preview,
+                            style: getTextTheme().bodySmall?.copyWith(
+                              color: ConstColors.textColor,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 );
               },
             ),
-            SizedBox(height: 16.h),
+            SizedBox(height: 14.h),
             SizedBox(
               width: double.infinity,
               child: ConstantButton(
@@ -1393,75 +1462,159 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
     return parts.join(' • ');
   }
 
+  // A tappable tile: small label, the chosen time big, opens the time picker
   Widget _buildTimeButton(
     String label,
+    IconData icon,
     TimeOfDay? value,
     ValueChanged<TimeOfDay> onPicked,
   ) {
-    return ConstantButton(
-      text: '$label: ${value == null ? 'Select' : value.format(context)}',
-      isOutlined: true,
-      backgroundColor: ConstColors.primary,
-      height: 44.h,
-      maxLines: 2,
-      horizontalInnerPadding: 8.w,
-      onPressed: () async {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14.r),
+      onTap: () async {
         final picked = await ConstantTimePicker.pick(
           context,
           initialTime: value ?? const TimeOfDay(hour: 10, minute: 0),
         );
         if (picked != null) onPicked(picked);
       },
+      child: Ink(
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+        decoration: BoxDecoration(
+          color: ConstColors.lightShade,
+          borderRadius: BorderRadius.circular(14.r),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34.r,
+              height: 34.r,
+              decoration: BoxDecoration(
+                color: ConstColors.cardBackground,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 18.r, color: ConstColors.primaryDeep),
+            ),
+            SizedBox(width: 8.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: getTextTheme().labelSmall?.copyWith(
+                      color: ConstColors.textColorLight,
+                    ),
+                  ),
+                  Text(
+                    value == null ? 'Select' : value.format(context),
+                    style: getTextTheme().bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: ConstColors.textColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
+  // A rule in minutes after office start: badge, title, and a - / number / +
+  // stepper. A blank field means the rule is off.
   Widget _buildMinutesField(
     String label,
+    IconData icon,
     TextEditingController controller,
-    Color accentColor,
+    Color color,
     ValueChanged<String> onChanged,
   ) {
-    return Row(
-      children: [
-        Container(
-          width: 8.w,
-          height: 8.h,
-          decoration: BoxDecoration(color: accentColor, shape: BoxShape.circle),
-        ),
-        SizedBox(width: 8.w),
-        Expanded(
-          child: Text(
-            '$label (minutes after start)',
-            style: getTextTheme().bodySmall?.copyWith(
-              fontWeight: FontWeight.w500,
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14.r),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34.r,
+            height: 34.r,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            child: Icon(icon, size: 18.r, color: ConstColors.textColor),
+          ),
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: getTextTheme().bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: ConstColors.textColor,
+                  ),
+                ),
+                Text(
+                  'minutes after start',
+                  style: getTextTheme().labelSmall?.copyWith(
+                    color: ConstColors.textColorLight,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        SizedBox(
-          width: 80.w,
-          child: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            onChanged: onChanged,
-            style: getTextTheme().bodyMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-            decoration: InputDecoration(
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 8.w,
-                vertical: 8.h,
+          _stepButton(
+            Icons.remove,
+            () => _stepMinutes(controller, -1, onChanged),
+          ),
+          SizedBox(
+            width: 46.w,
+            child: TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              onChanged: onChanged,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(3),
+              ],
+              style: getTextTheme().bodyLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: ConstColors.textColor,
               ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8.r),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Off',
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 4.w,
+                  vertical: 8.h,
+                ),
               ),
-              suffixText: 'min',
-              suffixStyle: getTextTheme().labelSmall,
             ),
           ),
-        ),
-      ],
+          _stepButton(Icons.add, () => _stepMinutes(controller, 1, onChanged)),
+        ],
+      ),
     );
+  }
+
+  // Moves a minutes field by one; stepping down from 0 (or blank) switches the
+  // rule off by clearing the field
+  void _stepMinutes(
+    TextEditingController controller,
+    int delta,
+    ValueChanged<String> onChanged,
+  ) {
+    final current = int.tryParse(controller.text);
+    if (delta < 0 && (current == null || current <= 0)) {
+      controller.text = '';
+    } else {
+      controller.text = ((current ?? 0) + delta).clamp(0, 999).toString();
+    }
+    onChanged(controller.text);
   }
 
   Future<void> _saveOfficeHours(OrganizationProvider org) async {
@@ -1478,11 +1631,14 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
       return;
     }
     if ((lateText.isNotEmpty && (lateAfter == null || lateAfter < 0)) ||
-        (halfDayText.isNotEmpty && (halfDayAfter == null || halfDayAfter < 0))) {
+        (halfDayText.isNotEmpty &&
+            (halfDayAfter == null || halfDayAfter < 0))) {
       ConstantSnackbar.showError(title: 'Enter valid minutes or leave blank');
       return;
     }
-    if (lateAfter != null && halfDayAfter != null && halfDayAfter <= lateAfter) {
+    if (lateAfter != null &&
+        halfDayAfter != null &&
+        halfDayAfter <= lateAfter) {
       ConstantSnackbar.showError(
         title: 'Half day minutes must be more than late minutes',
       );
@@ -1516,176 +1672,39 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
       return _buildLeaveConfigShimmer();
     }
 
-    final holidays = org.holidays;
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+    // A short summary only; the full list is managed on its own screen
+    return NeuCard(
       child: Padding(
-        padding: EdgeInsets.all(12.w),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Public holidays & festival days',
-                    style: getTextTheme().bodySmall?.copyWith(
-                      color: ConstColors.textColorLight,
-                    ),
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: () => _showAddHolidayDialog(org),
-                  icon: Icon(Icons.add, size: 18.r),
-                  label: const Text('Add'),
-                ),
-              ],
+            Text(
+              'Public holidays shown to every employee',
+              style: getTextTheme().bodySmall?.copyWith(
+                color: ConstColors.textColorLight,
+              ),
             ),
-            if (holidays.isEmpty)
-              Padding(
-                padding: EdgeInsets.symmetric(vertical: 16.h),
-                child: Center(
-                  child: Text(
-                    'No holidays added yet',
-                    style: getTextTheme().bodySmall?.copyWith(
-                      color: ConstColors.textColorLight,
-                    ),
-                  ),
+            SizedBox(height: 12.h),
+            HolidayStatsRow(holidays: org.holidays, year: DateTime.now().year),
+            SizedBox(height: 12.h),
+            SizedBox(
+              width: double.infinity,
+              child: ConstantButton(
+                text: 'Manage Holidays',
+                icon: Icon(
+                  Icons.event_note_outlined,
+                  size: 20.r,
+                  color: ConstColors.textColor,
                 ),
-              )
-            else
-              ...holidays.map((h) => _buildHolidayTile(h, org)),
+                onPressed: () => Get.toNamed('/holiday_management_screen'),
+                backgroundColor: ConstColors.primary,
+              ),
+            ),
           ],
         ),
       ),
     );
-  }
-
-  Widget _buildHolidayTile(HolidayModel holiday, OrganizationProvider provider) {
-    final isPast = holiday.date.isBefore(
-      DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
-    );
-
-    return Padding(
-      padding: EdgeInsets.only(top: 8.h),
-      child: Row(
-        children: [
-          Container(
-            width: 48.w,
-            padding: EdgeInsets.symmetric(vertical: 6.h),
-            decoration: BoxDecoration(
-              color: (isPast ? Colors.grey : ConstColors.primary).withValues(
-                alpha: 0.1,
-              ),
-              borderRadius: BorderRadius.circular(8.r),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  DateFormat('dd').format(holiday.date),
-                  style: getTextTheme().titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: isPast ? Colors.grey : ConstColors.primary,
-                  ),
-                ),
-                Text(
-                  DateFormat('MMM').format(holiday.date),
-                  style: getTextTheme().labelSmall?.copyWith(
-                    color: isPast ? Colors.grey : ConstColors.primary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(width: 12.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  holiday.name,
-                  style: getTextTheme().bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: isPast ? Colors.grey : null,
-                  ),
-                ),
-                Text(
-                  [
-                    DateFormat('EEEE, yyyy').format(holiday.date),
-                    if (holiday.description != null) holiday.description!,
-                  ].join(' • '),
-                  style: getTextTheme().labelSmall?.copyWith(
-                    color: ConstColors.textColorLight,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: Icon(Icons.delete_outline, size: 20.r, color: Colors.red),
-            onPressed: () => _confirmDeleteHoliday(holiday, provider),
-            tooltip: 'Delete',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _confirmDeleteHoliday(
-    HolidayModel holiday,
-    OrganizationProvider provider,
-  ) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Holiday'),
-        content: Text('Remove "${holiday.name}" from the holiday calendar?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(
-              'Delete',
-              style: getTextTheme().labelLarge?.copyWith(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    final success = await provider.deleteHoliday(holiday.id);
-    if (success) {
-      ConstantSnackbar.showSuccess(title: 'Holiday deleted');
-    } else {
-      ConstantSnackbar.showError(title: 'Failed to delete holiday');
-    }
-  }
-
-  Future<void> _showAddHolidayDialog(OrganizationProvider provider) async {
-    final result = await showDialog<_HolidayInput>(
-      context: context,
-      builder: (_) => const _AddHolidayDialog(),
-    );
-
-    if (result == null) return;
-
-    final success = await provider.addHoliday(
-      result.name,
-      result.date,
-      description: result.description,
-    );
-    if (success) {
-      ConstantSnackbar.showSuccess(title: 'Holiday added');
-    } else {
-      ConstantSnackbar.showError(title: 'Failed to add holiday');
-    }
   }
 
   // --- Shimmer Helpers ---
@@ -1698,7 +1717,7 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ConstColors.cardBackground,
         borderRadius: BorderRadius.circular(radius.r),
       ),
     );
@@ -1706,22 +1725,22 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
 
   Widget _buildEmployeeLeaveShimmer() {
     return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
+      baseColor: ConstColors.borderColor,
+      highlightColor: ConstColors.cardBackground,
       child: Column(
         children: List.generate(
           3,
-          (_) => Card(
-            elevation: 1,
-            margin: EdgeInsets.only(bottom: 8.h),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12.r),
-            ),
+          (_) => NeuCard(
+            margin: EdgeInsets.symmetric(vertical: 8.h),
+            radius: NeuStyle.radiusSmall,
             child: Padding(
-              padding: EdgeInsets.all(12.w),
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
               child: Row(
                 children: [
-                  CircleAvatar(radius: 18.r, backgroundColor: Colors.white),
+                  CircleAvatar(
+                    radius: 18.r,
+                    backgroundColor: ConstColors.cardBackground,
+                  ),
                   SizedBox(width: 10.w),
                   Expanded(
                     child: Column(
@@ -1745,15 +1764,12 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
 
   Widget _buildLeaveConfigShimmer() {
     return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.r),
-        ),
+      baseColor: ConstColors.borderColor,
+      highlightColor: ConstColors.cardBackground,
+      child: NeuCard(
+        radius: NeuStyle.radiusSmall,
         child: Padding(
-          padding: EdgeInsets.all(12.w),
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1762,14 +1778,12 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
               ...List.generate(
                 3,
                 (_) => Padding(
-                  padding: EdgeInsets.only(bottom: 12.h),
+                  padding: EdgeInsets.symmetric(vertical: 12.h),
                   child: Row(
                     children: [
                       _buildShimmerBox(width: 8.w, height: 8.h, radius: 4),
                       SizedBox(width: 8.w),
-                      Expanded(
-                        child: _buildShimmerBox(height: 12.h),
-                      ),
+                      Expanded(child: _buildShimmerBox(height: 12.h)),
                       SizedBox(width: 12.w),
                       _buildShimmerBox(width: 80.w, height: 36.h),
                     ],
@@ -1787,11 +1801,10 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
 
   // --- Empty State ---
   Widget _buildEmptyCard(String message) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+    return NeuCard(
+      radius: NeuStyle.radiusSmall,
       child: Padding(
-        padding: EdgeInsets.all(24.w),
+        padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
         child: Center(
           child: Text(
             message,
@@ -1804,127 +1817,4 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
       ),
     );
   }
-}
-
-class _HolidayInput {
-  final String name;
-  final DateTime date;
-  final String? description;
-
-  _HolidayInput(this.name, this.date, this.description);
-}
-
-// Owns its controllers so they are disposed only after the dialog's close
-// animation has finished.
-class _AddHolidayDialog extends StatefulWidget {
-  const _AddHolidayDialog();
-
-  @override
-  State<_AddHolidayDialog> createState() => _AddHolidayDialogState();
-}
-
-class _AddHolidayDialogState extends State<_AddHolidayDialog> {
-  final _nameController = TextEditingController();
-  final _descController = TextEditingController();
-  // Picked date, scoped to this dialog
-  final ValueProvider<DateTime?> _selectedDate = ValueProvider<DateTime?>(null);
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _descController.dispose();
-    _selectedDate.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickDate() async {
-    final picked = await ConstantDatePicker.pick(
-      context,
-      initialDate: _selectedDate.value ?? DateTime.now(),
-      firstDate: DateTime(DateTime.now().year - 1),
-      lastDate: DateTime(DateTime.now().year + 3),
-    );
-    if (picked != null) _selectedDate.value = picked;
-  }
-
-  void _save() {
-    final name = _nameController.text.trim();
-    final date = _selectedDate.value;
-    if (name.isEmpty || date == null) {
-      ConstantSnackbar.showError(title: 'Enter holiday name and select a date');
-      return;
-    }
-    final description = _descController.text.trim();
-    Navigator.of(context).pop(
-      _HolidayInput(name, date, description.isEmpty ? null : description),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add Holiday'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _nameController,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Holiday name',
-              hintText: 'e.g. Independence Day',
-            ),
-          ),
-          SizedBox(height: 12.h),
-          TextField(
-            controller: _descController,
-            decoration: const InputDecoration(
-              labelText: 'Description (optional)',
-            ),
-          ),
-          SizedBox(height: 12.h),
-          ChangeNotifierProvider.value(
-            value: _selectedDate,
-            child: Consumer<ValueProvider<DateTime?>>(
-              builder: (context, picked, _) => ConstantButton(
-                icon: Icon(
-                  Icons.calendar_today,
-                  size: 18.r,
-                  color: ConstColors.primary,
-                ),
-                text: picked.value == null
-                    ? 'Select date'
-                    : DateFormat('dd MMM yyyy').format(picked.value!),
-                isOutlined: true,
-                backgroundColor: ConstColors.primary,
-                isFullWidth: false,
-                height: 40.h,
-                onPressed: _pickDate,
-              ),
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        ConstantButton(
-          text: 'Save',
-          onPressed: _save,
-          isFullWidth: false,
-          height: 40.h,
-        ),
-      ],
-    );
-  }
-}
-
-class _ChartItem {
-  final String label;
-  final int count;
-  final Color color;
-
-  _ChartItem(this.label, this.count, this.color);
 }
