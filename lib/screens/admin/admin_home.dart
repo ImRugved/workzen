@@ -16,8 +16,13 @@ import '../../widgets/app_drawer.dart';
 import '../../widgets/dot_indicator.dart';
 import '../../widgets/holiday_calendar_card.dart';
 import '../../app_constants.dart';
+import '../../providers/value_provider.dart';
+import '../../widgets/attendance_calendar_card.dart';
+import '../../constants/permissions.dart';
+import '../../constants/apploading_indicator.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_colors.dart';
+import '../../constants/constant_button.dart';
 import '../../utils/logger.dart';
 
 class AdminHome extends StatefulWidget {
@@ -28,9 +33,18 @@ class AdminHome extends StatefulWidget {
 }
 
 class _AdminHomeState extends State<AdminHome> {
-  Stream<List<RequestModel>>? _leavesStream;
+  // Both are scoped state holders, so this screen needs no setState
+  final ValueProvider<Stream<List<RequestModel>>?> _leavesStream =
+      ValueProvider<Stream<List<RequestModel>>?>(null);
+  final ValueProvider<int> _carouselIndex = ValueProvider<int>(0);
   final bool isAnimated = true; // Default to true, can be changed
-  int _currentCarouselIndex = 0; // Track current carousel index
+
+  @override
+  void dispose() {
+    _leavesStream.dispose();
+    _carouselIndex.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -52,9 +66,15 @@ class _AdminHomeState extends State<AdminHome> {
       listen: false,
     );
 
-    setState(() {
-      _leavesStream = requestProvider.getAllRequestsStream();
-    });
+    // Only someone allowed to see leave requests may read them all
+    final canSeeRequests = Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).can(Permissions.leaveRequests);
+
+    _leavesStream.value = canSeeRequests
+        ? requestProvider.getAllRequestsStream()
+        : Stream.value(<RequestModel>[]);
 
     // Fetch employee data
     employeeProvider.fetchAllEmployees();
@@ -110,6 +130,16 @@ class _AdminHomeState extends State<AdminHome> {
 
   @override
   Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: _leavesStream),
+        ChangeNotifierProvider.value(value: _carouselIndex),
+      ],
+      child: Builder(builder: _buildScaffold),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final employeeProvider = Provider.of<EmployeeManagementProvider>(context);
 
@@ -129,12 +159,14 @@ class _AdminHomeState extends State<AdminHome> {
       ),
       drawer: const AppDrawer(),
       body: authProvider.userModel == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingIndicator(size: 40))
           : StreamBuilder<List<RequestModel>>(
-              stream: _leavesStream,
+              stream: context
+                  .watch<ValueProvider<Stream<List<RequestModel>>?>>()
+                  .value,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(child: AppLoadingIndicator(size: 40));
                 }
 
                 if (snapshot.hasError) {
@@ -170,13 +202,15 @@ class _AdminHomeState extends State<AdminHome> {
                           textAlign: TextAlign.center,
                         ),
                         SizedBox(height: 16.h),
-                        ElevatedButton.icon(
+                        ConstantButton(
+                          text: 'Try Again',
                           onPressed: _initializeData,
-                          icon: Icon(Icons.refresh, size: 20.r),
-                          label: Text(
-                            'Try Again',
-                            style: getTextTheme().labelLarge,
+                          icon: Icon(
+                            Icons.refresh,
+                            size: 20.r,
+                            color: ConstColors.white,
                           ),
+                          isFullWidth: false,
                         ),
                       ],
                     ),
@@ -270,96 +304,49 @@ class _AdminHomeState extends State<AdminHome> {
                           ],
                         ),
                       ),
+                      SizedBox(height: 16.h),
+
+                      // The admin's own punch times and month attendance calendar
+                      const AttendanceCalendarCard(),
                       SizedBox(height: 20.h),
 
                       // Employee Statistics Section with Carousel
-                      _buildSectionHeader(
-                        _getCarouselSectionTitle(allRequests),
-                        Icons.people,
+                      Selector<ValueProvider<int>, int>(
+                        selector: (_, index) => index.value,
+                        builder: (context, carouselIndex, _) =>
+                            _buildSectionHeader(
+                              _getCarouselSectionTitle(
+                                allRequests,
+                                carouselIndex,
+                              ),
+                              Icons.people,
+                            ),
                       ),
                       SizedBox(height: 12.h),
                       _buildOverviewCarousel(employeeProvider, allRequests),
                       SizedBox(height: 24.h),
 
                       // Leave Requests Statistics Section
-                      _buildSectionHeader(
-                        'Leave Requests Overview',
-                        Icons.event_note,
-                      ),
-                      SizedBox(height: 12.h),
-                      _buildLeaveRequestsStatsCard(
-                        allRequests.length,
-                        pendingRequests,
-                        approvedRequests,
-                        rejectedRequests,
-                      ),
-                      SizedBox(height: 24.h),
+                      if (authProvider.can(Permissions.leaveRequests)) ...[
+                        _buildSectionHeader(
+                          'Leave Requests Overview',
+                          Icons.event_note,
+                        ),
+                        SizedBox(height: 12.h),
+                        _buildLeaveRequestsStatsCard(
+                          allRequests.length,
+                          pendingRequests,
+                          approvedRequests,
+                          rejectedRequests,
+                        ),
+                        SizedBox(height: 24.h),
+                      ],
 
-                      // Quick Actions
-                      _buildSectionHeader('Quick Actions', Icons.touch_app),
-                      SizedBox(height: 12.h),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildActionCard(
-                              'Manage Leaves',
-                              Icons.approval,
-                              Colors.indigo,
-                              () async {
-                                await Get.toNamed('/leave_requests_screen');
-                                if (mounted) _initializeData();
-                              },
-                            ),
-                          ),
-                          SizedBox(width: 12.w),
-                          Expanded(
-                            child: _buildActionCard(
-                              'Employees',
-                              Icons.people,
-                              Colors.teal,
-                              () async {
-                                await Get.toNamed(
-                                  '/employee_management_screen',
-                                );
-                                if (mounted) _initializeData();
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 12.h),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildActionCard(
-                              'Attendance',
-                              Icons.access_time,
-                              Colors.orange,
-                              () async {
-                                await Get.toNamed('/admin_attendance_screen');
-                                if (mounted) _initializeData();
-                              },
-                            ),
-                          ),
-                          SizedBox(width: 12.w),
-                          Expanded(
-                            child: _buildActionCard(
-                              'Onboarding',
-                              Icons.person_add,
-                              Colors.purple,
-                              () async {
-                                await Get.toNamed(
-                                  '/employee_onboarding_screen',
-                                );
-                                if (mounted) _initializeData();
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 24.h),
+                      // Quick Actions: only what this admin / sub admin may use
+                      ..._buildQuickActions(authProvider),
 
                       // Recent Requests
+                      if (authProvider.can(Permissions.leaveRequests)) ...[
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -452,8 +439,7 @@ class _AdminHomeState extends State<AdminHome> {
                                         SizedBox(height: 8.h),
                                         // Leave Type (only for leave requests)
                                         if (request.isLeaveRequest &&
-                                            request.additionalData?['leaveType'] !=
-                                                null)
+                                            request.leaveType != null)
                                           Padding(
                                             padding: EdgeInsets.only(
                                               bottom: 8.h,
@@ -465,30 +451,26 @@ class _AdminHomeState extends State<AdminHome> {
                                               ),
                                               decoration: BoxDecoration(
                                                 color: _getLeaveTypeColor(
-                                                  request
-                                                      .additionalData!['leaveType'],
+                                                  request.leaveType!,
                                                 ).withOpacity(0.1),
                                                 borderRadius:
                                                     BorderRadius.circular(6.r),
                                                 border: Border.all(
                                                   color: _getLeaveTypeColor(
-                                                    request
-                                                        .additionalData!['leaveType'],
+                                                    request.leaveType!,
                                                   ),
                                                   width: 1,
                                                 ),
                                               ),
                                               child: Text(
                                                 _getLeaveTypeFullName(
-                                                  request
-                                                      .additionalData!['leaveType'],
+                                                  request.leaveType!,
                                                 ),
                                                 style: getTextTheme()
                                                     .labelMedium
                                                     ?.copyWith(
                                                       color: _getLeaveTypeColor(
-                                                        request
-                                                            .additionalData!['leaveType'],
+                                                        request.leaveType!,
                                                       ),
                                                       fontWeight:
                                                           FontWeight.bold,
@@ -497,7 +479,7 @@ class _AdminHomeState extends State<AdminHome> {
                                             ),
                                           ),
                                         Text(
-                                          'From: ${_formatDate(request.fromDate!)} To: ${_formatDate(request.toDate!)}',
+                                          '${request.typeDisplayName}: ${request.displayDate}',
                                           style: getTextTheme().bodyMedium,
                                         ),
                                         SizedBox(height: 4.h),
@@ -513,6 +495,7 @@ class _AdminHomeState extends State<AdminHome> {
                                 );
                               },
                             ),
+                      ],
                       SizedBox(height: 16.h),
                       const HolidayCalendarCard(),
                       SizedBox(height: 16.h),
@@ -524,8 +507,80 @@ class _AdminHomeState extends State<AdminHome> {
     );
   }
 
+  // Quick action cards the signed-in user is allowed to open, two per row
+  List<Widget> _buildQuickActions(AuthProvider auth) {
+    final actions = <Widget>[
+      if (auth.can(Permissions.leaveRequests))
+        _buildActionCard(
+          'Manage Leaves',
+          Icons.approval,
+          Colors.indigo,
+          () async {
+            await Get.toNamed('/leave_requests_screen');
+            if (mounted) _initializeData();
+          },
+        ),
+      if (auth.can(Permissions.manageEmployees) ||
+          auth.can(Permissions.addEmployee))
+        _buildActionCard('Employees', Icons.people, Colors.teal, () async {
+          await Get.toNamed('/employee_management_screen');
+          if (mounted) _initializeData();
+        }),
+      if (auth.can(Permissions.viewAttendance))
+        _buildActionCard(
+          'Attendance',
+          Icons.access_time,
+          Colors.orange,
+          () async {
+            await Get.toNamed('/admin_attendance_screen');
+            if (mounted) _initializeData();
+          },
+        ),
+      if (auth.can(Permissions.onboarding))
+        _buildActionCard(
+          'Onboarding',
+          Icons.person_add,
+          Colors.purple,
+          () async {
+            await Get.toNamed('/employee_onboarding_screen');
+            if (mounted) _initializeData();
+          },
+        ),
+    ];
+
+    if (actions.isEmpty) return const [];
+
+    final rows = <Widget>[];
+    for (var i = 0; i < actions.length; i += 2) {
+      rows.add(
+        Row(
+          children: [
+            Expanded(child: actions[i]),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: i + 1 < actions.length
+                  ? actions[i + 1]
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      );
+      rows.add(SizedBox(height: 12.h));
+    }
+
+    return [
+      _buildSectionHeader('Quick Actions', Icons.touch_app),
+      SizedBox(height: 12.h),
+      ...rows,
+      SizedBox(height: 12.h),
+    ];
+  }
+
   // Get section title based on current carousel index
-  String _getCarouselSectionTitle(List<RequestModel> allRequests) {
+  String _getCarouselSectionTitle(
+    List<RequestModel> allRequests,
+    int carouselIndex,
+  ) {
     // Count pending leave requests to determine if leave chart exists
     final pendingLeaveRequests = allRequests
         .where(
@@ -540,7 +595,7 @@ class _AdminHomeState extends State<AdminHome> {
     int clCount = 0;
 
     for (var request in pendingLeaveRequests) {
-      final leaveType = request.additionalData?['leaveType'] as String?;
+      final leaveType = request.leaveType;
       if (leaveType != null) {
         switch (leaveType.toLowerCase()) {
           case 'pl':
@@ -565,7 +620,7 @@ class _AdminHomeState extends State<AdminHome> {
     }
 
     // If two charts, show based on current index
-    if (_currentCarouselIndex == 0) {
+    if (carouselIndex == 0) {
       return 'Onboarding Overview';
     } else {
       return 'Leave Request Overview';
@@ -609,7 +664,7 @@ class _AdminHomeState extends State<AdminHome> {
     int clCount = 0;
 
     for (var request in pendingLeaveRequests) {
-      final leaveType = request.additionalData?['leaveType'] as String?;
+      final leaveType = request.leaveType;
       if (leaveType != null) {
         switch (leaveType.toLowerCase()) {
           case 'pl':
@@ -667,20 +722,19 @@ class _AdminHomeState extends State<AdminHome> {
               enlargeCenterPage: false,
               viewportFraction: 1.0,
               enableInfiniteScroll: carouselItems.length > 1,
-              onPageChanged: (index, reason) {
-                setState(() {
-                  _currentCarouselIndex = index;
-                });
-              },
+              onPageChanged: (index, reason) => _carouselIndex.value = index,
             ),
             items: carouselItems,
           ),
         ),
         SizedBox(height: 8.h),
         // Dot Indicator
-        DotIndicator(
-          itemCount: carouselItems.length,
-          currentIndex: _currentCarouselIndex,
+        Selector<ValueProvider<int>, int>(
+          selector: (_, index) => index.value,
+          builder: (context, carouselIndex, _) => DotIndicator(
+            itemCount: carouselItems.length,
+            currentIndex: carouselIndex,
+          ),
         ),
       ],
     );
@@ -1205,9 +1259,9 @@ class _AdminHomeState extends State<AdminHome> {
                           BarChartRodData(
                             toY: pending.toDouble(),
                             color: Colors.orange,
-                            width: 30,
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(4),
+                            width: 30.w,
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(4.r),
                             ),
                           ),
                         ],
@@ -1218,9 +1272,9 @@ class _AdminHomeState extends State<AdminHome> {
                           BarChartRodData(
                             toY: approved.toDouble(),
                             color: Colors.green,
-                            width: 30,
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(4),
+                            width: 30.w,
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(4.r),
                             ),
                           ),
                         ],
@@ -1231,9 +1285,9 @@ class _AdminHomeState extends State<AdminHome> {
                           BarChartRodData(
                             toY: rejected.toDouble(),
                             color: Colors.red,
-                            width: 30,
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(4),
+                            width: 30.w,
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(4.r),
                             ),
                           ),
                         ],
@@ -1367,10 +1421,6 @@ class _AdminHomeState extends State<AdminHome> {
         ),
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    return "${date.day}/${date.month}/${date.year}";
   }
 
   String _getLeaveTypeFullName(String leaveType) {

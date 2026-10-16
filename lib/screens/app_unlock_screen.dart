@@ -3,7 +3,11 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import '../providers/security_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/pin_entry_provider.dart';
 import '../constants/const_textstyle.dart';
+import '../constants/constant_snackbar.dart';
+import '../constants/apploading_indicator.dart';
+import '../constants/constant_colors.dart';
 
 class AppUnlockScreen extends StatefulWidget {
   final Widget child;
@@ -14,10 +18,14 @@ class AppUnlockScreen extends StatefulWidget {
 }
 
 class _AppUnlockScreenState extends State<AppUnlockScreen> {
-  String _enteredPin = '';
-  List<DateTime> _failedAttemptTimes = [];
-  bool _isCooldown = false;
-  bool _isAuthenticating = false;
+  // PIN digits, failed attempts, cooldown and biometric flag (scoped state)
+  final PinEntryProvider _pin = PinEntryProvider();
+
+  @override
+  void dispose() {
+    _pin.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -53,20 +61,17 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
       return;
     }
 
-    setState(() {
-      _isAuthenticating = true;
-    });
+    _pin.setAuthenticating(true);
 
     final authenticated = await securityProvider.authenticateWithBiometrics(
       reason: 'Unlock the app',
     );
+    if (!mounted) return;
 
     if (authenticated) {
       _unlockApp();
     } else {
-      setState(() {
-        _isAuthenticating = false;
-      });
+      _pin.setAuthenticating(false);
     }
   }
 
@@ -77,24 +82,8 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
   }
 
   void _handleNumericInput(String value) {
-    if (_isCooldown) return;
-
-    if (_enteredPin.length < 6) {
-      setState(() {
-        _enteredPin += value;
-      });
-
-      if (_enteredPin.length == 6) {
-        _verifyPIN();
-      }
-    }
-  }
-
-  void _handleBackspace() {
-    if (_enteredPin.isNotEmpty) {
-      setState(() {
-        _enteredPin = _enteredPin.substring(0, _enteredPin.length - 1);
-      });
+    if (_pin.addDigit(value)) {
+      _verifyPIN();
     }
   }
 
@@ -107,11 +96,12 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
 
     final verified = await securityProvider.verifyAppUnlockPIN(
       authProvider.userModel!.id,
-      _enteredPin,
+      _pin.pin,
     );
+    if (!mounted) return;
 
     if (verified) {
-      _failedAttemptTimes.clear();
+      _pin.clearFailedAttempts();
       _unlockApp();
     } else {
       _handleFailedAttempt();
@@ -119,56 +109,33 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
   }
 
   void _handleFailedAttempt() {
-    final now = DateTime.now();
-    _failedAttemptTimes.add(now);
+    // Three wrong PINs within a minute start a 30 second cooldown
+    final cooldown = _pin.registerFailedAttempt();
 
-    // Remove attempts older than 1 minute
-    _failedAttemptTimes.removeWhere(
-      (time) => now.difference(time) > const Duration(minutes: 1),
-    );
-
-    setState(() {
-      _enteredPin = '';
-    });
-
-    if (_failedAttemptTimes.length >= 3) {
-      _startCooldown();
+    if (cooldown) {
+      ConstantSnackbar.show(
+        title: 'Too many incorrect attempts. Please wait 30 seconds.',
+        backgroundColor: Colors.orange,
+      );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Incorrect PIN. Attempts: ${_failedAttemptTimes.length}/3',
-          ),
-          backgroundColor: Colors.red,
-        ),
+      ConstantSnackbar.showError(
+        title:
+            'Incorrect PIN. Attempts: ${_pin.failedAttempts}/${PinEntryProvider.maxAttempts}',
       );
     }
   }
 
-  void _startCooldown() {
-    setState(() {
-      _isCooldown = true;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Too many incorrect attempts. Please wait 30 seconds.'),
-        backgroundColor: Colors.orange,
-      ),
-    );
-
-    Future.delayed(const Duration(seconds: 30), () {
-      if (mounted) {
-        setState(() {
-          _isCooldown = false;
-          _failedAttemptTimes.clear();
-        });
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: _pin,
+      child: Consumer<PinEntryProvider>(
+        builder: (context, pin, _) => _buildScreen(context, pin),
+      ),
+    );
+  }
+
+  Widget _buildScreen(BuildContext context, PinEntryProvider pin) {
     final securityProvider = Provider.of<SecurityProvider>(context);
 
     // Show loading while security is being initialized
@@ -182,8 +149,8 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
               colors: [Colors.indigo.shade600, Colors.indigo.shade400],
             ),
           ),
-          child: const Center(
-            child: CircularProgressIndicator(color: Colors.white),
+          child: Center(
+            child: AppLoadingIndicator(size: 40, color: ConstColors.white),
           ),
         ),
       );
@@ -216,7 +183,7 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
                     ),
                   ),
                   SizedBox(height: 8.h),
-                  if (_isCooldown)
+                  if (pin.isCooldown)
                     Text(
                       'Please wait 30 seconds',
                       style: getTextTheme().bodyMedium?.copyWith(
@@ -234,7 +201,7 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
                         margin: EdgeInsets.symmetric(horizontal: 15.w),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: _enteredPin.length > index
+                          color: pin.pin.length > index
                               ? Colors.white
                               : Colors.white.withOpacity(0.3),
                           border: Border.all(color: Colors.white, width: 2),
@@ -247,11 +214,13 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
                   if (securityProvider.biometricEnabled &&
                       securityProvider.isDeviceSupported)
                     AbsorbPointer(
-                      absorbing: _isCooldown || _isAuthenticating,
+                      absorbing: pin.isCooldown || pin.isAuthenticating,
                       child: Opacity(
-                        opacity: (_isCooldown || _isAuthenticating) ? 0.5 : 1.0,
+                        opacity: (pin.isCooldown || pin.isAuthenticating)
+                            ? 0.5
+                            : 1.0,
                         child: GestureDetector(
-                          onTap: _isAuthenticating
+                          onTap: pin.isAuthenticating
                               ? null
                               : _checkBiometricAndAuthenticate,
                           child: Container(
@@ -267,13 +236,13 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                if (_isAuthenticating)
+                                if (pin.isAuthenticating)
                                   SizedBox(
                                     width: 20.w,
                                     height: 20.w,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
+                                    child: AppLoadingIndicator(
+                                      size: 20,
+                                      color: ConstColors.white,
                                     ),
                                   )
                                 else
@@ -299,9 +268,9 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
                   SizedBox(height: 40.h),
                   // Numeric keypad
                   AbsorbPointer(
-                    absorbing: _isCooldown,
+                    absorbing: pin.isCooldown,
                     child: Opacity(
-                      opacity: _isCooldown ? 0.5 : 1.0,
+                      opacity: pin.isCooldown ? 0.5 : 1.0,
                       child: Padding(
                         padding: EdgeInsets.symmetric(horizontal: 40.w),
                         child: Column(
@@ -344,7 +313,7 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
                                     color: Colors.white,
                                     size: 28.r,
                                   ),
-                                  onPressed: _handleBackspace,
+                                  onPressed: pin.backspace,
                                 ),
                               ],
                             ),
@@ -375,8 +344,7 @@ class _AppUnlockScreenState extends State<AppUnlockScreen> {
         ),
         child: Text(
           value,
-          style: TextStyle(
-            fontSize: 24.sp,
+          style: getTextTheme().headlineMedium?.copyWith(
             fontWeight: FontWeight.w400,
             color: Colors.white,
           ),

@@ -1,89 +1,184 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
+    // ============================================
+    // HELPERS
+    // ============================================
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return signedIn() && me().isAdmin == true;
+    }
+
+    // A sub admin holds only the permissions an admin ticked for them
+    // (users/{uid}.subAdminPermissions, see lib/constants/permissions.dart)
+    function hasPerm(permission) {
+      return signedIn() && me().isSubAdmin == true &&
+        me().get('subAdminPermissions', []).hasAny([permission]);
+    }
+
     // ============================================
     // USERS COLLECTION
     // ============================================
     match /users/{userId} {
-      // Allow users to read and write their own document
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      
       // Allow authenticated users to read user documents (needed for admin queries and notifications)
       allow read: if request.auth != null;
-      
-      // Allow FCM token updates for any authenticated user (for token cleanup scenarios)
-      allow update: if request.auth != null && 
-        (request.auth.uid == userId || 
-         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken']) &&
-          request.resource.data.fcmToken == ''));
-      
+
+      // A user creates their own document at signup
+      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // A user may update their own document, but never who is an admin / sub
+      // admin or what a sub admin may access (only an admin changes those)
+      allow update: if request.auth != null && request.auth.uid == userId &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['isAdmin', 'isSubAdmin', 'subAdminPermissions']);
+
+      // Allow FCM token cleanup for any authenticated user (stale token removal)
+      allow update: if request.auth != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken']) &&
+        request.resource.data.fcmToken == '';
+
+      // Sub admin with "add employee" may create plain employees (never admins)
+      allow create: if hasPerm('add_employee') &&
+        request.resource.data.isAdmin != true &&
+        request.resource.data.isSubAdmin != true;
+
+      // Sub admin with "view and edit" or "onboarding" may update employees,
+      // but never change who is an admin / sub admin or their permissions
+      allow update: if (hasPerm('manage_employees') || hasPerm('onboarding')) &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['isAdmin', 'isSubAdmin', 'subAdminPermissions']);
+
       // ============================================
       // USER SUBCOLLECTIONS
       // ============================================
-      
-      // Requests subcollection - users can manage their own leave/WFH/break requests
+
+      // Requests subcollection - users manage their own leave/WFH/break requests
       match /requests/{requestId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-        // Admins can also read all requests (handled by admin rule below)
+        allow read: if request.auth != null && request.auth.uid == userId;
+
+        // An employee can only file a request as "pending" with no admin remark,
+        // and can withdraw it while it is still pending. They can never set or
+        // change the status: only an admin or an allowed sub admin decides.
+        allow create: if request.auth != null && request.auth.uid == userId &&
+          request.resource.data.status == 'pending' &&
+          !('adminRemark' in request.resource.data);
+        allow delete: if request.auth != null && request.auth.uid == userId &&
+          resource.data.status == 'pending';
+
+        // Sub admin with "approve leave requests" can read and decide them,
+        // changing only the decision fields. Admins are covered by the
+        // catch-all rule at the bottom.
+        allow read: if hasPerm('leave_requests');
+        allow update: if hasPerm('leave_requests') &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'adminRemark']);
       }
-      
-      // Leaves subcollection - leave balances (read-only for users, write-only for admins)
+
+      // Leaves subcollection - leave balances (read-only for users)
       match /leaves/{leaveDocument} {
         allow read: if request.auth != null && request.auth.uid == userId;
-        // Only admins can write to leave balances (via the admin rule below)
         allow write: if false;
+        // Sub admins: balances are changed by onboarding and by approving leave
+        allow read: if hasPerm('manage_employees') || hasPerm('onboarding') ||
+          hasPerm('leave_requests');
+        allow write: if hasPerm('onboarding') || hasPerm('leave_requests');
       }
-      
-      // Security subcollection - users can manage their own security settings
+
+      // Attendance summary - one document per month (yyyy-MM) with the day lists.
+      // The employee keeps their own; sub admins who can see attendance or decide
+      // leave requests rebuild it after their changes.
+      match /attendance_summary/{monthDoc} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if hasPerm('view_attendance') || hasPerm('manage_employees');
+        allow write: if hasPerm('view_attendance') || hasPerm('leave_requests');
+      }
+
+      // Security subcollection - users manage their own PIN, biometric and device
       match /security/{securityDocument} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
+        // Sub admin with "view and edit" can see and reset a registered device
+        allow read, write: if hasPerm('manage_employees');
       }
     }
-    
+
+    // All employees' requests at once (admin leave screens use a collection group query)
+    match /{path=**}/requests/{requestId} {
+      allow read: if hasPerm('leave_requests');
+    }
+
     // ============================================
     // DEPARTMENTS COLLECTION
     // ============================================
     match /departments/{departmentId} {
       // All authenticated users can read departments
       allow read: if request.auth != null;
+      allow write: if hasPerm('departments');
     }
 
     // ============================================
-    // ORGANIZATION DETAILS (leave config, holiday calendar)
+    // ORGANIZATION DETAILS (leave counts, office hours, holiday calendar)
     // ============================================
-    match /organization_details/{document=**} {
-      // All authenticated users (employees included) can read; writes fall to the admin rule below
-      allow read: if request.auth != null;
+    // Everyone signed in reads it; admins write everything, a sub admin only the
+    // part an admin granted.
+    match /organization_details/leave_config {
+      allow read: if signedIn();
+      allow write: if hasPerm('leave_config');
+    }
+
+    match /organization_details/office_hours {
+      allow read: if signedIn();
+      allow write: if hasPerm('office_hours');
+    }
+
+    match /organization_details/holidays {
+      allow read: if signedIn();
+
+      match /items/{holidayId} {
+        allow read: if signedIn();
+        allow write: if hasPerm('holidays');
+      }
     }
 
     // ============================================
     // ATTENDANCE COLLECTION
     // ============================================
     match /attendance/{document} {
-      // Users can read and write their own attendance records
-      allow read, write: if request.auth != null && 
-        (request.auth.uid == resource.data.userId || 
-         request.auth.uid == request.resource.data.userId);
+      // Users read their own attendance records
+      allow read: if request.auth != null &&
+        request.auth.uid == resource.data.userId;
+
+      // A punch in creates the record as "pending" (checked in, not yet out).
+      // Employees can never create an "absent" / "half-day" / "on-leave" record.
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+
+      // A punch in / out updates their own record, and the status can only be
+      // "pending" or "present". Marking absent is done by an admin.
+      allow update: if request.auth != null &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status in ['pending', 'present'];
+
+      // Sub admin with "view employee attendance"
+      allow read: if hasPerm('view_attendance');
     }
-    
-    // ============================================
-    // LEGACY LEAVES COLLECTION (for backward compatibility)
-    // ============================================
-    match /leaves/{document} {
-      allow read, write: if request.auth != null && 
-        (request.auth.uid == resource.data.userId || 
-         request.auth.uid == request.resource.data.userId);
-    }
-    
+
     // ============================================
     // ADMIN OVERRIDE RULE
     // ============================================
     // Admins can read and write all documents
     // This rule should be last as it's a catch-all
     match /{document=**} {
-      allow read, write: if request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow read, write: if isAdmin();
     }
   }
 }

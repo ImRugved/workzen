@@ -4,17 +4,30 @@ import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/auth_provider.dart';
+import '../providers/toggle_provider.dart';
+import '../constants/apploading_indicator.dart';
 import '../constants/const_textstyle.dart';
+import '../constants/constant_snackbar.dart';
+import '../constants/constant_button.dart';
+import '../constants/constant_colors.dart';
+import '../constants/permissions.dart';
 
 class AppDrawer extends StatefulWidget {
-  const AppDrawer({Key? key}) : super(key: key);
+  const AppDrawer({super.key});
 
   @override
   State<AppDrawer> createState() => _AppDrawerState();
 }
 
 class _AppDrawerState extends State<AppDrawer> {
-  bool _isLoggingOut = false;
+  // Logging out flag (scoped state, no setState)
+  final ToggleProvider _loggingOut = ToggleProvider();
+
+  @override
+  void dispose() {
+    _loggingOut.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +63,7 @@ class _AppDrawerState extends State<AppDrawer> {
                         height: 60.w,
                         fit: BoxFit.cover,
                         placeholder: (context, url) =>
-                            const CircularProgressIndicator(),
+                            const AppLoadingIndicator(size: 24),
                         errorWidget: (context, url, error) => Text(
                           authProvider.userModel?.name.isNotEmpty == true
                               ? authProvider.userModel!.name[0].toUpperCase()
@@ -80,30 +93,49 @@ class _AppDrawerState extends State<AppDrawer> {
               Icons.dashboard,
               () => Get.offNamed('/admin_dashboard'),
             ),
+            // Admins and sub admins punch in / out like everyone else
             _buildDrawerItem(
               context,
-              'Leave Requests',
-              Icons.assignment,
-              () => Get.toNamed('/leave_requests_screen'),
+              'My Attendance',
+              Icons.fingerprint,
+              () => Get.toNamed('/attendance_screen'),
             ),
             _buildDrawerItem(
               context,
-              'Employee Attendance',
-              Icons.people,
-              () => Get.toNamed('/admin_attendance_screen'),
+              'My Attendance History',
+              Icons.access_time,
+              () => Get.toNamed('/attendance_history_screen'),
             ),
-            _buildDrawerItem(
-              context,
-              'Employee Onboarding',
-              Icons.person_add,
-              () => Get.toNamed('/employee_onboarding_screen'),
-            ),
-            _buildDrawerItem(
-              context,
-              'Employee Management',
-              Icons.manage_accounts,
-              () => Get.toNamed('/employee_management_screen'),
-            ),
+            // A sub admin only sees what the admin granted
+            if (authProvider.can(Permissions.leaveRequests))
+              _buildDrawerItem(
+                context,
+                'Leave Requests',
+                Icons.assignment,
+                () => Get.toNamed('/leave_requests_screen'),
+              ),
+            if (authProvider.can(Permissions.viewAttendance))
+              _buildDrawerItem(
+                context,
+                'Employee Attendance',
+                Icons.people,
+                () => Get.toNamed('/admin_attendance_screen'),
+              ),
+            if (authProvider.can(Permissions.onboarding))
+              _buildDrawerItem(
+                context,
+                'Employee Onboarding',
+                Icons.person_add,
+                () => Get.toNamed('/employee_onboarding_screen'),
+              ),
+            if (authProvider.can(Permissions.manageEmployees) ||
+                authProvider.can(Permissions.addEmployee))
+              _buildDrawerItem(
+                context,
+                'Employee Management',
+                Icons.manage_accounts,
+                () => Get.toNamed('/employee_management_screen'),
+              ),
           ] else ...[
             _buildDrawerItem(
               context,
@@ -168,114 +200,66 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   Widget _buildLogoutItem(BuildContext context, AuthProvider authProvider) {
-    return ListTile(
-      leading: Icon(Icons.logout, color: Colors.indigo, size: 22.r),
-      title: Text(
-        'Logout',
-        style: getTextTheme().bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+    // The tile shows a spinner while logging out; the flag is scoped to the drawer
+    return ChangeNotifierProvider.value(
+      value: _loggingOut,
+      child: Consumer<ToggleProvider>(
+        builder: (context, loggingOut, _) => ListTile(
+          leading: Icon(Icons.logout, color: Colors.indigo, size: 22.r),
+          title: Text(
+            'Logout',
+            style: getTextTheme().bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          trailing: loggingOut.value
+              ? SizedBox(
+                  width: 20.w,
+                  height: 20.h,
+                  child: const AppLoadingIndicator(size: 20),
+                )
+              : null,
+          enabled: !loggingOut.value,
+          onTap: () => _confirmAndLogout(context, authProvider),
+        ),
       ),
-      trailing: _isLoggingOut
-          ? SizedBox(
-              width: 20.w,
-              height: 20.h,
-              child: const CircularProgressIndicator(
-                strokeWidth: 2,
-              ),
-            )
-          : null,
-      enabled: !_isLoggingOut,
-      onTap: () async {
-        // Show confirmation dialog
-        bool? confirm = await showDialog<bool>(
-          context: context,
-          barrierDismissible: !_isLoggingOut,
-          builder: (dialogContext) {
-            return StatefulBuilder(
-              builder: (context, setDialogState) {
-                return AlertDialog(
-                  title: const Text('Logout'),
-                  content: const Text('Are you sure you want to logout?'),
-                  actions: [
-                    if (!_isLoggingOut)
-                      TextButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(false),
-                        child: const Text('Cancel'),
-                      ),
-                    ElevatedButton(
-                      onPressed: _isLoggingOut
-                          ? null
-                          : () async {
-                              setDialogState(() {
-                                _isLoggingOut = true;
-                              });
-                              setState(() {
-                                _isLoggingOut = true;
-                              });
-                              Navigator.of(dialogContext).pop(true);
-                              try {
-                                await authProvider.logout();
-                                if (mounted) {
-                                  Get.offAllNamed('/login_screen');
-                                }
-                              } catch (e) {
-                                if (mounted) {
-                                  setState(() {
-                                    _isLoggingOut = false;
-                                  });
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Logout failed: ${e.toString()}'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                      ),
-                      child: _isLoggingOut
-                          ? SizedBox(
-                              width: 20.w,
-                              height: 20.h,
-                              child: const CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Text('Logout'),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        );
-
-        if (confirm == true && !_isLoggingOut) {
-          setState(() {
-            _isLoggingOut = true;
-          });
-          try {
-            await authProvider.logout();
-            if (mounted) {
-              Get.offAllNamed('/login_screen');
-            }
-          } catch (e) {
-            if (mounted) {
-              setState(() {
-                _isLoggingOut = false;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Logout failed: ${e.toString()}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        }
-      },
     );
+  }
+
+  Future<void> _confirmAndLogout(
+    BuildContext context,
+    AuthProvider authProvider,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ConstantButton(
+            text: 'Logout',
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            backgroundColor: ConstColors.errorRed,
+            isFullWidth: false,
+            height: 40.h,
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || _loggingOut.value) return;
+
+    _loggingOut.set(true);
+    try {
+      await authProvider.logout();
+      Get.offAllNamed('/login_screen');
+    } catch (e) {
+      _loggingOut.set(false);
+      ConstantSnackbar.showError(title: 'Logout failed: $e');
+    }
   }
 }

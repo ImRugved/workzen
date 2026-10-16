@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -11,10 +13,17 @@ import '../../models/request_model.dart';
 import '../../models/leave_balance_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
+import '../../providers/user_home_provider.dart';
 import '../../services/notification_service.dart';
+import '../../providers/calendar_provider.dart';
 import '../../widgets/app_drawer.dart';
+import '../../widgets/request_card.dart';
+import '../../widgets/attendance_calendar_card.dart';
 import '../../widgets/holiday_calendar_card.dart';
+import '../../constants/apploading_indicator.dart';
 import '../../constants/const_textstyle.dart';
+import '../../constants/constant_button.dart';
+import '../../constants/constant_colors.dart';
 import '../../utils/logger.dart';
 
 class UserHome extends StatefulWidget {
@@ -25,11 +34,11 @@ class UserHome extends StatefulWidget {
 }
 
 class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
-  Stream<List<RequestModel>>? _userLeavesStream;
-  LeaveBalanceModel? _leaveBalanceModel;
-  bool _isLoadingBalances = true;
-  bool _hasLoadedOnce = false; // Track if data has been loaded once
+  // Requests stream and leave balances live in this scoped provider
+  final UserHomeProvider _home = UserHomeProvider();
   late AnimationController _animationController;
+  // Reloads the leave balances when an admin decides a request
+  StreamSubscription<void>? _balanceSubscription;
 
   @override
   void initState() {
@@ -43,6 +52,7 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
       _initializeStream();
       _initializeNotifications();
       _loadLeaveBalances();
+      _listenForBalanceChanges();
       _requestLocationAndStore();
       // Animation will start after leave balances are loaded
     });
@@ -50,7 +60,9 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _balanceSubscription?.cancel();
     _animationController.dispose();
+    _home.dispose();
     super.dispose();
   }
 
@@ -62,22 +74,35 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
     );
 
     if (authProvider.userModel != null) {
-      setState(() {
-        _userLeavesStream = requestProvider.getUserRequestsStream(
-          authProvider.userModel!.id,
-          type: AppConstants.requestTypeLeave,
-        );
-      });
+      // Leave and comp off requests together
+      _home.setRequestsStream(
+        requestProvider
+            .getUserRequestsStream(authProvider.userModel!.id)
+            .map(
+              (requests) => requests
+                  .where((r) => r.isLeaveRequest || r.isCompOffRequest)
+                  .toList(),
+            ),
+      );
     }
   }
 
+  void _listenForBalanceChanges() {
+    final user = context.read<AuthProvider>().userModel;
+    if (user == null) return;
+
+    _balanceSubscription?.cancel();
+    _balanceSubscription = context
+        .read<RequestProvider>()
+        .leaveBalanceChanges(user.id)
+        .listen((_) {
+          if (mounted) _loadLeaveBalances();
+        });
+  }
+
   Future<void> _loadLeaveBalances() async {
-    // Only show loading if data hasn't been loaded before
-    if (!_hasLoadedOnce) {
-      setState(() {
-        _isLoadingBalances = true;
-      });
-    }
+    // Only shows loading if data hasn't been loaded before
+    _home.startLoadingBalances();
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final requestProvider = Provider.of<RequestProvider>(
@@ -90,22 +115,12 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
         authProvider.userModel!.id,
       );
 
-      if (balances != null) {
-        setState(() {
-          _leaveBalanceModel = LeaveBalanceModel.fromFirestore(balances);
-          _isLoadingBalances = false;
-          _hasLoadedOnce = true; // Mark as loaded
-        });
-        // Start animation after data is loaded (only first time)
-        if (_animationController.status != AnimationStatus.completed) {
-          _animationController.forward();
-        }
-      } else {
-        setState(() {
-          _leaveBalanceModel = null;
-          _isLoadingBalances = false;
-          _hasLoadedOnce = true; // Mark as loaded even if no data
-        });
+      // Marked as loaded even when there is no data
+      _home.setBalances(balances);
+      // Start animation after data is loaded (only first time)
+      if (balances != null &&
+          _animationController.status != AnimationStatus.completed) {
+        _animationController.forward();
       }
     }
   }
@@ -161,13 +176,23 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
   }
 
   Future<void> _onRefresh() async {
-    // Refresh both stream and leave balances
+    // Refresh stream, leave balances and the attendance calendar
     _initializeStream();
-    await _loadLeaveBalances();
+    await Future.wait([
+      _loadLeaveBalances(),
+      Provider.of<CalendarProvider>(context, listen: false).refresh(),
+    ]);
   }
 
   @override
   Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: _home,
+      child: Builder(builder: _buildScreen),
+    );
+  }
+
+  Widget _buildScreen(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
 
     return Scaffold(
@@ -186,7 +211,7 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
       ),
       drawer: const AppDrawer(),
       body: authProvider.userModel == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingIndicator(size: 40))
           : RefreshIndicator(
               onRefresh: _onRefresh,
               child: SingleChildScrollView(
@@ -300,10 +325,17 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
+                      SizedBox(height: 16.h),
+
+                      // Today's punch times and the month attendance calendar
+                      const AttendanceCalendarCard(),
                       SizedBox(height: 24.h),
 
                       // Leave Balance Section
-                      _buildLeaveBalanceSection(),
+                      Consumer<UserHomeProvider>(
+                        builder: (context, home, _) =>
+                            _buildLeaveBalanceSection(home),
+                      ),
                       SizedBox(height: 24.h),
 
                       // Quick Actions
@@ -372,15 +404,20 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                       // Requests list with StreamBuilder (Pending only)
                       SizedBox(
                         height: 300.h,
-                        child: _userLeavesStream == null
-                            ? const Center(child: CircularProgressIndicator())
+                        child: context
+                                    .watch<UserHomeProvider>()
+                                    .requestsStream ==
+                                null
+                            ? const Center(child: AppLoadingIndicator(size: 40))
                             : StreamBuilder<List<RequestModel>>(
-                                stream: _userLeavesStream,
+                                stream: context
+                                    .watch<UserHomeProvider>()
+                                    .requestsStream,
                                 builder: (context, snapshot) {
                                   if (snapshot.connectionState ==
                                       ConnectionState.waiting) {
                                     return const Center(
-                                      child: CircularProgressIndicator(),
+                                      child: AppLoadingIndicator(size: 40),
                                     );
                                   }
 
@@ -425,22 +462,16 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                                             textAlign: TextAlign.center,
                                           ),
                                           SizedBox(height: 12.h),
-                                          ElevatedButton.icon(
+                                          ConstantButton(
+                                            text: 'Try Again',
                                             onPressed: _initializeStream,
                                             icon: Icon(
                                               Icons.refresh,
                                               size: 20.r,
+                                              color: ConstColors.white,
                                             ),
-                                            label: Text(
-                                              'Try Again',
-                                              style: getTextTheme().labelLarge,
-                                            ),
-                                            style: ElevatedButton.styleFrom(
-                                              padding: EdgeInsets.symmetric(
-                                                horizontal: 16.w,
-                                                vertical: 8.h,
-                                              ),
-                                            ),
+                                            isFullWidth: false,
+                                            height: 40.h,
                                           ),
                                         ],
                                       ),
@@ -510,88 +541,9 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                                     itemCount: requests.length > 3
                                         ? 3
                                         : requests.length,
-                                    itemBuilder: (context, index) {
-                                      final request = requests[index];
-                                      return Card(
-                                        margin: EdgeInsets.only(bottom: 12.h),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            10.r,
-                                          ),
-                                          side: BorderSide(
-                                            color: request.status == 'pending'
-                                                ? Colors.orange.withOpacity(0.5)
-                                                : request.status == 'approved'
-                                                ? Colors.green.withOpacity(0.5)
-                                                : Colors.red.withOpacity(0.5),
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: ListTile(
-                                          contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 16.w,
-                                            vertical: 8.h,
-                                          ),
-                                          title: Text(
-                                            'From: ${_formatDate(request.fromDate!)} To: ${_formatDate(request.toDate!)}',
-                                            style: getTextTheme().bodyMedium
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                          ),
-                                          subtitle: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              SizedBox(height: 4.h),
-                                              Text(
-                                                'Reason: ${request.reason}',
-                                                style:
-                                                    getTextTheme().bodyMedium,
-                                              ),
-                                              SizedBox(height: 4.h),
-                                              Row(
-                                                children: [
-                                                  _buildStatusChip(
-                                                    request.status,
-                                                  ),
-                                                  if (request.adminRemark !=
-                                                          null &&
-                                                      request
-                                                          .adminRemark!
-                                                          .isNotEmpty)
-                                                    Expanded(
-                                                      child: Padding(
-                                                        padding:
-                                                            EdgeInsets.only(
-                                                              left: 8.w,
-                                                            ),
-                                                        child: Text(
-                                                          'Remark: ${request.adminRemark}',
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                          style: getTextTheme()
-                                                              .bodySmall,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                          trailing: Icon(
-                                            Icons.arrow_forward_ios,
-                                            size: 16.r,
-                                          ),
-                                          onTap: () async {
-                                            await Get.toNamed(
-                                              '/leave_history_screen',
-                                            );
-                                            _initializeStream();
-                                          },
-                                        ),
-                                      );
-                                    },
+                                    // Same card as leave history and the admin
+                                    itemBuilder: (context, index) =>
+                                        RequestCard(request: requests[index]),
                                   );
                                 },
                               ),
@@ -607,9 +559,9 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildLeaveBalanceSection() {
+  Widget _buildLeaveBalanceSection(UserHomeProvider home) {
     // Only show loading indicator on first load
-    if (_isLoadingBalances && !_hasLoadedOnce) {
+    if (home.showBalanceLoading) {
       return Card(
         elevation: 3,
         shape: RoundedRectangleBorder(
@@ -621,7 +573,7 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(color: Colors.indigo),
+                AppLoadingIndicator(size: 40),
                 SizedBox(height: 16.h),
                 Text(
                   'Loading leave balances...',
@@ -637,7 +589,8 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
     }
 
     // If still loading but has loaded before, show previous data or empty state
-    if (_leaveBalanceModel == null || !_leaveBalanceModel!.hasAnyLeaves) {
+    final balances = home.balances;
+    if (balances == null || !balances.hasAnyLeaves) {
       return Card(
         elevation: 3,
         color: Colors.orange.shade50,
@@ -681,14 +634,12 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
           ),
         ),
         SizedBox(height: 16.h),
-        _buildLeaveBalanceCard(),
+        _buildLeaveBalanceCard(balances),
       ],
     );
   }
 
-  Widget _buildLeaveBalanceCard() {
-    final model = _leaveBalanceModel!;
-
+  Widget _buildLeaveBalanceCard(LeaveBalanceModel model) {
     final plTotal = model.plTotal;
     final plUsed = model.plUsed;
     final plBalance = model.plBalance;
@@ -704,6 +655,12 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
     final totalAssigned = model.totalAllocated;
     final totalUsed = model.totalUsed;
     final totalBalance = model.totalBalance;
+
+    // Comp off credit earned from approved comp off requests (not yearly)
+    final requests = context.watch<RequestProvider>();
+    final coEarned = requests.compOffEarned;
+    final coUsed = requests.compOffUsed;
+    final coBalance = requests.compOffBalance;
 
     return Card(
       elevation: 4,
@@ -800,6 +757,19 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                                           fontWeight: FontWeight.bold,
                                         ),
                                   ),
+                                if (coBalance > 0)
+                                  PieChartSectionData(
+                                    value:
+                                        coBalance * _animationController.value,
+                                    title: 'CO\n${_count(coBalance)}',
+                                    color: Colors.teal,
+                                    radius: 50.r,
+                                    titleStyle: getTextTheme().labelSmall
+                                        ?.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                  ),
                               ],
                             ),
                           );
@@ -842,6 +812,16 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                           clBalance,
                           Colors.orange,
                         ),
+                      if (coEarned > 0) ...[
+                        SizedBox(height: 14.h),
+                        _buildCompactLegendItem(
+                          'Comp Off',
+                          coEarned,
+                          coUsed,
+                          coBalance,
+                          Colors.teal,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -884,11 +864,14 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
     );
   }
 
+  // 2 for whole days, 1.5 for a half day
+  String _count(num n) => n % 1 == 0 ? n.toInt().toString() : n.toString();
+
   Widget _buildCompactLegendItem(
     String type,
-    int total,
-    int used,
-    int balance,
+    num total,
+    num used,
+    num balance,
     Color color,
   ) {
     return Row(
@@ -915,7 +898,7 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
               ),
             ),
             Text(
-              'Used: $used | Bal: $balance',
+              'Used: ${_count(used)} | Bal: ${_count(balance)}',
               style: getTextTheme().labelSmall?.copyWith(
                 // fontSize: 9.sp,
                 color: Colors.grey.shade600,
@@ -1026,43 +1009,4 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildStatusChip(String status) {
-    Color chipColor;
-    String statusText;
-
-    switch (status) {
-      case 'pending':
-        chipColor = Colors.orange;
-        statusText = 'Pending';
-        break;
-      case 'approved':
-        chipColor = Colors.green;
-        statusText = 'Approved';
-        break;
-      case 'rejected':
-        chipColor = Colors.red;
-        statusText = 'Rejected';
-        break;
-      default:
-        chipColor = Colors.grey;
-        statusText = 'Unknown';
-    }
-
-    return Chip(
-      label: Text(
-        statusText,
-        style: getTextTheme().labelSmall?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      backgroundColor: chipColor,
-      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 0.h),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    return "${date.day}/${date.month}/${date.year}";
-  }
 }

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:provider/provider.dart';
 import '../constants/const_textstyle.dart';
+import '../constants/constant_button.dart';
 import '../constants/constant_colors.dart';
 import '../constants/constant_snackbar.dart';
 import '../models/department_model.dart';
 import '../providers/employee_management_provider.dart';
+import '../providers/toggle_provider.dart';
 
 /// Dialogs and sheets for creating and managing departments and roles.
 /// Used from the admin dashboard page.
@@ -85,12 +88,12 @@ class DepartmentRoleManager {
             onPressed: () => Navigator.pop(c, false),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          ConstantButton(
+            text: 'Delete',
             onPressed: () => Navigator.pop(c, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ConstColors.errorRed,
-            ),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            backgroundColor: ConstColors.errorRed,
+            isFullWidth: false,
+            height: 40.h,
           ),
         ],
       ),
@@ -333,11 +336,13 @@ class _AddNamesDialog extends StatefulWidget {
 
 class _AddNamesDialogState extends State<_AddNamesDialog> {
   final _controller = TextEditingController();
-  bool _isSaving = false;
+  // Saving flag, scoped to this dialog
+  final ToggleProvider _saving = ToggleProvider();
 
   @override
   void dispose() {
     _controller.dispose();
+    _saving.dispose();
     super.dispose();
   }
 
@@ -348,7 +353,7 @@ class _AddNamesDialogState extends State<_AddNamesDialog> {
       return;
     }
 
-    setState(() => _isSaving = true);
+    _saving.set(true);
     final success = await widget.onSave(names);
     if (!mounted) return;
 
@@ -356,13 +361,22 @@ class _AddNamesDialogState extends State<_AddNamesDialog> {
       Navigator.of(context).pop();
       ConstantSnackbar.showSuccess(title: widget.successMessage);
     } else {
-      setState(() => _isSaving = false);
+      _saving.set(false);
       ConstantSnackbar.showError(title: widget.failureMessage);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: _saving,
+      child: Consumer<ToggleProvider>(
+        builder: (context, saving, _) => _buildDialog(saving.value),
+      ),
+    );
+  }
+
+  Widget _buildDialog(bool isSaving) {
     return AlertDialog(
       title: Text(widget.title),
       content: Column(
@@ -372,7 +386,7 @@ class _AddNamesDialogState extends State<_AddNamesDialog> {
           TextField(
             controller: _controller,
             autofocus: true,
-            enabled: !_isSaving,
+            enabled: !isSaving,
             textCapitalization: TextCapitalization.words,
             decoration: InputDecoration(
               labelText: widget.label,
@@ -393,25 +407,16 @@ class _AddNamesDialogState extends State<_AddNamesDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+          onPressed: isSaving ? null : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        ElevatedButton(
-          onPressed: _isSaving ? null : _save,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: ConstColors.primary,
-            foregroundColor: Colors.white,
-          ),
-          child: _isSaving
-              ? SizedBox(
-                  width: 18.r,
-                  height: 18.r,
-                  child: const CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : const Text('Add'),
+        ConstantButton(
+          text: 'Add',
+          onPressed: isSaving ? null : _save,
+          backgroundColor: ConstColors.primary,
+          isLoading: isSaving,
+          isFullWidth: false,
+          height: 40.h,
         ),
       ],
     );
@@ -455,13 +460,15 @@ class _EditNameDialogState extends State<_EditNameDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        ElevatedButton(
+        ConstantButton(
+          text: 'Save',
           onPressed: () {
             final value = _controller.text.trim();
             if (value.isNotEmpty) Navigator.of(context).pop(value);
           },
-          style: ElevatedButton.styleFrom(backgroundColor: ConstColors.primary),
-          child: const Text('Save', style: TextStyle(color: Colors.white)),
+          backgroundColor: ConstColors.primary,
+          isFullWidth: false,
+          height: 40.h,
         ),
       ],
     );

@@ -4,9 +4,12 @@ import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/security_provider.dart';
-import '../../widgets/custom_button.dart';
+import '../../providers/toggle_provider.dart';
+import '../../constants/constant_button.dart';
 import '../../constants/constant_textfield.dart';
 import '../../constants/const_textstyle.dart';
+import '../../constants/constant_snackbar.dart';
+import '../../utils/validators.dart';
 import '../app_unlock_pin_setup_screen.dart';
 import '../app_unlock_screen.dart';
 import '../admin/dashboard/admin_dashboard_screen.dart';
@@ -26,20 +29,9 @@ class _SignupScreenState extends State<SignupScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _secretCodeController = TextEditingController();
-  bool _isPasswordVisible = false;
-  bool _isConfirmPasswordVisible = false;
-
-  void _togglePasswordVisibility() {
-    setState(() {
-      _isPasswordVisible = !_isPasswordVisible;
-    });
-  }
-
-  void _toggleConfirmPasswordVisibility() {
-    setState(() {
-      _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
-    });
-  }
+  // Password visibility (scoped state, no setState)
+  final ToggleProvider _passwordVisible = ToggleProvider();
+  final ToggleProvider _confirmPasswordVisible = ToggleProvider();
 
   Future<void> _signup() async {
     if (_formKey.currentState!.validate()) {
@@ -53,11 +45,8 @@ class _SignupScreenState extends State<SignupScreen> {
 
       if (result['success'] && mounted) {
         // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] ?? 'Account created successfully!'),
-            backgroundColor: Colors.green,
-          ),
+        ConstantSnackbar.showSuccess(
+          title: result['message'] ?? 'Your account is ready',
         );
 
         // Check security settings
@@ -99,14 +88,11 @@ class _SignupScreenState extends State<SignupScreen> {
           backgroundColor = Colors.deepOrange;
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: backgroundColor,
-            duration: const Duration(
-              seconds: 5,
-            ), // Longer duration for important errors
-          ),
+        ConstantSnackbar.show(
+          title: errorMessage,
+          backgroundColor: backgroundColor,
+          // Longer for important errors
+          duration: const Duration(seconds: 5),
         );
       }
     }
@@ -155,12 +141,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     controller: _nameController,
                     customText: 'Full Name',
                     prefixIcon: Icon(Icons.person_outline, size: 20.r),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your name';
-                      }
-                      return null;
-                    },
+                    validator: Validators.required('your name'),
                   ),
                   SizedBox(height: 16.h),
 
@@ -170,71 +151,57 @@ class _SignupScreenState extends State<SignupScreen> {
                     customText: 'Email',
                     prefixIcon: Icon(Icons.email_outlined, size: 20.r),
                     keyoardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
-                      }
-                      if (!RegExp(
-                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                      ).hasMatch(value)) {
-                        return 'Please enter a valid email';
-                      }
-                      return null;
-                    },
+                    validator: Validators.email,
                   ),
                   SizedBox(height: 16.h),
 
                   // Password Field
-                  ConstTextField(
-                    controller: _passwordController,
-                    customText: 'Password',
-                    prefixIcon: Icon(Icons.lock_outline, size: 20.r),
-                    obsercureText: !_isPasswordVisible,
-                    iconss: IconButton(
-                      icon: Icon(
-                        _isPasswordVisible
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                        color: Colors.grey,
+                  ChangeNotifierProvider.value(
+                    value: _passwordVisible,
+                    child: Consumer<ToggleProvider>(
+                      builder: (context, visible, _) => ConstTextField(
+                        controller: _passwordController,
+                        customText: 'Password',
+                        prefixIcon: Icon(Icons.lock_outline, size: 20.r),
+                        obsercureText: !visible.value,
+                        iconss: IconButton(
+                          icon: Icon(
+                            visible.value
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: Colors.grey,
+                          ),
+                          onPressed: visible.toggle,
+                        ),
+                        validator: Validators.password,
                       ),
-                      onPressed: _togglePasswordVisibility,
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter a password';
-                      }
-                      if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
-                      }
-                      return null;
-                    },
                   ),
                   SizedBox(height: 16.h),
 
                   // Confirm Password Field
-                  ConstTextField(
-                    controller: _confirmPasswordController,
-                    customText: 'Confirm Password',
-                    prefixIcon: Icon(Icons.lock_outline, size: 20.r),
-                    obsercureText: !_isConfirmPasswordVisible,
-                    iconss: IconButton(
-                      icon: Icon(
-                        _isConfirmPasswordVisible
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                        color: Colors.grey,
+                  ChangeNotifierProvider.value(
+                    value: _confirmPasswordVisible,
+                    child: Consumer<ToggleProvider>(
+                      builder: (context, visible, _) => ConstTextField(
+                        controller: _confirmPasswordController,
+                        customText: 'Confirm Password',
+                        prefixIcon: Icon(Icons.lock_outline, size: 20.r),
+                        obsercureText: !visible.value,
+                        iconss: IconButton(
+                          icon: Icon(
+                            visible.value
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: Colors.grey,
+                          ),
+                          onPressed: visible.toggle,
+                        ),
+                        validator: Validators.confirmPassword(
+                          () => _passwordController.text,
+                        ),
                       ),
-                      onPressed: _toggleConfirmPasswordVisibility,
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please confirm your password';
-                      }
-                      if (value != _passwordController.text) {
-                        return 'Passwords do not match';
-                      }
-                      return null;
-                    },
                   ),
                   SizedBox(height: 16.h),
 
@@ -247,8 +214,8 @@ class _SignupScreenState extends State<SignupScreen> {
                   SizedBox(height: 24.h),
 
                   // Signup Button
-                  CustomButton(
-                    label: 'Sign Up',
+                  ConstantButton(
+                    text: 'Sign Up',
                     isLoading: authProvider.isLoading,
                     onPressed: _signup,
                   ),
@@ -292,6 +259,8 @@ class _SignupScreenState extends State<SignupScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _secretCodeController.dispose();
+    _passwordVisible.dispose();
+    _confirmPasswordVisible.dispose();
     super.dispose();
   }
 }

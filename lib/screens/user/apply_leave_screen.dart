@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../models/leave_allocation_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
-import '../../widgets/custom_button.dart';
+import '../../constants/constant_snackbar.dart';
+import '../../utils/validators.dart';
+import '../../widgets/comp_off_request_form.dart';
+import '../../constants/constant_button.dart';
+import '../../constants/apploading_indicator.dart';
 import '../../constants/const_textstyle.dart';
+import '../../constants/constant_date_time_picker.dart';
+import '../../constants/constant_dropdown.dart';
 import '../../app_constants.dart';
 
 class ApplyLeaveScreen extends StatefulWidget {
@@ -38,158 +44,61 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
     });
   }
 
+  // Dropdown entries: the leave types the employee has balance for, "Comp Off"
+  // with the earned credit once some was approved, and always "Apply Comp Off".
   List<Map<String, dynamic>> _getAvailableLeaveTypes(
-    Map<String, dynamic>? leaveBalances,
+    LeaveAllocationModel? allocation,
   ) {
-    if (leaveBalances == null) return [];
+    final provider = Provider.of<RequestProvider>(context, listen: false);
+    final types = <Map<String, dynamic>>[];
 
-    List<Map<String, dynamic>> types = [];
-
-    // PL - Privilege Leave
-    if (leaveBalances.containsKey('privilegeLeaves')) {
-      final plData = leaveBalances['privilegeLeaves'] as Map<String, dynamic>?;
-      if (plData != null) {
-        final balance = (plData['balance'] ?? 0) as num;
-        if (balance > 0) {
-          types.add({
-            'value': AppConstants.leaveTypePL,
-            'label': 'PL (Privilege Leave)',
-            'balance': balance.toInt(),
-          });
-        }
+    // A type is offered when the employee has it and days are still available
+    // (balance minus days held by pending requests)
+    void addType(String value, String label, LeaveTypeBalance? type) {
+      if (type == null) return;
+      final available = provider.availableLeave(value);
+      if (available > 0) {
+        types.add({'value': value, 'label': label, 'balance': available});
       }
     }
 
-    // SL - Sick Leave
-    if (leaveBalances.containsKey('sickLeaves')) {
-      final slData = leaveBalances['sickLeaves'] as Map<String, dynamic>?;
-      if (slData != null) {
-        final balance = (slData['balance'] ?? 0) as num;
-        if (balance > 0) {
-          types.add({
-            'value': AppConstants.leaveTypeSL,
-            'label': 'SL (Sick Leave)',
-            'balance': balance.toInt(),
-          });
-        }
-      }
+    addType(
+      AppConstants.leaveTypePL,
+      'PL (Privilege Leave)',
+      allocation?.privilege,
+    );
+    addType(AppConstants.leaveTypeSL, 'SL (Sick Leave)', allocation?.sick);
+    addType(AppConstants.leaveTypeCL, 'CL (Casual Leave)', allocation?.casual);
+
+    final compOff = provider.availableLeave(AppConstants.leaveTypeCO);
+    if (compOff > 0) {
+      types.add({
+        'value': AppConstants.leaveTypeCO,
+        'label': 'CO (Compensatory Off)',
+        'balance': compOff,
+      });
     }
 
-    // CL - Casual Leave
-    if (leaveBalances.containsKey('casualLeaves')) {
-      final clData = leaveBalances['casualLeaves'] as Map<String, dynamic>?;
-      if (clData != null) {
-        final balance = (clData['balance'] ?? 0) as num;
-        if (balance > 0) {
-          types.add({
-            'value': AppConstants.leaveTypeCL,
-            'label': 'CL (Casual Leave)',
-            'balance': balance.toInt(),
-          });
-        }
-      }
-    }
-
+    types.add({
+      'value': AppConstants.applyCompOffOption,
+      'label': 'Apply Comp Off',
+      'balance': null,
+    });
     return types;
   }
 
-  Future<void> _selectDate(BuildContext context, bool isFromDate) async {
-    final requestProvider = Provider.of<RequestProvider>(
-      context,
-      listen: false,
-    );
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: isFromDate
-          ? requestProvider.fromDate
-          : requestProvider.toDate,
-      firstDate: isFromDate ? DateTime.now() : requestProvider.fromDate,
-      lastDate: DateTime(2100),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Colors.indigo,
-              onPrimary: Colors.white,
-              onSurface: Colors.black,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      final requestProvider = Provider.of<RequestProvider>(
-        context,
-        listen: false,
-      );
-      if (isFromDate) {
-        requestProvider.setFromDate(picked);
-      } else {
-        requestProvider.setToDate(picked);
-      }
-    }
-  }
-
-  Future<void> _selectSingleDate(BuildContext context) async {
-    final requestProvider = Provider.of<RequestProvider>(
-      context,
-      listen: false,
-    );
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: requestProvider.selectedDate,
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2100),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Colors.indigo,
-              onPrimary: Colors.white,
-              onSurface: Colors.black,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      final requestProvider = Provider.of<RequestProvider>(
-        context,
-        listen: false,
-      );
-      requestProvider.setSelectedDate(picked);
-    }
-  }
+  String _formatCount(num n) =>
+      n % 1 == 0 ? n.toInt().toString() : n.toString();
 
   Future<void> _submitLeave() async {
     if (_formKey.currentState!.validate()) {
       final rp = Provider.of<RequestProvider>(context, listen: false);
       if (rp.selectedLeaveType == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Please select a leave type',
-              style: getTextTheme().bodyMedium?.copyWith(color: Colors.white),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ConstantSnackbar.showError(title: 'Please select a leave type');
         return;
       }
       if (rp.shift == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Please select leave duration',
-              style: getTextTheme().bodyMedium?.copyWith(color: Colors.white),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ConstantSnackbar.showError(title: 'Please select the leave duration');
         return;
       }
 
@@ -216,6 +125,22 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
           shiftType = requestProvider.shift!; // "Full Day"
         }
 
+        // The request must fit the days still available for this leave type
+        final requestedDays = shiftType == 'First Half' ||
+                shiftType == 'Second Half'
+            ? 0.5
+            : (toDate.difference(fromDate).inDays + 1).toDouble();
+        final available = requestProvider.availableLeave(
+          rp.selectedLeaveType!,
+        );
+        if (requestedDays > available) {
+          ConstantSnackbar.showError(
+            title:
+                'Only ${_formatCount(available)} day(s) left for this leave type, you asked for ${_formatCount(requestedDays)}',
+          );
+          return;
+        }
+
         bool success = await requestProvider.applyLeave(
           authProvider.userModel!,
           fromDate,
@@ -226,25 +151,13 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
         );
 
         if (success && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Leave request submitted successfully',
-                style: getTextTheme().bodyMedium?.copyWith(color: Colors.white),
-              ),
-              backgroundColor: Colors.green,
-            ),
+          ConstantSnackbar.showSuccess(
+            title: 'Your leave request has been sent for approval',
           );
           Get.back();
         } else if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Failed to submit leave request. Please try again.',
-                style: getTextTheme().bodyMedium?.copyWith(color: Colors.white),
-              ),
-              backgroundColor: Colors.red,
-            ),
+          ConstantSnackbar.showError(
+            title: 'Could not send your leave request. Please try again.',
           );
         }
       }
@@ -254,7 +167,6 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
   @override
   Widget build(BuildContext context) {
     final requestProvider = Provider.of<RequestProvider>(context);
-    final dateFormat = DateFormat('dd/MM/yyyy');
 
     return Scaffold(
       appBar: AppBar(
@@ -277,11 +189,11 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                     Center(
                       child: Padding(
                         padding: EdgeInsets.all(20.h),
-                        child: CircularProgressIndicator(color: Colors.indigo),
+                        child: AppLoadingIndicator(size: 40),
                       ),
                     )
                   else if (_getAvailableLeaveTypes(
-                    requestProvider.leaveBalances,
+                    requestProvider.leaveAllocation,
                   ).isEmpty)
                     Card(
                       color: Colors.orange.shade50,
@@ -315,73 +227,69 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                       ),
                     ),
                     SizedBox(height: 8.h),
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 16.w),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8.r),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
+                    Builder(
+                      builder: (context) {
+                        final types = _getAvailableLeaveTypes(
+                          requestProvider.leaveAllocation,
+                        );
+                        Map<String, dynamic> detail(String value) =>
+                            types.firstWhere((t) => t['value'] == value);
+                        return ConstantDropdown<String>(
+                          hint: 'Select Leave Type',
                           value: requestProvider.selectedLeaveType,
-                          isExpanded: true,
-                          hint: Text(
-                            'Select Leave Type',
-                            style: getTextTheme().bodyMedium?.copyWith(
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          items:
-                              _getAvailableLeaveTypes(
-                                requestProvider.leaveBalances,
-                              ).map((type) {
-                                return DropdownMenuItem<String>(
-                                  value: type['value'],
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        type['label'],
-                                        style: getTextTheme().bodyMedium,
-                                      ),
-                                      Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 8.w,
-                                          vertical: 4.h,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.indigo.shade50,
-                                          borderRadius: BorderRadius.circular(
-                                            12.r,
+                          items: types
+                              .map((t) => t['value'] as String)
+                              .toList(),
+                          itemLabel: (value) => detail(value)['label'] as String,
+                          itemBuilder: (value) {
+                            final type = detail(value);
+                            return Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  type['label'] as String,
+                                  style: getTextTheme().bodyMedium,
+                                ),
+                                if (type['balance'] != null)
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 8.w,
+                                      vertical: 4.h,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.indigo.shade50,
+                                      borderRadius: BorderRadius.circular(12.r),
+                                    ),
+                                    child: Text(
+                                      '${_formatCount(type['balance'] as num)} left',
+                                      style: getTextTheme().labelSmall
+                                          ?.copyWith(
+                                            color: Colors.indigo,
+                                            fontWeight: FontWeight.bold,
                                           ),
-                                        ),
-                                        child: Text(
-                                          '${type['balance']} left',
-                                          style: getTextTheme().labelSmall
-                                              ?.copyWith(
-                                                color: Colors.indigo,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                        ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
-                                );
-                              }).toList(),
+                              ],
+                            );
+                          },
                           onChanged: (value) {
                             context
                                 .read<RequestProvider>()
                                 .setSelectedLeaveType(value);
                           },
-                        ),
-                      ),
+                        );
+                      },
                     ),
                     SizedBox(height: 16.h),
 
                     // Selected Leave Count Display (moved below - above Reason)
                   ],
 
+                  // "Apply Comp Off" swaps the leave form for the comp off form
+                  if (requestProvider.selectedLeaveType ==
+                      AppConstants.applyCompOffOption)
+                    const CompOffRequestForm()
+                  else ...[
                   // Shift Type (Full Day or Half Day)
                   Text(
                     'Leave Duration',
@@ -390,40 +298,16 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                     ),
                   ),
                   SizedBox(height: 8.h),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16.w),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8.r),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: requestProvider.shift,
-                        isExpanded: true,
-                        hint: Text(
-                          'Select Duration',
-                          style: getTextTheme().bodyMedium?.copyWith(
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                        items: ['Full Day', 'Half Day']
-                            .map(
-                              (shift) => DropdownMenuItem<String>(
-                                value: shift,
-                                child: Text(
-                                  shift,
-                                  style: getTextTheme().bodyMedium,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (String? newValue) {
-                          if (newValue != null) {
-                            context.read<RequestProvider>().setShift(newValue);
-                          }
-                        },
-                      ),
-                    ),
+                  ConstantDropdown<String>(
+                    hint: 'Select Duration',
+                    value: requestProvider.shift,
+                    items: const ['Full Day', 'Half Day'],
+                    itemLabel: (shift) => shift,
+                    onChanged: (String? newValue) {
+                      if (newValue != null) {
+                        context.read<RequestProvider>().setShift(newValue);
+                      }
+                    },
                   ),
                   SizedBox(height: 16.h),
 
@@ -437,30 +321,11 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                       ),
                     ),
                     SizedBox(height: 8.h),
-                    InkWell(
-                      onTap: () => _selectDate(context, true),
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 16.w,
-                          vertical: 12.h,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              dateFormat.format(requestProvider.fromDate),
-                              style: getTextTheme().bodyMedium?.copyWith(
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                            Icon(Icons.calendar_today, size: 18.r),
-                          ],
-                        ),
-                      ),
+                    ConstantDatePicker(
+                      value: requestProvider.fromDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime(2100),
+                      onChanged: requestProvider.setFromDate,
                     ),
                     SizedBox(height: 16.h),
 
@@ -472,30 +337,11 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                       ),
                     ),
                     SizedBox(height: 8.h),
-                    InkWell(
-                      onTap: () => _selectDate(context, false),
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 16.w,
-                          vertical: 12.h,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              dateFormat.format(requestProvider.toDate),
-                              style: getTextTheme().bodyMedium?.copyWith(
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                            Icon(Icons.calendar_today, size: 18.r),
-                          ],
-                        ),
-                      ),
+                    ConstantDatePicker(
+                      value: requestProvider.toDate,
+                      firstDate: requestProvider.fromDate,
+                      lastDate: DateTime(2100),
+                      onChanged: requestProvider.setToDate,
                     ),
                     SizedBox(height: 16.h),
                   ] else if (requestProvider.shift == 'Half Day') ...[
@@ -654,30 +500,11 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                       ),
                     ),
                     SizedBox(height: 8.h),
-                    InkWell(
-                      onTap: () => _selectSingleDate(context),
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 16.w,
-                          vertical: 12.h,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              dateFormat.format(requestProvider.selectedDate),
-                              style: getTextTheme().bodyMedium?.copyWith(
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                            Icon(Icons.calendar_today, size: 18.r),
-                          ],
-                        ),
-                      ),
+                    ConstantDatePicker(
+                      value: requestProvider.selectedDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime(2100),
+                      onChanged: requestProvider.setSelectedDate,
                     ),
                     SizedBox(height: 16.h),
                   ],
@@ -736,21 +563,17 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
                       ),
                       contentPadding: EdgeInsets.all(16.w),
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter reason for leave';
-                      }
-                      return null;
-                    },
+                    validator: Validators.required('reason for leave'),
                   ),
                   SizedBox(height: 24.h),
 
                   // Submit Button
-                  CustomButton(
-                    label: 'Submit Request',
+                  ConstantButton(
+                    text: 'Submit Request',
                     isLoading: requestProvider.isLoading,
                     onPressed: _submitLeave,
                   ),
+                  ],
                 ],
               ),
             ),

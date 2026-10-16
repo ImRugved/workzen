@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import '../app_constants.dart';
 import '../models/employee_model.dart';
 import '../models/department_model.dart';
-import '../app_constants.dart';
+import '../constants/firestore_constants.dart';
+import '../constants/permissions.dart';
 import '../utils/logger.dart';
 import 'user_provider.dart';
 
@@ -16,8 +18,10 @@ class EmployeeManagementProvider with ChangeNotifier {
   List<DepartmentModel> _departments = [];
   bool _isLoading = false;
   String _searchQuery = '';
+  bool? _onboardingFilter;
   String? _errorMessage;
   bool _isSubAdminChecked = false;
+  final Set<String> _subAdminPermissions = {}; // chosen on the add screen
   bool _isAddingNewDept = false;
   bool _isAddingNewRole = false;
   String? _selectedDepartment;
@@ -25,11 +29,18 @@ class EmployeeManagementProvider with ChangeNotifier {
 
   // Getters
   List<EmployeeModel> get employees => _filteredEmployees;
+
+  /// Every employee, ignoring the search and status filter.
+  List<EmployeeModel> get allEmployees => _employees;
   List<DepartmentModel> get departments => _departments;
   bool get isLoading => _isLoading;
   String get searchQuery => _searchQuery;
+
+  /// true = onboarded only, false = pending onboarding only, null = everyone
+  bool? get onboardingFilter => _onboardingFilter;
   String? get errorMessage => _errorMessage;
   bool get isSubAdminChecked => _isSubAdminChecked;
+  Set<String> get subAdminPermissions => _subAdminPermissions;
   bool get isAddingNewDept => _isAddingNewDept;
   bool get isAddingNewRole => _isAddingNewRole;
   String? get selectedDepartment => _selectedDepartment;
@@ -41,9 +52,36 @@ class EmployeeManagementProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void setSubAdminPermission(String permission, bool granted) {
+    if (granted) {
+      _subAdminPermissions.add(permission);
+    } else {
+      _subAdminPermissions.remove(permission);
+    }
+    notifyListeners();
+  }
+
+  void setAllSubAdminPermissions(bool all) {
+    _subAdminPermissions
+      ..clear()
+      ..addAll(all ? Permissions.all : const <String>[]);
+    notifyListeners();
+  }
+
+  // Role given to the new person: employee, intern or freelancer
+  String _newEmployeeRole = AppConstants.employeeRole;
+  String get newEmployeeRole => _newEmployeeRole;
+
+  void setNewEmployeeRole(String value) {
+    _newEmployeeRole = value;
+    notifyListeners();
+  }
+
   // Reset add employee form state
   void resetAddEmployeeForm() {
+    _newEmployeeRole = AppConstants.employeeRole;
     _isSubAdminChecked = false;
+    _subAdminPermissions.clear();
     _isAddingNewDept = false;
     _isAddingNewRole = false;
     _selectedDepartment = null;
@@ -84,7 +122,7 @@ class EmployeeManagementProvider with ChangeNotifier {
       try {
         // Try the optimized query with ordering first
         querySnapshot = await _firestore
-            .collection(AppConstants.userCollection)
+            .collection(FirestoreCollections.users)
             .where('isAdmin', isEqualTo: false)
             .orderBy('name')
             .get();
@@ -94,7 +132,7 @@ class EmployeeManagementProvider with ChangeNotifier {
             indexError.toString().contains('index')) {
           print('Index not available, using fallback query');
           querySnapshot = await _firestore
-              .collection(AppConstants.userCollection)
+              .collection(FirestoreCollections.users)
               .where('isAdmin', isEqualTo: false)
               .get();
         } else {
@@ -143,9 +181,11 @@ class EmployeeManagementProvider with ChangeNotifier {
   // Update employee information
   Future<bool> updateEmployee({
     required String employeeId,
+    String? name,
     String? employeeIdValue,
     String? department,
-    String? role,
+    String? employmentRole,
+    String? jobRole,
     String? totalExperience,
     String? emergencyContactNumber,
     DateTime? joiningDate,
@@ -162,6 +202,10 @@ class EmployeeManagementProvider with ChangeNotifier {
 
       Map<String, dynamic> updateData = {};
 
+      if (name != null && name.trim().isNotEmpty) {
+        updateData['name'] = name.trim();
+      }
+
       if (employeeIdValue != null) {
         updateData['employeeId'] = employeeIdValue;
       }
@@ -170,8 +214,12 @@ class EmployeeManagementProvider with ChangeNotifier {
         updateData['department'] = department;
       }
 
-      if (role != null) {
-        updateData['role'] = role;
+      if (employmentRole != null) {
+        updateData['role'] = employmentRole;
+      }
+
+      if (jobRole != null) {
+        updateData['jobRole'] = jobRole;
       }
 
       if (totalExperience != null) {
@@ -211,7 +259,7 @@ class EmployeeManagementProvider with ChangeNotifier {
 
       if (updateData.isNotEmpty) {
         await _firestore
-            .collection(AppConstants.userCollection)
+            .collection(FirestoreCollections.users)
             .doc(employeeId)
             .update(updateData);
 
@@ -221,9 +269,12 @@ class EmployeeManagementProvider with ChangeNotifier {
         );
         if (employeeIndex != -1) {
           _employees[employeeIndex] = _employees[employeeIndex].copyWith(
+            name: updateData['name'] as String?,
+            mobileNumber: updateData['mobileNumber'] as String?,
             employeeId: employeeIdValue ?? _employees[employeeIndex].employeeId,
             department: department ?? _employees[employeeIndex].department,
-            role: role ?? _employees[employeeIndex].role,
+            role: employmentRole ?? _employees[employeeIndex].role,
+            jobRole: jobRole ?? _employees[employeeIndex].jobRole,
             totalExperience:
                 totalExperience ?? _employees[employeeIndex].totalExperience,
             emergencyContactNumber:
@@ -260,6 +311,7 @@ class EmployeeManagementProvider with ChangeNotifier {
 
   // Filter employees by onboarding status
   void filterByOnboardingStatus(bool? isOnboarded) {
+    _onboardingFilter = isOnboarded;
     if (isOnboarded == null) {
       _filteredEmployees = List.from(_employees);
     } else {
@@ -285,6 +337,7 @@ class EmployeeManagementProvider with ChangeNotifier {
   // Clear all filters and search
   void clearFilters() {
     _searchQuery = '';
+    _onboardingFilter = null;
     _filteredEmployees = List.from(_employees);
     notifyListeners();
   }
@@ -295,9 +348,11 @@ class EmployeeManagementProvider with ChangeNotifier {
     required String email,
     required String mobileNumber,
     String? department,
-    String? role,
+    String? role, // job role (position) from the department
+    String employmentRole = AppConstants.employeeRole,
     String password = 'Welcome@2026',
     bool isSubAdmin = false,
+    List<String> subAdminPermissions = const [],
   }) async {
     FirebaseApp? secondaryApp;
     try {
@@ -339,10 +394,13 @@ class EmployeeManagementProvider with ChangeNotifier {
         'email': email,
         'mobileNumber': mobileNumber,
         'department': department,
-        'role': role,
+        // role is employee / intern / freelancer; the position goes in jobRole
+        'role': employmentRole,
+        'jobRole': role,
         'employeeId': employeeId,
         'isAdmin': false,
         'isSubAdmin': isSubAdmin,
+        Permissions.field: isSubAdmin ? subAdminPermissions : <String>[],
         'isOnboarded': false,
         // Device is registered on the employee's first login
         'isFirstLogin': false,
@@ -354,7 +412,7 @@ class EmployeeManagementProvider with ChangeNotifier {
       };
 
       await _firestore
-          .collection(AppConstants.userCollection)
+          .collection(FirestoreCollections.users)
           .doc(newUserId)
           .set(userData);
 
@@ -422,7 +480,7 @@ class EmployeeManagementProvider with ChangeNotifier {
       _errorMessage = null;
 
       final snapshot = await _firestore
-          .collection(AppConstants.departmentsCollection)
+          .collection(FirestoreCollections.departments)
           .orderBy('name')
           .get();
 
@@ -464,7 +522,7 @@ class EmployeeManagementProvider with ChangeNotifier {
       final batch = _firestore.batch();
       for (final name in departmentNames) {
         final docRef = _firestore
-            .collection(AppConstants.departmentsCollection)
+            .collection(FirestoreCollections.departments)
             .doc();
         final department = DepartmentModel(
           id: docRef.id,
@@ -506,7 +564,7 @@ class EmployeeManagementProvider with ChangeNotifier {
       if (roles.isEmpty) return false;
 
       await _firestore
-          .collection(AppConstants.departmentsCollection)
+          .collection(FirestoreCollections.departments)
           .doc(departmentId)
           .update({'roles': FieldValue.arrayUnion(roles)});
 
@@ -530,7 +588,7 @@ class EmployeeManagementProvider with ChangeNotifier {
       _setLoading(true);
 
       await _firestore
-          .collection(AppConstants.departmentsCollection)
+          .collection(FirestoreCollections.departments)
           .doc(departmentId)
           .update({
             'roles': FieldValue.arrayRemove([roleName]),
@@ -553,7 +611,7 @@ class EmployeeManagementProvider with ChangeNotifier {
       _setLoading(true);
 
       await _firestore
-          .collection(AppConstants.departmentsCollection)
+          .collection(FirestoreCollections.departments)
           .doc(departmentId)
           .delete();
 
@@ -577,7 +635,7 @@ class EmployeeManagementProvider with ChangeNotifier {
       _setLoading(true);
 
       await _firestore
-          .collection(AppConstants.departmentsCollection)
+          .collection(FirestoreCollections.departments)
           .doc(departmentId)
           .update({'name': newName});
 
@@ -615,7 +673,7 @@ class EmployeeManagementProvider with ChangeNotifier {
       }).toList();
 
       await _firestore
-          .collection(AppConstants.departmentsCollection)
+          .collection(FirestoreCollections.departments)
           .doc(departmentId)
           .update({'roles': updatedRoles});
 

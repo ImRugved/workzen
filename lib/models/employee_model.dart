@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../app_constants.dart';
 
 class EmployeeModel {
   final String id;
@@ -7,7 +8,8 @@ class EmployeeModel {
   final String? profileImageUrl;
   final String? employeeId;
   final String? department;
-  final String? role;
+  final String? role; // access role: admin / employee
+  final String? jobRole; // actual job role from the department's roles
   final DateTime? joiningDate;
   final bool isOnboarded;
   final DateTime? createdAt;
@@ -15,6 +17,7 @@ class EmployeeModel {
   final String? totalExperience;
   final String? emergencyContactNumber;
   final bool isSubAdmin;
+  final String? mobileNumber;
 
   EmployeeModel({
     required this.id,
@@ -24,6 +27,7 @@ class EmployeeModel {
     this.employeeId,
     this.department,
     this.role,
+    this.jobRole,
     this.joiningDate,
     required this.isOnboarded,
     this.createdAt,
@@ -31,6 +35,7 @@ class EmployeeModel {
     this.totalExperience,
     this.emergencyContactNumber,
     this.isSubAdmin = false,
+    this.mobileNumber,
   });
 
   // Factory constructor to create EmployeeModel from JSON
@@ -43,6 +48,14 @@ class EmployeeModel {
       employeeId: json['employeeId'],
       department: json['department'],
       role: json['role'],
+      // Employees added before jobRole existed kept the job role in role
+      jobRole:
+          json['jobRole']?.toString() ??
+          (json['role'] != null &&
+                  json['role'] != AppConstants.adminRole &&
+                  !AppConstants.assignableRoles.contains(json['role'])
+              ? json['role'].toString()
+              : null),
       joiningDate: _parseDateTime(json['joiningDate']),
       isOnboarded: json['isOnboarded'] ?? false,
       createdAt: _parseDateTime(json['createdAt']),
@@ -50,6 +63,7 @@ class EmployeeModel {
       totalExperience: json['totalExperience']?.toString(),
       emergencyContactNumber: json['emergencyContactNumber']?.toString(),
       isSubAdmin: json['isSubAdmin'] ?? false,
+      mobileNumber: json['mobileNumber']?.toString(),
     );
   }
 
@@ -73,6 +87,10 @@ class EmployeeModel {
     return null;
   }
 
+  /// Sub Admin, Employee, Intern or Freelancer.
+  String get roleLabel =>
+      isSubAdmin ? 'Sub Admin' : AppConstants.roleLabel(role);
+
   // Method to convert EmployeeModel to JSON
   Map<String, dynamic> toJson() {
     return {
@@ -83,6 +101,7 @@ class EmployeeModel {
       'employeeId': employeeId,
       'department': department,
       'role': role,
+      'jobRole': jobRole,
       'joiningDate': joiningDate?.toIso8601String(),
       'isOnboarded': isOnboarded,
       'createdAt': createdAt?.toIso8601String(),
@@ -90,6 +109,7 @@ class EmployeeModel {
       'totalExperience': totalExperience,
       'emergencyContactNumber': emergencyContactNumber,
       'isSubAdmin': isSubAdmin,
+      'mobileNumber': mobileNumber,
     };
   }
 
@@ -102,6 +122,7 @@ class EmployeeModel {
     String? employeeId,
     String? department,
     String? role,
+    String? jobRole,
     DateTime? joiningDate,
     bool? isOnboarded,
     DateTime? createdAt,
@@ -109,6 +130,7 @@ class EmployeeModel {
     String? totalExperience,
     String? emergencyContactNumber,
     bool? isSubAdmin,
+    String? mobileNumber,
   }) {
     return EmployeeModel(
       id: id ?? this.id,
@@ -118,6 +140,7 @@ class EmployeeModel {
       employeeId: employeeId ?? this.employeeId,
       department: department ?? this.department,
       role: role ?? this.role,
+      jobRole: jobRole ?? this.jobRole,
       joiningDate: joiningDate ?? this.joiningDate,
       isOnboarded: isOnboarded ?? this.isOnboarded,
       createdAt: createdAt ?? this.createdAt,
@@ -125,6 +148,7 @@ class EmployeeModel {
       totalExperience: totalExperience ?? this.totalExperience,
       emergencyContactNumber: emergencyContactNumber ?? this.emergencyContactNumber,
       isSubAdmin: isSubAdmin ?? this.isSubAdmin,
+      mobileNumber: mobileNumber ?? this.mobileNumber,
     );
   }
 

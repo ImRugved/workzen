@@ -1,53 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../app_constants.dart';
 import '../constants/firestore_constants.dart';
-import 'package:uuid/uuid.dart';
-import '../models/holiday_model.dart';
 import '../models/leave_balance_model.dart';
+import '../models/leave_statistics_model.dart';
 import 'employee_management_provider.dart';
 import 'onboarding_provider.dart';
 
+/// Admin dashboard data: leave statistics and per-employee leave balances.
+/// Organization settings (leave counts, office hours, holidays) live in
+/// [OrganizationProvider], not here.
 class DashboardProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Leave statistics state
-  Map<String, dynamic> _leaveStats = {};
+  LeaveStatisticsModel _leaveStats = const LeaveStatisticsModel();
   bool _isLoadingLeaveStats = true;
 
   // Employee leave balances state
   Map<String, LeaveBalanceModel> _employeeLeaves = {};
   bool _isLoadingEmployeeLeaves = true;
 
+  // Onboarded employees that have no leave allocation for the current year yet
+  // (for example at the start of a new year); the admin is prompted to assign
+  int _missingLeaveCount = 0;
+  int get missingLeaveCount => _missingLeaveCount;
+
   // Expanded employee card
   String? _expandedEmployeeId;
 
-  // Leave configuration defaults
-  int _defaultPL = 12;
-  int _defaultSL = 6;
-  int _defaultCL = 5;
-  bool _isLoadingLeaveConfig = false;
-  bool _isSavingLeaveConfig = false;
-
-  // Holiday calendar state
-  List<HolidayModel> _holidays = [];
-  bool _isLoadingHolidays = true;
-  bool _isSavingHoliday = false;
-
   // Getters
-  List<HolidayModel> get holidays => _holidays;
-  bool get isLoadingHolidays => _isLoadingHolidays;
-  bool get isSavingHoliday => _isSavingHoliday;
-  Map<String, dynamic> get leaveStats => _leaveStats;
+  LeaveStatisticsModel get leaveStats => _leaveStats;
   bool get isLoadingLeaveStats => _isLoadingLeaveStats;
   Map<String, LeaveBalanceModel> get employeeLeaves => _employeeLeaves;
   bool get isLoadingEmployeeLeaves => _isLoadingEmployeeLeaves;
   String? get expandedEmployeeId => _expandedEmployeeId;
-  int get defaultPL => _defaultPL;
-  int get defaultSL => _defaultSL;
-  int get defaultCL => _defaultCL;
-  bool get isLoadingLeaveConfig => _isLoadingLeaveConfig;
-  bool get isSavingLeaveConfig => _isSavingLeaveConfig;
 
   // Toggle expanded employee
   void toggleExpandedEmployee(String employeeId) {
@@ -65,136 +51,9 @@ class DashboardProvider with ChangeNotifier {
     empProvider.fetchDepartments();
 
     await Future.wait([
-      loadLeaveDefaults(),
-      loadHolidays(),
       _loadLeaveStatistics(onboardingProvider),
       _loadEmployeeLeaves(empProvider, onboardingProvider),
     ]);
-  }
-
-  CollectionReference<Map<String, dynamic>> get _holidayItems => _firestore
-      .collection(FirestoreCollections.organizationDetails)
-      .doc(FirestoreDocs.holidays)
-      .collection(FirestoreSubCollections.holidayItems);
-
-  // Load holidays from organization_details/holidays/items
-  Future<void> loadHolidays() async {
-    _isLoadingHolidays = true;
-    notifyListeners();
-
-    try {
-      final snapshot = await _holidayItems.get();
-      _holidays = snapshot.docs
-          .map((doc) => HolidayModel.fromJson({...doc.data(), 'id': doc.id}))
-          .toList()
-        ..sort((a, b) => a.date.compareTo(b.date));
-    } catch (e) {
-      debugPrint('Error loading holidays: $e');
-    }
-
-    _isLoadingHolidays = false;
-    notifyListeners();
-  }
-
-  Future<bool> addHoliday(
-    String name,
-    DateTime date, {
-    String? description,
-  }) async {
-    _isSavingHoliday = true;
-    notifyListeners();
-
-    try {
-      final holiday = HolidayModel(
-        id: const Uuid().v4(),
-        name: name,
-        date: date,
-        description: description,
-      );
-      await _holidayItems.doc(holiday.id).set({
-        ...holiday.toJson(),
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      _holidays = [..._holidays, holiday]
-        ..sort((a, b) => a.date.compareTo(b.date));
-      _isSavingHoliday = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      debugPrint('Error adding holiday: $e');
-      _isSavingHoliday = false;
-      notifyListeners();
-      return false;
-    }
-  }
-
-  Future<bool> deleteHoliday(String holidayId) async {
-    try {
-      await _holidayItems.doc(holidayId).delete();
-      _holidays = _holidays.where((h) => h.id != holidayId).toList();
-      notifyListeners();
-      return true;
-    } catch (e) {
-      debugPrint('Error deleting holiday: $e');
-      return false;
-    }
-  }
-
-  // Load leave defaults from Firestore
-  Future<void> loadLeaveDefaults() async {
-    _isLoadingLeaveConfig = true;
-    notifyListeners();
-
-    try {
-      final doc = await _firestore
-          .collection(FirestoreCollections.organizationDetails)
-          .doc(FirestoreDocs.leaveConfig)
-          .get();
-
-      if (doc.exists) {
-        final data = doc.data()!;
-        _defaultPL = (data['privilegeLeaves'] ?? 12) as int;
-        _defaultSL = (data['sickLeaves'] ?? 6) as int;
-        _defaultCL = (data['casualLeaves'] ?? 5) as int;
-      }
-    } catch (e) {
-      debugPrint('Error loading leave defaults: $e');
-    }
-
-    _isLoadingLeaveConfig = false;
-    notifyListeners();
-  }
-
-  // Save leave defaults to Firestore
-  Future<bool> saveLeaveDefaults(int pl, int sl, int cl) async {
-    _isSavingLeaveConfig = true;
-    notifyListeners();
-
-    try {
-      await _firestore
-          .collection(FirestoreCollections.organizationDetails)
-          .doc(FirestoreDocs.leaveConfig)
-          .set({
-        'privilegeLeaves': pl,
-        'sickLeaves': sl,
-        'casualLeaves': cl,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      _defaultPL = pl;
-      _defaultSL = sl;
-      _defaultCL = cl;
-
-      _isSavingLeaveConfig = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      debugPrint('Error saving leave defaults: $e');
-      _isSavingLeaveConfig = false;
-      notifyListeners();
-      return false;
-    }
   }
 
   // Load leave statistics
@@ -224,16 +83,20 @@ class DashboardProvider with ChangeNotifier {
     final Map<String, LeaveBalanceModel> leaves = {};
     final employees =
         empProvider.employees.where((e) => e.isOnboarded).toList();
+    var missing = 0;
 
     for (final emp in employees) {
       try {
         final data = await onboardingProvider.getUserLeaveAllocation(emp.id);
         if (data != null) {
           leaves[emp.id] = LeaveBalanceModel.fromFirestore(data);
+        } else {
+          missing++;
         }
       } catch (_) {}
     }
 
+    _missingLeaveCount = missing;
     _employeeLeaves = leaves;
     _isLoadingEmployeeLeaves = false;
     notifyListeners();
@@ -250,7 +113,7 @@ class DashboardProvider with ChangeNotifier {
     try {
       final currentYear = DateTime.now().year;
       final docRef = _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(employeeId)
           .collection(FirestoreSubCollections.leaves)
           .doc(FirestoreDocs.annualLeave(currentYear));

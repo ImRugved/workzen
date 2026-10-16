@@ -58,6 +58,16 @@ class ConstColors {
   static const Color grey = Color(0xFFE7E7E7);
   static const Color lightGrey = Color(0xFFF9F9F9);
   static const Color darkGrey = Color.fromARGB(255, 180, 180, 187);
+
+  // Attendance calendar day colors
+  static const Color calendarPresent = Color(0xFFB4FFAA);
+  static const Color calendarAbsent = Color(0xFFFF4F4F);
+  static const Color calendarLeave = Color(0xFF436FFD);
+  static const Color calendarHalfDay = Color(0xFFFF8CE6);
+  static const Color calendarLate = Color(0xFFB388FF);
+  static const Color calendarCompOff = Color(0xFF26A69A);  static const Color calendarHoliday = Color(0xFF87CDEA);
+  static const Color calendarWfh = Color(0xFFFD8200);
+  static const Color calendarWeekend = Color(0xFFFEE452);
   static const Color pendingGrey =
       Color(0xFF8E8E8E); // Medium-dark grey for pending tasks
   static const Color black1 = Colors.black54;

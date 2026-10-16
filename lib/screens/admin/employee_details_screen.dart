@@ -4,164 +4,109 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../app_constants.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/employee_details_provider.dart';
 import '../../providers/employee_management_provider.dart';
+import '../../widgets/device_info_card.dart';
+import '../../widgets/sub_admin_permissions_picker.dart';
 import '../../models/employee_model.dart';
+import '../../models/department_model.dart';
+import '../../models/user_model.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_textfield.dart';
-import '../../app_constants.dart';
 import '../../constants/constant_snackbar.dart';
-import '../../constants/firestore_constants.dart';
-import '../../models/department_model.dart';
+import '../../utils/validators.dart';
+import '../../constants/constant_button.dart';
+import '../../constants/constant_dropdown.dart';
+import '../../constants/constant_date_time_picker.dart';
+import '../../constants/constant_colors.dart';
+import '../../constants/apploading_indicator.dart';
 
+/// Admin view of one employee. All state (loaded data, edit mode, the values
+/// being edited, sub admin access) lives in [EmployeeDetailsProvider]; this
+/// widget only owns the text controllers, which need a lifecycle.
 class EmployeeDetailsScreen extends StatefulWidget {
   final EmployeeModel employee;
 
-  const EmployeeDetailsScreen({Key? key, required this.employee})
-    : super(key: key);
+  /// Opens straight in edit mode (the Edit button of the employee table).
+  final bool startInEditMode;
+
+  const EmployeeDetailsScreen({
+    Key? key,
+    required this.employee,
+    this.startInEditMode = false,
+  }) : super(key: key);
 
   @override
   State<EmployeeDetailsScreen> createState() => _EmployeeDetailsScreenState();
 }
 
 class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
-  bool _isEditing = false;
-  late TextEditingController _departmentController;
-  late TextEditingController _addressController;
-  late TextEditingController _mobileController;
-  late TextEditingController _alternateController;
-  late TextEditingController _bloodGroupController;
-  late TextEditingController _aadharController;
-  late TextEditingController _panController;
-  late TextEditingController _employeeIdController;
-  late TextEditingController _roleController;
-  late TextEditingController _totalExperienceController;
-  late TextEditingController _emergencyContactController;
-  DateTime? _selectedDate;
+  final EmployeeDetailsProvider _details = EmployeeDetailsProvider();
 
-  // Extra user data from Firestore
-  Map<String, dynamic>? _userData;
-  Map<String, dynamic>? _securityData; // users/{id}/security/settings
-  bool _isLoadingData = true;
+  final _employeeIdController = TextEditingController();
+  final _totalExperienceController = TextEditingController();
+  final _emergencyContactController = TextEditingController();
+  final _aadharController = TextEditingController();
+  final _panController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _departmentController = TextEditingController(
-      text: widget.employee.department ?? '',
-    );
-    _addressController = TextEditingController();
-    _mobileController = TextEditingController();
-    _alternateController = TextEditingController();
-    _bloodGroupController = TextEditingController();
-    _aadharController = TextEditingController();
-    _panController = TextEditingController();
-    _employeeIdController = TextEditingController(
-      text: widget.employee.employeeId ?? '',
-    );
-    _roleController = TextEditingController(text: widget.employee.role ?? '');
-    _totalExperienceController = TextEditingController(
-      text: widget.employee.totalExperience ?? '',
-    );
-    _emergencyContactController = TextEditingController(
-      text: widget.employee.emergencyContactNumber ?? '',
-    );
-    _selectedDate = widget.employee.joiningDate;
-    _loadUserData();
+    _loadDetails();
 
-    // Fetch departments for editing
+    // Departments for the edit dropdowns
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<EmployeeManagementProvider>(
-        context,
-        listen: false,
-      ).fetchDepartments();
+      context.read<EmployeeManagementProvider>().fetchDepartments();
     });
   }
 
-  Future<void> _loadUserData() async {
-    try {
-      final userRef = FirebaseFirestore.instance
-          .collection(AppConstants.userCollection)
-          .doc(widget.employee.id);
-      final doc = await userRef.get();
-      final securityDoc = await userRef
-          .collection(FirestoreSubCollections.security)
-          .doc(FirestoreDocs.securitySettings)
-          .get();
-
-      if (doc.exists) {
-        setState(() {
-          _securityData = securityDoc.data();
-          _userData = doc.data();
-          _addressController.text = (_userData?['address'] ?? '').toString();
-          _mobileController.text = (_userData?['mobileNumber'] ?? '')
-              .toString();
-          _alternateController.text = (_userData?['alternateNumber'] ?? '')
-              .toString();
-          _bloodGroupController.text = (_userData?['bloodGroup'] ?? '')
-              .toString();
-          _aadharController.text = (_userData?['aadharNumber'] ?? '')
-              .toString();
-          _panController.text = (_userData?['panCardNumber'] ?? '').toString();
-          _totalExperienceController.text =
-              (_userData?['totalExperience'] ?? '').toString();
-          _emergencyContactController.text =
-              (_userData?['emergencyContactNumber'] ?? '').toString();
-          _employeeIdController.text = (_userData?['employeeId'] ?? '')
-              .toString();
-          _roleController.text = (_userData?['role'] ?? '').toString();
-          _isLoadingData = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _isLoadingData = false;
-      });
-      print('Error loading user data: $e');
+  Future<void> _loadDetails() async {
+    await _details.load(widget.employee.id);
+    _fillControllers();
+    if (widget.startInEditMode && mounted && _details.user != null) {
+      _details.startEditing();
     }
+  }
+
+  // Puts the saved values into the edit fields
+  void _fillControllers() {
+    final user = _details.user;
+    _employeeIdController.text = user?.employeeId ?? '';
+    _totalExperienceController.text = user?.totalExperience ?? '';
+    _emergencyContactController.text = user?.emergencyContactNumber ?? '';
+    _aadharController.text = user?.aadharNumber ?? '';
+    _panController.text = user?.panCardNumber ?? '';
   }
 
   @override
   void dispose() {
-    _departmentController.dispose();
-    _addressController.dispose();
-    _mobileController.dispose();
-    _alternateController.dispose();
-    _bloodGroupController.dispose();
-    _aadharController.dispose();
-    _panController.dispose();
     _employeeIdController.dispose();
-    _roleController.dispose();
     _totalExperienceController.dispose();
     _emergencyContactController.dispose();
+    _aadharController.dispose();
+    _panController.dispose();
+    _details.dispose();
     super.dispose();
   }
 
+  String? _orNull(TextEditingController c) =>
+      c.text.trim().isEmpty ? null : c.text.trim();
+
   Future<void> _saveChanges() async {
-    final provider = Provider.of<EmployeeManagementProvider>(
-      context,
-      listen: false,
-    );
+    final provider = context.read<EmployeeManagementProvider>();
 
     final success = await provider.updateEmployee(
       employeeId: widget.employee.id,
-      employeeIdValue: _employeeIdController.text.trim().isEmpty
-          ? null
-          : _employeeIdController.text.trim(),
-      department: _departmentController.text.trim().isEmpty
-          ? null
-          : _departmentController.text.trim(),
-      role: _roleController.text.trim().isEmpty
-          ? null
-          : _roleController.text.trim(),
-      totalExperience: _totalExperienceController.text.trim().isEmpty
-          ? null
-          : _totalExperienceController.text.trim(),
-      emergencyContactNumber: _emergencyContactController.text.trim().isEmpty
-          ? null
-          : _emergencyContactController.text.trim(),
-      joiningDate: _selectedDate,
-      // Don't update personal and contact info - user manages these
+      employeeIdValue: _orNull(_employeeIdController),
+      department: _details.department.isEmpty ? null : _details.department,
+      employmentRole: _details.employmentRole,
+      jobRole: _details.role.isEmpty ? null : _details.role,
+      totalExperience: _orNull(_totalExperienceController),
+      emergencyContactNumber: _orNull(_emergencyContactController),
+      joiningDate: _details.joiningDate,
+      // Personal and contact info is managed by the employee
       address: null,
       mobileNumber: null,
       alternateNumber: null,
@@ -171,342 +116,24 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     );
 
     if (success) {
-      setState(() {
-        _isEditing = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Employee details updated successfully',
-            style: getTextTheme().bodyMedium?.copyWith(color: Colors.white),
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-      // Reload data
-      await _loadUserData();
+      await _details.load(widget.employee.id);
+      _details.stopEditing();
+      _fillControllers();
+      ConstantSnackbar.showSuccess(title: 'Employee details updated');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            provider.errorMessage ?? 'Failed to update employee',
-            style: getTextTheme().bodyMedium?.copyWith(color: Colors.white),
-          ),
-          backgroundColor: Colors.red,
-        ),
+      ConstantSnackbar.showError(
+        title: provider.errorMessage ?? 'Failed to update employee',
       );
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Employee Details',
-          style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
-        ),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-        actions: [
-          if (!_isEditing)
-            IconButton(
-              icon: Icon(Icons.edit, size: 24.r),
-              onPressed: () {
-                setState(() {
-                  _isEditing = true;
-                });
-              },
-              tooltip: 'Edit',
-            ),
-          if (_isEditing)
-            IconButton(
-              icon: Icon(Icons.close, size: 24.r),
-              onPressed: () {
-                setState(() {
-                  _isEditing = false;
-                  // Reset values
-                  _departmentController.text = widget.employee.department ?? '';
-                  _selectedDate = widget.employee.joiningDate;
-                  _addressController.text = (_userData?['address'] ?? '')
-                      .toString();
-                  _mobileController.text = (_userData?['mobileNumber'] ?? '')
-                      .toString();
-                  _alternateController.text =
-                      (_userData?['alternateNumber'] ?? '').toString();
-                  _bloodGroupController.text = (_userData?['bloodGroup'] ?? '')
-                      .toString();
-                  _aadharController.text = (_userData?['aadharNumber'] ?? '')
-                      .toString();
-                  _panController.text = (_userData?['panCardNumber'] ?? '')
-                      .toString();
-                  _employeeIdController.text = (_userData?['employeeId'] ?? '')
-                      .toString();
-                  _roleController.text = (_userData?['role'] ?? '').toString();
-                  _totalExperienceController.text =
-                      (_userData?['totalExperience'] ?? '').toString();
-                  _emergencyContactController.text =
-                      (_userData?['emergencyContactNumber'] ?? '').toString();
-                });
-              },
-              tooltip: 'Cancel',
-            ),
-        ],
-      ),
-      body: _isLoadingData
-          ? Center(child: CircularProgressIndicator(color: Colors.indigo))
-          : SafeArea(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(16.w),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Profile Section
-                    _buildProfileSection(),
-                    SizedBox(height: 24.h),
-
-                    // Registered device (attendance device binding)
-                    _buildSectionTitle('Registered Device'),
-                    SizedBox(height: 12.h),
-                    _buildDeviceCard(),
-                    SizedBox(height: 24.h),
-
-                    // Personal Information
-                    _buildSectionTitle('Personal Information'),
-                    SizedBox(height: 12.h),
-                    _buildPersonalInfoCard(),
-                    SizedBox(height: 24.h),
-
-                    // Work Information
-                    _buildSectionTitle('Work Information'),
-                    SizedBox(height: 12.h),
-                    _buildWorkInfoCard(),
-                    SizedBox(height: 24.h),
-
-                    // Contact Information
-                    _buildSectionTitle('Contact Information'),
-                    SizedBox(height: 12.h),
-                    _buildContactInfoCard(),
-                    SizedBox(height: 24.h),
-
-                    // Admin Only Fields
-                    _buildSectionTitle('Document Information (Admin Only)'),
-                    SizedBox(height: 12.h),
-                    _buildDocumentInfoCard(),
-                    SizedBox(height: 24.h),
-
-                    // Save Button
-                    if (_isEditing)
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50.h,
-                        child: ElevatedButton(
-                          onPressed: _saveChanges,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.indigo,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12.r),
-                            ),
-                          ),
-                          child: Text(
-                            'Save Changes',
-                            style: getTextTheme().titleMedium?.copyWith(
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-    );
-  }
-
-  Widget _buildProfileSection() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
-      child: Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(24.w),
-        child: Column(
-          children: [
-            // Profile Picture
-            CircleAvatar(
-              radius: 60.r,
-              backgroundColor: Colors.indigo.shade100,
-              child:
-                  widget.employee.profileImageUrl != null &&
-                      widget.employee.profileImageUrl!.isNotEmpty
-                  ? ClipOval(
-                      child: CachedNetworkImage(
-                        imageUrl: widget.employee.profileImageUrl!,
-                        width: 120.w,
-                        height: 120.h,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) =>
-                            CircularProgressIndicator(color: Colors.indigo),
-                        errorWidget: (context, url, error) => Text(
-                          widget.employee.name.isNotEmpty
-                              ? widget.employee.name[0].toUpperCase()
-                              : 'E',
-                          style: getTextTheme().displayLarge?.copyWith(
-                            color: Colors.indigo,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    )
-                  : Text(
-                      widget.employee.name.isNotEmpty
-                          ? widget.employee.name[0].toUpperCase()
-                          : 'E',
-                      style: getTextTheme().displayLarge?.copyWith(
-                        color: Colors.indigo,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-            ),
-            SizedBox(height: 16.h),
-
-            // Name
-            Text(
-              widget.employee.name,
-              style: getTextTheme().headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 8.h),
-
-            // Email
-            Text(
-              widget.employee.email,
-              style: getTextTheme().bodyLarge?.copyWith(
-                color: Colors.grey.shade600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 16.h),
-
-            // Status Chip
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-              decoration: BoxDecoration(
-                color: widget.employee.isOnboarded
-                    ? Colors.green.shade50
-                    : Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(20.r),
-                border: Border.all(
-                  color: widget.employee.isOnboarded
-                      ? Colors.green
-                      : Colors.orange,
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    widget.employee.isOnboarded
-                        ? Icons.check_circle
-                        : Icons.pending,
-                    color: widget.employee.isOnboarded
-                        ? Colors.green
-                        : Colors.orange,
-                    size: 18.r,
-                  ),
-                  SizedBox(width: 8.w),
-                  Text(
-                    widget.employee.isOnboarded ? 'Onboarded' : 'Pending',
-                    style: getTextTheme().bodyMedium?.copyWith(
-                      color: widget.employee.isOnboarded
-                          ? Colors.green
-                          : Colors.orange,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDeviceCard() {
-    final deviceInfo = _securityData?[FirestoreFields.deviceInfo];
-    final isRegistered = deviceInfo is Map;
-
-    String registeredOn = '-';
-    if (isRegistered && deviceInfo['registeredAt'] is Timestamp) {
-      registeredOn = DateFormat(
-        'dd MMM yyyy, hh:mm a',
-      ).format((deviceInfo['registeredAt'] as Timestamp).toDate());
+  Future<void> _savePermissions() async {
+    final ok = await _details.savePermissions(widget.employee.id);
+    if (ok) {
+      ConstantSnackbar.showSuccess(title: 'Sub admin access saved');
+    } else {
+      ConstantSnackbar.showError(title: 'Failed to save access');
     }
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-      child: Padding(
-        padding: EdgeInsets.all(16.w),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (isRegistered) ...[
-              _buildStaticDetailRow(
-                'Device',
-                '${deviceInfo['manufacturer'] ?? ''} ${deviceInfo['model'] ?? ''}'
-                    .trim(),
-                Icons.smartphone,
-              ),
-              _buildStaticDetailRow(
-                'OS',
-                '${deviceInfo['platform'] ?? ''} ${deviceInfo['osVersion'] ?? ''}'
-                    .trim(),
-                Icons.system_update,
-              ),
-              _buildStaticDetailRow(
-                'Registered on',
-                registeredOn,
-                Icons.event_available,
-              ),
-              SizedBox(height: 8.h),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _confirmResetDevice,
-                  icon: const Icon(Icons.phonelink_erase, color: Colors.red),
-                  label: const Text(
-                    'Reset Device',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.red),
-                  ),
-                ),
-              ),
-            ] else
-              Row(
-                children: [
-                  Icon(Icons.phonelink_off, size: 20.r, color: Colors.orange),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: Text(
-                      'No device registered yet. It is registered automatically when the employee logs in for the first time.',
-                      style: getTextTheme().bodyMedium?.copyWith(
-                        color: Colors.orange.shade800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
   }
 
   // Clears the binding so the employee's next login registers a new device
@@ -523,35 +150,262 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
             onPressed: () => Navigator.pop(c, false),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          ConstantButton(
+            text: 'Reset',
             onPressed: () => Navigator.pop(c, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Reset', style: TextStyle(color: Colors.white)),
+            isFullWidth: false,
+            height: 40.h,
+            backgroundColor: ConstColors.errorRed,
           ),
         ],
       ),
     );
     if (confirm != true) return;
 
-    try {
-      final userRef = FirebaseFirestore.instance
-          .collection(AppConstants.userCollection)
-          .doc(widget.employee.id);
-      final batch = FirebaseFirestore.instance.batch();
-      batch.update(userRef, {FirestoreFields.isFirstLogin: false});
-      batch.set(
-        userRef
-            .collection(FirestoreSubCollections.security)
-            .doc(FirestoreDocs.securitySettings),
-        {FirestoreFields.deviceInfo: FieldValue.delete()},
-        SetOptions(merge: true),
-      );
-      await batch.commit();
-      await _loadUserData();
+    final ok = await _details.resetDevice(widget.employee.id);
+    if (ok) {
       ConstantSnackbar.showSuccess(title: 'Device reset');
-    } catch (e) {
+    } else {
       ConstantSnackbar.showError(title: 'Failed to reset device');
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider<EmployeeDetailsProvider>.value(
+      value: _details,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            'Employee Details',
+            style: getTextTheme().titleLarge?.copyWith(color: Colors.white),
+          ),
+          backgroundColor: Colors.indigo,
+          foregroundColor: Colors.white,
+          actions: [
+            // Only the edit mode flag matters here, so Selector
+            Selector<EmployeeDetailsProvider, bool>(
+              selector: (_, d) => d.isEditing,
+              builder: (_, editing, __) => editing
+                  ? IconButton(
+                      icon: Icon(Icons.close, size: 24.r),
+                      onPressed: () {
+                        _details.stopEditing();
+                        _fillControllers();
+                      },
+                      tooltip: 'Cancel',
+                    )
+                  : IconButton(
+                      icon: Icon(Icons.edit, size: 24.r),
+                      onPressed: _details.startEditing,
+                      tooltip: 'Edit',
+                    ),
+            ),
+          ],
+        ),
+        body: Consumer<EmployeeDetailsProvider>(
+          builder: (context, details, _) {
+            if (details.isLoading) {
+              return const Center(
+                child: AppLoadingIndicator(size: 40, color: ConstColors.primary),
+              );
+            }
+
+            final user = details.user;
+            if (user == null) {
+              return Center(
+                child: Text(
+                  'Employee not found',
+                  style: getTextTheme().bodyLarge,
+                ),
+              );
+            }
+
+            final isAdmin = context.read<AuthProvider>().isAdmin;
+
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(16.w),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildProfileSection(),
+                    SizedBox(height: 24.h),
+
+                    // Registered device (attendance device binding)
+                    DeviceInfoCard(
+                      deviceInfo: details.device,
+                      onReset: details.device == null
+                          ? null
+                          : _confirmResetDevice,
+                      emptyMessage:
+                          'No device registered yet. It is registered automatically when the employee logs in for the first time.',
+                    ),
+                    SizedBox(height: 24.h),
+
+                    // Sub admin access: only an admin can change it
+                    if (widget.employee.isSubAdmin && isAdmin) ...[
+                      _buildSectionTitle('Sub Admin Access'),
+                      SizedBox(height: 12.h),
+                      _buildPermissionsCard(details),
+                      SizedBox(height: 24.h),
+                    ],
+
+                    _buildSectionTitle('Personal Information'),
+                    SizedBox(height: 12.h),
+                    _buildPersonalInfoCard(user),
+                    SizedBox(height: 24.h),
+
+                    _buildSectionTitle('Work Information'),
+                    SizedBox(height: 12.h),
+                    _buildWorkInfoCard(details, user),
+                    SizedBox(height: 24.h),
+
+                    _buildSectionTitle('Contact Information'),
+                    SizedBox(height: 12.h),
+                    _buildContactInfoCard(details, user),
+                    SizedBox(height: 24.h),
+
+                    _buildSectionTitle('Document Information (Admin Only)'),
+                    SizedBox(height: 12.h),
+                    _buildDocumentInfoCard(details, user),
+                    SizedBox(height: 24.h),
+
+                    if (details.isEditing)
+                      ConstantButton(
+                        text: 'Save Changes',
+                        onPressed: _saveChanges,
+                        backgroundColor: ConstColors.primary,
+                        borderRadius: 12.r,
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileSection() {
+    final employee = widget.employee;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(24.w),
+        child: Column(
+          children: [
+            CircleAvatar(
+              radius: 60.r,
+              backgroundColor: Colors.indigo.shade100,
+              child:
+                  employee.profileImageUrl != null &&
+                      employee.profileImageUrl!.isNotEmpty
+                  ? ClipOval(
+                      child: CachedNetworkImage(
+                        imageUrl: employee.profileImageUrl!,
+                        width: 120.w,
+                        height: 120.h,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) =>
+                            const AppLoadingIndicator(
+                              size: 40,
+                              color: ConstColors.primary,
+                            ),
+                        errorWidget: (context, url, error) =>
+                            _avatarInitial(employee),
+                      ),
+                    )
+                  : _avatarInitial(employee),
+            ),
+            SizedBox(height: 16.h),
+            Text(
+              employee.name,
+              style: getTextTheme().headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              employee.email,
+              style: getTextTheme().bodyLarge?.copyWith(
+                color: Colors.grey.shade600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 16.h),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+              decoration: BoxDecoration(
+                color: employee.isOnboarded
+                    ? Colors.green.shade50
+                    : Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(20.r),
+                border: Border.all(
+                  color: employee.isOnboarded ? Colors.green : Colors.orange,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    employee.isOnboarded ? Icons.check_circle : Icons.pending,
+                    color: employee.isOnboarded ? Colors.green : Colors.orange,
+                    size: 18.r,
+                  ),
+                  SizedBox(width: 8.w),
+                  Text(
+                    employee.isOnboarded ? 'Onboarded' : 'Pending',
+                    style: getTextTheme().bodyMedium?.copyWith(
+                      color: employee.isOnboarded
+                          ? Colors.green
+                          : Colors.orange,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _avatarInitial(EmployeeModel employee) {
+    return Text(
+      employee.name.isNotEmpty ? employee.name[0].toUpperCase() : 'E',
+      style: getTextTheme().displayLarge?.copyWith(
+        color: Colors.indigo,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+  }
+
+  Widget _buildPermissionsCard(EmployeeDetailsProvider details) {
+    return Column(
+      children: [
+        SubAdminPermissionsPicker(
+          selected: details.permissions,
+          onChanged: details.setPermission,
+          onSelectAll: details.setAllPermissions,
+        ),
+        SizedBox(height: 8.h),
+        SizedBox(
+          width: double.infinity,
+          child: ConstantButton(
+            text: 'Save Access',
+            isLoading: details.isSavingPermissions,
+            onPressed: _savePermissions,
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildSectionTitle(String title) {
@@ -564,7 +418,28 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     );
   }
 
-  Widget _buildPersonalInfoCard() {
+  Widget _infoNote(String text, {Color? color}) {
+    return Row(
+      children: [
+        Icon(Icons.info_outline, color: Colors.blue.shade700, size: 18.r),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            text,
+            style: getTextTheme().bodySmall?.copyWith(
+              color: color ?? Colors.blue.shade900,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _orNotSet(String? value) =>
+      (value == null || value.isEmpty) ? 'Not Set' : value;
+
+  Widget _buildPersonalInfoCard(UserModel user) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
@@ -573,39 +448,17 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
         padding: EdgeInsets.all(16.w),
         child: Column(
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  color: Colors.blue.shade700,
-                  size: 18.r,
-                ),
-                SizedBox(width: 8.w),
-                Expanded(
-                  child: Text(
-                    'User manages this information from their profile',
-                    style: getTextTheme().bodySmall?.copyWith(
-                      color: Colors.blue.shade900,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            _infoNote('User manages this information from their profile'),
             Divider(height: 24.h),
             _buildStaticDetailRow(
               'Address',
-              _addressController.text.isEmpty
-                  ? 'Not Set'
-                  : _addressController.text,
+              _orNotSet(user.address),
               Icons.home,
             ),
             Divider(height: 24.h),
             _buildStaticDetailRow(
               'Blood Group',
-              _bloodGroupController.text.isEmpty
-                  ? 'Not Set'
-                  : _bloodGroupController.text,
+              _orNotSet(user.bloodGroup),
               Icons.bloodtype,
             ),
           ],
@@ -614,8 +467,9 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     );
   }
 
-  Widget _buildWorkInfoCard() {
+  Widget _buildWorkInfoCard(EmployeeDetailsProvider details, UserModel user) {
     final dateFormat = DateFormat('dd/MM/yyyy');
+    final editing = details.isEditing;
 
     return Card(
       elevation: 2,
@@ -625,198 +479,32 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
         child: Column(
           children: [
             _buildDetailRow(
+              details,
               'Employee ID',
               _employeeIdController,
+              user.employeeId,
               Icons.badge,
-              isEditable: true,
             ),
             Divider(height: 24.h),
-            // Department Selection
-            Consumer<EmployeeManagementProvider>(
-              builder: (context, provider, child) {
-                if (_isEditing) {
-                  if (provider.departments.isEmpty) {
-                    return Row(
-                      children: [
-                        Icon(Icons.work, size: 20.r, color: Colors.orange),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: Text(
-                            'Please add departments first from Admin Dashboard > Departments & Roles',
-                            style: getTextTheme().bodyMedium?.copyWith(
-                              color: Colors.orange.shade800,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.work, size: 20.r, color: Colors.indigo),
-                      SizedBox(width: 12.w),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value:
-                              provider.departments.any(
-                                (d) => d.name == _departmentController.text,
-                              )
-                              ? _departmentController.text
-                              : null,
-                          decoration: InputDecoration(
-                            labelText: 'Department',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8.r),
-                            ),
-                          ),
-                          items: provider.departments.map((dept) {
-                            return DropdownMenuItem(
-                              value: dept.name,
-                              child: Text(dept.name),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _departmentController.text = value ?? '';
-                              _roleController.clear();
-                            });
-                          },
-                        ),
-                      ),
-                    ],
-                  );
-                }
-                return Row(
-                  children: [
-                    Expanded(
-                      child: _buildStaticDetailRow(
-                        'Department',
-                        _departmentController.text.isEmpty
-                            ? 'Not Set'
-                            : _departmentController.text,
-                        Icons.work,
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.edit, size: 18.r, color: Colors.indigo),
-                      onPressed: () {
-                        setState(() {
-                          _isEditing = true;
-                        });
-                      },
-                      tooltip: 'Edit Work Info',
-                    ),
-                  ],
-                );
-              },
-            ),
+            _buildEmploymentRoleRow(details, user),
             Divider(height: 24.h),
-            // Role Selection
-            Consumer<EmployeeManagementProvider>(
-              builder: (context, provider, child) {
-                if (_isEditing) {
-                  final selectedDept = provider.departments.firstWhere(
-                    (d) => d.name == _departmentController.text,
-                    orElse: () => DepartmentModel(id: '', name: '', roles: []),
-                  );
-
-                  if (_departmentController.text.isEmpty) {
-                    return Row(
-                      children: [
-                        Icon(Icons.person_outline, size: 20.r, color: Colors.orange),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: Text(
-                            'Please select a department first',
-                            style: getTextTheme().bodyMedium?.copyWith(
-                              color: Colors.orange.shade800,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-
-                  if (selectedDept.roles.isEmpty) {
-                    return Row(
-                      children: [
-                        Icon(Icons.person_outline, size: 20.r, color: Colors.orange),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: Text(
-                            'No roles available for this department. Please add roles first',
-                            style: getTextTheme().bodyMedium?.copyWith(
-                              color: Colors.orange.shade800,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        Icons.person_outline,
-                        size: 20.r,
-                        color: Colors.indigo,
-                      ),
-                      SizedBox(width: 12.w),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value:
-                              selectedDept.roles.contains(_roleController.text)
-                              ? _roleController.text
-                              : null,
-                          decoration: InputDecoration(
-                            labelText: 'Role',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8.r),
-                            ),
-                          ),
-                          items: selectedDept.roles.map((role) {
-                            return DropdownMenuItem(
-                              value: role,
-                              child: Text(role),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _roleController.text = value ?? '';
-                            });
-                          },
-                        ),
-                      ),
-                    ],
-                  );
-                }
-                return _buildStaticDetailRow(
-                  'Role',
-                  _roleController.text.isEmpty
-                      ? 'Not Set'
-                      : _roleController.text,
-                  Icons.person_outline,
-                );
-              },
-            ),
+            _buildDepartmentRow(details, user),
+            Divider(height: 24.h),
+            _buildRoleRow(details, user),
             Divider(height: 24.h),
             _buildDetailRow(
+              details,
               'Total Experience',
               _totalExperienceController,
+              user.totalExperience,
               Icons.timeline,
-              isEditable: true,
             ),
             Divider(height: 24.h),
             _buildDateRow(
               'Joining Date',
-              _selectedDate,
+              editing ? details.joiningDate : user.joiningDate,
               dateFormat,
-              Icons.calendar_today,
+              editing,
             ),
           ],
         ),
@@ -824,7 +512,156 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     );
   }
 
-  Widget _buildContactInfoCard() {
+  // Department: a dropdown while editing, plain text otherwise
+  Widget _buildDepartmentRow(EmployeeDetailsProvider details, UserModel user) {
+    if (!details.isEditing) {
+      return Row(
+        children: [
+          Expanded(
+            child: _buildStaticDetailRow(
+              'Department',
+              _orNotSet(user.department),
+              Icons.work,
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.edit, size: 18.r, color: Colors.indigo),
+            onPressed: details.startEditing,
+            tooltip: 'Edit Work Info',
+          ),
+        ],
+      );
+    }
+
+    return Consumer<EmployeeManagementProvider>(
+      builder: (context, departments, _) {
+        if (departments.departments.isEmpty) {
+          return _warningRow(
+            Icons.work,
+            'Please add departments first from Admin Dashboard > Departments & Roles',
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.work, size: 20.r, color: Colors.indigo),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: ConstantDropdown<String>(
+                key: ValueKey('dept-${details.department}'),
+                value: details.department,
+                label: 'Department',
+                items: departments.departments.map((d) => d.name).toList(),
+                itemLabel: (d) => d,
+                onChanged: details.setDepartment,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Role: employee / intern / freelancer (dropdown while editing)
+  Widget _buildEmploymentRoleRow(
+    EmployeeDetailsProvider details,
+    UserModel user,
+  ) {
+    if (!details.isEditing) {
+      return _buildStaticDetailRow(
+        'Role',
+        user.roleLabel,
+        Icons.admin_panel_settings,
+      );
+    }
+
+    return Row(
+      children: [
+        Icon(Icons.admin_panel_settings, size: 20.r, color: Colors.indigo),
+        SizedBox(width: 12.w),
+        Expanded(
+          child: ConstantDropdown<String>(
+            value: details.employmentRole,
+            label: 'Role',
+            items: AppConstants.assignableRoles,
+            itemLabel: AppConstants.roleLabel,
+            onChanged: details.setEmploymentRole,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Job role: a dropdown of the chosen department's roles while editing
+  Widget _buildRoleRow(EmployeeDetailsProvider details, UserModel user) {
+    if (!details.isEditing) {
+      return _buildStaticDetailRow(
+        'Job Role',
+        _orNotSet(user.jobRole),
+        Icons.person_outline,
+      );
+    }
+
+    return Consumer<EmployeeManagementProvider>(
+      builder: (context, departments, _) {
+        final selected = departments.departments.firstWhere(
+          (d) => d.name == details.department,
+          orElse: () => DepartmentModel(id: '', name: '', roles: []),
+        );
+
+        if (details.department.isEmpty) {
+          return _warningRow(
+            Icons.person_outline,
+            'Please select a department first',
+          );
+        }
+        if (selected.roles.isEmpty) {
+          return _warningRow(
+            Icons.person_outline,
+            'No roles available for this department. Please add roles first',
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.person_outline, size: 20.r, color: Colors.indigo),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: ConstantDropdown<String>(
+                key: ValueKey('role-${details.department}-${details.role}'),
+                value: details.role,
+                label: 'Job Role',
+                items: selected.roles,
+                itemLabel: (r) => r,
+                onChanged: details.setRole,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _warningRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 20.r, color: Colors.orange),
+        SizedBox(width: 12.w),
+        Expanded(
+          child: Text(
+            text,
+            style: getTextTheme().bodyMedium?.copyWith(
+              color: Colors.orange.shade800,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContactInfoCard(EmployeeDetailsProvider details, UserModel user) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
@@ -833,58 +670,32 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
         padding: EdgeInsets.all(16.w),
         child: Column(
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  color: Colors.blue.shade700,
-                  size: 18.r,
-                ),
-                SizedBox(width: 8.w),
-                Expanded(
-                  child: Text(
-                    'User manages this information from their profile',
-                    style: getTextTheme().bodySmall?.copyWith(
-                      color: Colors.blue.shade900,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            _infoNote('User manages this information from their profile'),
             Divider(height: 24.h),
             _buildStaticDetailRow(
               'Mobile Number',
-              _mobileController.text.isEmpty
-                  ? 'Not Set'
-                  : _mobileController.text,
+              _orNotSet(user.mobileNumber),
               Icons.phone,
             ),
             Divider(height: 24.h),
             _buildStaticDetailRow(
               'Alternate Number',
-              _alternateController.text.isEmpty
-                  ? 'Not Set'
-                  : _alternateController.text,
+              _orNotSet(user.alternateNumber),
               Icons.phone_android,
             ),
             Divider(height: 24.h),
             _buildDetailRow(
+              details,
               'Emergency Contact',
               _emergencyContactController,
+              user.emergencyContactNumber,
               Icons.emergency,
-              isEditable: true,
               keyboardType: TextInputType.phone,
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
                 LengthLimitingTextInputFormatter(10),
               ],
-              validator: (value) {
-                if (value != null && value.isNotEmpty && value.length != 10) {
-                  return 'Please enter a valid 10-digit number';
-                }
-                return null;
-              },
+              validator: Validators.optionalMobileNumber,
             ),
           ],
         ),
@@ -892,7 +703,10 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     );
   }
 
-  Widget _buildDocumentInfoCard() {
+  Widget _buildDocumentInfoCard(
+    EmployeeDetailsProvider details,
+    UserModel user,
+  ) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
@@ -918,18 +732,20 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
             ),
             Divider(height: 24.h),
             _buildDetailRow(
+              details,
               'Aadhar Number',
               _aadharController,
+              user.aadharNumber,
               Icons.credit_card,
-              isEditable: true,
               keyboardType: TextInputType.number,
             ),
             Divider(height: 24.h),
             _buildDetailRow(
+              details,
               'PAN Card Number',
               _panController,
+              user.panCardNumber,
               Icons.payment,
-              isEditable: true,
             ),
           ],
         ),
@@ -967,27 +783,30 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     );
   }
 
+  // A text field while editing, the saved value otherwise
   Widget _buildDetailRow(
+    EmployeeDetailsProvider details,
     String label,
     TextEditingController controller,
+    String? savedValue,
     IconData icon, {
-    bool isEditable = false,
-    int maxLines = 1,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
     List<TextInputFormatter>? inputFormatters,
   }) {
+    final isEmpty = savedValue == null || savedValue.isEmpty;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 20.r, color: Colors.indigo),
         SizedBox(width: 12.w),
         Expanded(
-          child: _isEditing && isEditable
+          child: details.isEditing
               ? ConstTextField(
                   controller: controller,
                   customText: label,
-                  maxline: maxLines,
+                  maxline: 1,
                   keyoardType: keyboardType ?? TextInputType.text,
                   validator: validator,
                   inputFormatters: inputFormatters,
@@ -1003,12 +822,10 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
                     ),
                     SizedBox(height: 4.h),
                     Text(
-                      controller.text.isEmpty ? 'Not Set' : controller.text,
+                      isEmpty ? 'Not Set' : savedValue,
                       style: getTextTheme().bodyLarge?.copyWith(
                         fontWeight: FontWeight.w500,
-                        color: controller.text.isEmpty
-                            ? Colors.grey.shade400
-                            : null,
+                        color: isEmpty ? Colors.grey.shade400 : null,
                       ),
                     ),
                   ],
@@ -1022,83 +839,42 @@ class _EmployeeDetailsScreenState extends State<EmployeeDetailsScreen> {
     String label,
     DateTime? date,
     DateFormat format,
-    IconData icon,
+    bool editing,
   ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20.r, color: Colors.indigo),
+        Icon(Icons.calendar_today, size: 20.r, color: Colors.indigo),
         SizedBox(width: 12.w),
         Expanded(
-          child: _isEditing
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: getTextTheme().bodySmall?.copyWith(
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    SizedBox(height: 8.h),
-                    InkWell(
-                      onTap: () async {
-                        final DateTime? picked = await showDatePicker(
-                          context: context,
-                          initialDate: _selectedDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime.now(),
-                        );
-                        if (picked != null) {
-                          setState(() {
-                            _selectedDate = picked;
-                          });
-                        }
-                      },
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 12.w,
-                          vertical: 12.h,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              _selectedDate != null
-                                  ? format.format(_selectedDate!)
-                                  : 'Select Date',
-                              style: getTextTheme().bodyLarge,
-                            ),
-                            Icon(Icons.edit_calendar, size: 20.r),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: getTextTheme().bodySmall?.copyWith(
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      date != null ? format.format(date) : 'Not Set',
-                      style: getTextTheme().bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w500,
-                        color: date == null ? Colors.grey.shade400 : null,
-                      ),
-                    ),
-                  ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: getTextTheme().bodySmall?.copyWith(
+                  color: Colors.grey.shade600,
                 ),
+              ),
+              SizedBox(height: editing ? 8.h : 4.h),
+              if (editing)
+                ConstantDatePicker(
+                  value: date,
+                  hint: 'Select Date',
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime.now(),
+                  onChanged: _details.setJoiningDate,
+                )
+              else
+                Text(
+                  date != null ? format.format(date) : 'Not Set',
+                  style: getTextTheme().bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: date == null ? Colors.grey.shade400 : null,
+                  ),
+                ),
+            ],
+          ),
         ),
       ],
     );

@@ -7,7 +7,13 @@ import 'package:workzen/models/user_model.dart';
 import 'package:workzen/providers/onboarding_provider.dart';
 import 'package:workzen/providers/user_provider.dart';
 import 'package:workzen/widgets/app_drawer.dart';
+import '../../constants/apploading_indicator.dart';
 import '../../constants/const_textstyle.dart';
+import '../../constants/constant_button.dart';
+import '../../constants/constant_colors.dart';
+import '../../constants/constant_date_time_picker.dart';
+import '../../constants/constant_snackbar.dart';
+import '../../utils/validators.dart';
 
 class EmployeeOnboardingScreen extends StatefulWidget {
   const EmployeeOnboardingScreen({super.key});
@@ -29,8 +35,9 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
         listen: false,
       );
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      // Load leave defaults from Firestore before loading users
-      await onboardingProvider.loadLeaveDefaults();
+      // Each onboarding starts with sick and casual leave on
+      onboardingProvider.resetLeaveToggles();
+      // Leave defaults arrive live from OrganizationProvider; nothing to fetch
       onboardingProvider.loadUsers(userProvider);
     });
   }
@@ -42,8 +49,8 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
   }
 
   void _editJoiningDate(OnboardingProvider provider, UserModel user) async {
-    final DateTime? pickedDate = await showDatePicker(
-      context: context,
+    final DateTime? pickedDate = await ConstantDatePicker.pick(
+      context,
       initialDate: user.joiningDate ?? user.createdAt ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
@@ -114,7 +121,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                       color: Colors.grey.withOpacity(0.3),
                       spreadRadius: 1,
                       blurRadius: 5,
-                      offset: const Offset(0, -2),
+                      offset: Offset(0, -2.h),
                     ),
                   ],
                 ),
@@ -141,15 +148,19 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             onChanged: provider.filterUsers,
           ),
         ),
-        const SizedBox(width: 8),
-        ElevatedButton(
+        SizedBox(width: 8.w),
+        ConstantButton(
+          text: 'Select All',
           onPressed: provider.selectAllUsers,
-          child: const Text('Select All'),
+          isFullWidth: false,
+          height: 40.h,
         ),
-        const SizedBox(width: 8),
-        ElevatedButton(
+        SizedBox(width: 8.w),
+        ConstantButton(
+          text: 'Clear',
           onPressed: provider.clearSelection,
-          child: const Text('Clear'),
+          isFullWidth: false,
+          height: 40.h,
         ),
       ],
     );
@@ -159,10 +170,10 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
     final selectedUsers = provider.getSelectedUsers();
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
         color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(8.r),
         border: Border.all(color: Colors.blue.shade200),
       ),
       child: Column(
@@ -170,17 +181,19 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
         children: [
           Text(
             'Selected Users (${provider.selectedUserIds.length})',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: getTextTheme().bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
           if (selectedUsers.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: 8.h),
             Wrap(
-              spacing: 8,
-              runSpacing: 4,
+              spacing: 8.w,
+              runSpacing: 4.h,
               children: selectedUsers.map((user) {
                 return Chip(
                   label: Text(user.name),
-                  deleteIcon: const Icon(Icons.close, size: 18),
+                  deleteIcon: Icon(Icons.close, size: 18.r),
                   onDeleted: () => provider.toggleUserSelection(user.userId),
                 );
               }).toList(),
@@ -193,14 +206,17 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
   Widget _buildUsersList(OnboardingProvider provider) {
     if (provider.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: AppLoadingIndicator(size: 40));
     }
 
     if (provider.filteredUsers.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
           'No users available for onboarding',
-          style: TextStyle(fontSize: 16, color: Colors.grey),
+          style: getTextTheme().bodyLarge?.copyWith(
+            fontWeight: FontWeight.normal,
+            color: Colors.grey,
+          ),
         ),
       );
     }
@@ -223,28 +239,23 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                     Flexible(
                       child: Text(
                         'Joining Date: ${_getDisplayJoiningDate(user)}',
-                        style: const TextStyle(
-                          fontSize: 12,
+                        style: getTextTheme().bodySmall?.copyWith(
                           color: Colors.grey,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8.w),
                     GestureDetector(
                       onTap: () => _editJoiningDate(provider, user),
-                      child: const Icon(
-                        Icons.edit,
-                        size: 16,
-                        color: Colors.blue,
-                      ),
+                      child: Icon(Icons.edit, size: 16.r, color: Colors.blue),
                     ),
                     if (user.joiningDate != null)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 4),
+                      Padding(
+                        padding: EdgeInsets.only(left: 4.w),
                         child: Icon(
                           Icons.edit_calendar,
-                          size: 12,
+                          size: 12.r,
                           color: Colors.orange,
                         ),
                       ),
@@ -271,45 +282,52 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
         selectedUsers.isEmpty
             ? 'Leave Configuration'
             : 'Leave Configuration (${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''})',
-        style: const TextStyle(fontWeight: FontWeight.bold),
+        style: getTextTheme().bodyMedium?.copyWith(
+          fontWeight: FontWeight.bold,
+        ),
       ),
       initiallyExpanded: true,
       children: [
         Padding(
-          padding: const EdgeInsets.all(10.0),
+          padding: EdgeInsets.all(10.w),
           child: Column(
             children: [
               // Leave calculation explanation and preview
               Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
+                padding: EdgeInsets.all(12.w),
+                margin: EdgeInsets.only(bottom: 16.h),
                 decoration: BoxDecoration(
                   color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(8.r),
                   border: Border.all(color: Colors.blue.shade200),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Pro-rated Leave Calculation:',
-                      style: TextStyle(
+                      style: getTextTheme().bodyMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
+                    SizedBox(height: 4.h),
+                    Text(
                       '• Leaves are calculated based on remaining months in the year',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                      style: getTextTheme().bodySmall?.copyWith(
+                        color: Colors.grey,
+                      ),
                     ),
-                    const Text(
+                    Text(
                       '• January joining = Full year allocation',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                      style: getTextTheme().bodySmall?.copyWith(
+                        color: Colors.grey,
+                      ),
                     ),
                     Text(
                       _getCurrentMonthExample(),
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: getTextTheme().bodySmall?.copyWith(
+                        color: Colors.grey,
+                      ),
                     ),
                     // const SizedBox(height: 8),
                     // //    _buildLeavePreview(provider),
@@ -320,10 +338,10 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
               // Leave Type Checkboxes
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(12.w),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(8.r),
                 ),
                 child: Consumer<OnboardingProvider>(
                   builder: (context, provider, child) {
@@ -340,11 +358,29 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                               },
                               activeColor: Colors.blue,
                             ),
-                            const Text(
+                            Text(
                               'Enable Privilege Leave',
-                              style: TextStyle(
+                              style: getTextTheme().bodyMedium?.copyWith(
                                 fontWeight: FontWeight.w500,
-                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: provider.enableSickLeaves,
+                              onChanged: (bool? value) {
+                                if (value != null) {
+                                  provider.setEnableSickLeaves(value);
+                                }
+                              },
+                              activeColor: Colors.blue,
+                            ),
+                            Text(
+                              'Enable Sick Leave',
+                              style: getTextTheme().bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
@@ -360,11 +396,10 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                               },
                               activeColor: Colors.blue,
                             ),
-                            const Text(
+                            Text(
                               'Enable Casual Leave',
-                              style: TextStyle(
+                              style: getTextTheme().bodyMedium?.copyWith(
                                 fontWeight: FontWeight.w500,
-                                fontSize: 14,
                               ),
                             ),
                           ],
@@ -385,28 +420,13 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
     return SafeArea(
       child: SizedBox(
         width: double.infinity,
-        child: ElevatedButton(
+        child: ConstantButton(
+          text: 'Onboard Users (${provider.selectedUserIds.length})',
           onPressed: provider.selectedUserIds.isEmpty || provider.isLoading
               ? null
               : () => _showOnboardingBottomSheet(provider),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-          ),
-          child: provider.isLoading
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                )
-              : Text(
-                  'Onboard Users (${provider.selectedUserIds.length})',
-                  style: const TextStyle(fontSize: 16),
-                ),
+          backgroundColor: ConstColors.primary,
+          isLoading: provider.isLoading,
         ),
       ),
     );
@@ -426,10 +446,10 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       );
 
       return Container(
-        padding: const EdgeInsets.all(8),
+        padding: EdgeInsets.all(8.w),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(6.r),
           border: Border.all(color: Colors.grey.shade300),
         ),
         child: Column(
@@ -437,12 +457,17 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
           children: [
             Text(
               'Example: Joining in ${_getMonthName(currentMonth)} (Current Month)',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+              style: getTextTheme().bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4.h),
             Text(
               'PL: ${currentMonthLeaves['privilegeLeaves']} | SL: ${currentMonthLeaves['sickLeaves']}${provider.enableCasualLeaves ? ' | CL: ${currentMonthLeaves['casualLeaves']}' : ''}',
-              style: const TextStyle(fontSize: 11, color: Colors.black87),
+              style: getTextTheme().labelSmall?.copyWith(
+                fontSize: 11.sp,
+                color: Colors.black87,
+              ),
             ),
           ],
         ),
@@ -451,29 +476,34 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
 
     // Show calculated leaves for selected users based on their createdAt dates using default values
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: EdgeInsets.all(8.w),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(6.r),
         border: Border.all(color: Colors.grey.shade300),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Calculated Leaves for Selected Users:',
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+            style: getTextTheme().bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
           ...selectedUsers.take(3).map((user) {
             // Use edited joining date if available, otherwise use createdAt
             final joiningDate = user.joiningDate ?? user.createdAt;
             if (joiningDate == null) {
               return Padding(
-                padding: const EdgeInsets.only(bottom: 4),
+                padding: EdgeInsets.only(bottom: 4.h),
                 child: Text(
                   '${user.name}: No joining date available',
-                  style: const TextStyle(fontSize: 11, color: Colors.red),
+                  style: getTextTheme().labelSmall?.copyWith(
+                    fontSize: 11.sp,
+                    color: Colors.red,
+                  ),
                 ),
               );
             }
@@ -487,19 +517,24 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             );
 
             return Padding(
-              padding: const EdgeInsets.only(bottom: 4),
+              padding: EdgeInsets.only(bottom: 4.h),
               child: Text(
                 '${user.name}: PL: ${calculatedLeaves['privilegeLeaves']} | SL: ${calculatedLeaves['sickLeaves']}${provider.enableCasualLeaves ? ' | CL: ${calculatedLeaves['casualLeaves']}' : ''}',
-                style: const TextStyle(fontSize: 11, color: Colors.black87),
+                style: getTextTheme().labelSmall?.copyWith(
+                  fontSize: 11.sp,
+                  color: Colors.black87,
+                ),
               ),
             );
           }).toList(),
           if (selectedUsers.length > 3)
             Padding(
-              padding: const EdgeInsets.only(top: 4),
+              padding: EdgeInsets.only(top: 4.h),
               child: Text(
                 '... and ${selectedUsers.length - 3} more users',
-                style: const TextStyle(fontSize: 10, color: Colors.grey),
+                style: getTextTheme().labelSmall?.copyWith(
+                  color: Colors.grey,
+                ),
               ),
             ),
         ],
@@ -533,6 +568,16 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
   }
 
   void _showOnboardingBottomSheet(OnboardingProvider provider) {
+    // Leave counts come from organization_details/leave_config
+    if (!provider.isLeaveConfigured) {
+      ConstantSnackbar.show(
+        title:
+            'Set the default leave counts first: Admin Dashboard > Leave Configuration',
+        backgroundColor: Colors.orange,
+      );
+      return;
+    }
+
     // Calculate leaves for all selected users
     provider.calculateLeavesForSelectedUsers();
 
@@ -562,11 +607,11 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         height: MediaQuery.of(context).size.height, // Use full screen height
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
+            topLeft: Radius.circular(20.r),
+            topRight: Radius.circular(20.r),
           ),
         ),
         child: Material(
@@ -576,40 +621,42 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
           children: [
             // Handle bar
             Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
+              margin: EdgeInsets.only(top: 12.h),
+              width: 40.w,
+              height: 4.h,
               decoration: BoxDecoration(
                 color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(2.r),
               ),
             ),
 
             // Title
             Padding(
-              padding: const EdgeInsets.all(10),
-              child: const Text(
+              padding: EdgeInsets.all(10.w),
+              child: Text(
                 'Confirm Onboarding',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: getTextTheme().titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
               ),
             ),
 
             // Scrollable content
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
+                padding: EdgeInsets.symmetric(horizontal: 10.w),
                 child: Column(
                   children: [
                     // Header text
                     Text(
                       'Selected Users for Onboarding',
-                      style: const TextStyle(
-                        fontSize: 18,
+                      style: getTextTheme().titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
 
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
 
                     // Leave Configuration Section
                     Consumer<OnboardingProvider>(
@@ -618,7 +665,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                       },
                     ),
 
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
 
                     // Selected users list with checkboxes and edit buttons
                     Consumer<OnboardingProvider>(
@@ -636,11 +683,11 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                             );
 
                             return Container(
-                              margin: const EdgeInsets.only(bottom: 16),
-                              padding: const EdgeInsets.all(16),
+                              margin: EdgeInsets.only(bottom: 16.h),
+                              padding: EdgeInsets.all(16.w),
                               decoration: BoxDecoration(
                                 color: Colors.blue.shade50,
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(12.r),
                                 border: Border.all(color: Colors.blue.shade200),
                               ),
                               child: Column(
@@ -653,13 +700,13 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                                       Icon(
                                         Icons.check_circle,
                                         color: Colors.green,
-                                        size: 24,
+                                        size: 24.r,
                                       ),
-                                      const SizedBox(width: 12),
+                                      SizedBox(width: 12.w),
 
                                       // User avatar
-                                      _buildUserAvatar(user, radius: 20),
-                                      const SizedBox(width: 12),
+                                      _buildUserAvatar(user, radius: 20.r),
+                                      SizedBox(width: 12.w),
 
                                       // User info
                                       Expanded(
@@ -669,25 +716,22 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                                           children: [
                                             Text(
                                               user.name,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 16,
-                                              ),
+                                              style: getTextTheme().bodyLarge,
                                             ),
                                             Text(
                                               user.email,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey[600],
-                                              ),
+                                              style: getTextTheme().bodySmall
+                                                  ?.copyWith(
+                                                    color: Colors.grey[600],
+                                                  ),
                                             ),
                                             Text(
                                               'Joining: ${_getDisplayJoiningDate(user)}',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.blue[700],
-                                                fontWeight: FontWeight.w500,
-                                              ),
+                                              style: getTextTheme().bodySmall
+                                                  ?.copyWith(
+                                                    color: Colors.blue[700],
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
                                             ),
                                           ],
                                         ),
@@ -695,14 +739,14 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                                     ],
                                   ),
 
-                                  const SizedBox(height: 16),
+                                  SizedBox(height: 16.h),
 
                                   // Leave Information Section
                                   Container(
-                                    padding: const EdgeInsets.all(12),
+                                    padding: EdgeInsets.all(12.w),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
-                                      borderRadius: BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(8.r),
                                       border: Border.all(
                                         color: Colors.grey.shade300,
                                       ),
@@ -717,11 +761,12 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                                           children: [
                                             Text(
                                               'Leave Allocation (${provider.calculatedLeaves[user.userId]?['remainingMonths'] ?? 0} months)',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 14,
-                                                color: Colors.blue.shade800,
-                                              ),
+                                              style: getTextTheme().bodyMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w600,
+                                                    color:
+                                                        Colors.blue.shade800,
+                                                  ),
                                             ),
                                             TextButton(
                                               onPressed: () {
@@ -741,11 +786,10 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                                                 }
                                               },
                                               style: TextButton.styleFrom(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 5,
-                                                      vertical: 4,
-                                                    ),
+                                                padding: EdgeInsets.symmetric(
+                                                  horizontal: 5.w,
+                                                  vertical: 4.h,
+                                                ),
                                                 minimumSize: Size.zero,
                                                 tapTargetSize:
                                                     MaterialTapTargetSize
@@ -756,20 +800,25 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                                                         user.userId
                                                     ? 'Done'
                                                     : 'Edit',
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w600,
-                                                  color:
-                                                      provider.editingUserId ==
-                                                          user.userId
-                                                      ? Colors.green.shade700
-                                                      : Colors.blue.shade700,
-                                                ),
+                                                style: getTextTheme().bodyMedium
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color:
+                                                          provider.editingUserId ==
+                                                              user.userId
+                                                          ? Colors
+                                                                .green
+                                                                .shade700
+                                                          : Colors
+                                                                .blue
+                                                                .shade700,
+                                                    ),
                                               ),
                                             ),
                                           ],
                                         ),
-                                        const SizedBox(height: 12),
+                                        SizedBox(height: 12.h),
 
                                         // Individual user leave preview with edit functionality
                                         _buildUserLeavePreview(user, provider),
@@ -784,42 +833,22 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                       },
                     ),
 
-                    const SizedBox(height: 30),
+                    SizedBox(height: 30.h),
 
                     // Confirm button
                     Consumer<OnboardingProvider>(
                       builder: (context, provider, child) {
                         return Padding(
-                          padding: const EdgeInsets.all(20),
+                          padding: EdgeInsets.all(20.w),
                           child: SizedBox(
                             width: double.infinity,
-                            child: ElevatedButton(
+                            child: ConstantButton(
+                              text: 'Confirm Onboarding',
                               onPressed: provider.isLoading
                                   ? null
                                   : () => _confirmOnboarding(provider),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                              ),
-                              child: provider.isLoading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
-                                            ),
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Confirm Onboarding',
-                                      style: TextStyle(fontSize: 16),
-                                    ),
+                              backgroundColor: ConstColors.primary,
+                              isLoading: provider.isLoading,
                             ),
                           ),
                         );
@@ -867,24 +896,18 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
         // Clear the overrides after successful onboarding
         _userLeaveOverrides.clear();
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Successfully onboarded ${selectedUsers.length} user(s)',
-            ),
-            backgroundColor: Colors.green,
-          ),
+        ConstantSnackbar.showSuccess(
+          title: selectedUsers.length == 1
+              ? '${selectedUsers.first.name} is onboarded and their leave is ready'
+              : '${selectedUsers.length} employees are onboarded and their leave is ready',
         );
 
         // Reload users
         final userProvider = Provider.of<UserProvider>(context, listen: false);
         provider.loadUsers(userProvider);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to onboard users. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
+        ConstantSnackbar.showError(
+          title: 'Could not onboard the employees. Please try again.',
         );
       }
     }
@@ -903,18 +926,18 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
     }
 
     return Container(
-      width: 320,
-      padding: const EdgeInsets.all(16),
+      width: 320.w,
+      padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12.r),
         border: Border.all(color: Colors.grey.shade300),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
             spreadRadius: 1,
             blurRadius: 4,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 2.h),
           ),
         ],
       ),
@@ -924,23 +947,24 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
           // User Info Section
           Row(
             children: [
-              _buildUserAvatar(user, radius: 24),
-              const SizedBox(width: 12),
+              _buildUserAvatar(user, radius: 24.r),
+              SizedBox(width: 12.w),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       user.name,
-                      style: const TextStyle(
+                      style: getTextTheme().titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        fontSize: 18,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       user.email,
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                      style: getTextTheme().bodyMedium?.copyWith(
+                        color: Colors.grey,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
@@ -948,50 +972,56 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
 
           // Joining Date
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(8.r),
             ),
             child: Text(
               'Joining: ${_getDisplayJoiningDate(user)}',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              style: getTextTheme().bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
 
           // Pro-rated Calculation Section
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(12.w),
             decoration: BoxDecoration(
               color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(8.r),
               border: Border.all(color: Colors.blue.shade200),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Pro-rated Leave Calculation:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  style: getTextTheme().bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8.h),
                 _buildUserLeavePreview(user, provider),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
 
           // Individual Configuration Section
-          const Text(
+          Text(
             'Individual Configuration:',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: getTextTheme().bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
 
           // Individual counters
           if (provider.enablePrivilegeLeaves) ...[
@@ -1003,18 +1033,20 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                   provider.setIndividualUserPrivilegeLeaves(user.userId, value),
               provider,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12.h),
           ],
 
-          _buildIndividualLeaveCounter(
-            'Sick Leave (SL)',
-            user.userId,
-            'sickLeaves',
-            (int value) =>
-                provider.setIndividualUserSickLeaves(user.userId, value),
-            provider,
-          ),
-          const SizedBox(height: 12),
+          if (provider.enableSickLeaves) ...[
+            _buildIndividualLeaveCounter(
+              'Sick Leave (SL)',
+              user.userId,
+              'sickLeaves',
+              (int value) =>
+                  provider.setIndividualUserSickLeaves(user.userId, value),
+              provider,
+            ),
+            SizedBox(height: 12.h),
+          ],
 
           if (provider.enableCasualLeaves) ...[
             _buildIndividualLeaveCounter(
@@ -1025,25 +1057,27 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                   provider.setIndividualUserCasualLeaves(user.userId, value),
               provider,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12.h),
           ],
 
           // Final Calculated leaves preview
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(12.w),
             decoration: BoxDecoration(
               color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(8.r),
               border: Border.all(color: Colors.green.shade200),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Final Leave Allocation:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  style: getTextTheme().bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8.h),
                 _buildFinalUserLeaveAllocation(user, provider),
               ],
             ),
@@ -1085,13 +1119,12 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Remaining months:', style: TextStyle(fontSize: 12)),
+            Text('Remaining months:', style: getTextTheme().bodySmall),
             Row(
               children: [
                 Text(
                   '$remainingMonths months',
-                  style: const TextStyle(
-                    fontSize: 12,
+                  style: getTextTheme().bodySmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1099,14 +1132,14 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
 
         // Show either the editable sliders or the regular text display
         if (isEditingThisUser)
           _buildEditableLeaves(user, provider)
         else
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 4),
+            padding: EdgeInsets.symmetric(vertical: 4.h),
             child: _buildLeaveTextDisplay(
               user,
               provider,
@@ -1139,32 +1172,36 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('PL:', style: TextStyle(fontSize: 12)),
+              Text('PL:', style: getTextTheme().bodySmall),
               Text(
                 '$finalPL days',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                style: getTextTheme().bodySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('SL:', style: TextStyle(fontSize: 12)),
-            Text(
-              '$finalSL days',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
+        if (provider.enableSickLeaves)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('SL:', style: getTextTheme().bodySmall),
+              Text(
+                '$finalSL days',
+                style: getTextTheme().bodySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
         if (provider.enableCasualLeaves)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('CL:', style: TextStyle(fontSize: 12)),
+              Text('CL:', style: getTextTheme().bodySmall),
               Text(
                 '$finalCL days',
-                style: const TextStyle(
-                  fontSize: 12,
+                style: getTextTheme().bodySmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -1174,34 +1211,29 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
     );
   }
 
-  // Replace the _buildEditableLeaves method with this fixed version:
-
-  // Replace the _buildEditableLeaves method with this fixed version:
-
   Widget _buildEditableLeaves(UserModel user, OnboardingProvider provider) {
     // IMPORTANT: Don't call calculateLeaves here - it will override slider changes
     // The values are already initialized when user is selected or edit button is clicked
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(12),
+      margin: EdgeInsets.symmetric(vertical: 8.h),
+      padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
         color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(8.r),
         border: Border.all(color: Colors.blue.shade200, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Edit Leave Allocation:',
-            style: TextStyle(
-              fontSize: 12,
+            style: getTextTheme().bodySmall?.copyWith(
               fontWeight: FontWeight.bold,
               color: Colors.blue,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
           if (provider.enablePrivilegeLeaves) ...[
             _buildIndividualLeaveCounter(
               'Privilege Leave (PL)',
@@ -1212,7 +1244,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
               },
               provider,
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4.h),
           ],
           _buildIndividualLeaveCounter(
             'Sick Leave (SL)',
@@ -1224,7 +1256,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
             provider,
           ),
           if (provider.enableCasualLeaves) ...[
-            const SizedBox(height: 4),
+            SizedBox(height: 4.h),
             _buildIndividualLeaveCounter(
               'Casual Leave (CL)',
               user.userId,
@@ -1254,19 +1286,18 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
         final value = userLeaves[leaveType] ?? 0;
 
         return Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 4.w),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Label
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 13,
+                style: getTextTheme().bodyMedium?.copyWith(
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8.h),
 
               // Counter Row with buttons and text field
               Row(
@@ -1275,7 +1306,7 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(8.r),
                       border: Border.all(color: Colors.red.shade200),
                     ),
                     child: IconButton(
@@ -1291,24 +1322,24 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                       icon: Icon(
                         Icons.remove,
                         color: value > 0 ? Colors.red.shade600 : Colors.grey,
-                        size: 20,
+                        size: 20.r,
                       ),
-                      constraints: const BoxConstraints(
-                        minWidth: 40,
-                        minHeight: 40,
+                      constraints: BoxConstraints(
+                        minWidth: 40.w,
+                        minHeight: 40.h,
                       ),
                     ),
                   ),
 
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12.w),
 
                   // Text field for direct input
                   Expanded(
                     child: Container(
-                      height: 45,
+                      height: 45.h,
                       decoration: BoxDecoration(
                         color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(8.r),
                         border: Border.all(color: Colors.blue.shade200),
                       ),
                       child: TextFormField(
@@ -1318,21 +1349,19 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                         initialValue: value.toString(),
                         textAlign: TextAlign.center,
                         keyboardType: TextInputType.number,
-                        style: const TextStyle(
-                          fontSize: 16,
+                        style: getTextTheme().bodyLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                         decoration: InputDecoration(
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 12,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 8.w,
+                            vertical: 12.h,
                           ),
                           hintText: '0',
                           suffix: Text(
                             'days',
-                            style: TextStyle(
-                              fontSize: 12,
+                            style: getTextTheme().bodySmall?.copyWith(
                               color: Colors.blue.shade600,
                               fontWeight: FontWeight.w500,
                             ),
@@ -1346,26 +1375,18 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                             'DEBUG: Text field submitted $leaveType for user $userId to $clampedValue',
                           );
                         },
-                        validator: (String? textValue) {
-                          if (textValue == null || textValue.isEmpty)
-                            return null;
-                          final newValue = int.tryParse(textValue);
-                          if (newValue == null) return 'Invalid number';
-                          if (newValue < 0 || newValue > 30)
-                            return 'Must be 0-30';
-                          return null;
-                        },
+                        validator: Validators.intInRange(0, 30),
                       ),
                     ),
                   ),
 
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12.w),
 
                   // Increase button
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(8.r),
                       border: Border.all(color: Colors.green.shade200),
                     ),
                     child: IconButton(
@@ -1381,30 +1402,29 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
                       icon: Icon(
                         Icons.add,
                         color: value < 30 ? Colors.green.shade600 : Colors.grey,
-                        size: 20,
+                        size: 20.r,
                       ),
-                      constraints: const BoxConstraints(
-                        minWidth: 40,
-                        minHeight: 40,
+                      constraints: BoxConstraints(
+                        minWidth: 40.w,
+                        minHeight: 40.h,
                       ),
                     ),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 4),
+              SizedBox(height: 4.h),
 
               // Current value display
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
                 decoration: BoxDecoration(
                   color: Colors.blue.shade100,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(12.r),
                 ),
                 child: Text(
                   'Current: $value days',
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: getTextTheme().bodySmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Colors.blue.shade700,
                   ),
@@ -1442,11 +1462,10 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Privilege Leave:', style: TextStyle(fontSize: 12)),
+              Text('Privilege Leave:', style: getTextTheme().bodySmall),
               Text(
                 '$finalPL days',
-                style: const TextStyle(
-                  fontSize: 12,
+                style: getTextTheme().bodySmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Colors.green,
                 ),
@@ -1456,11 +1475,10 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Sick Leave:', style: TextStyle(fontSize: 12)),
+            Text('Sick Leave:', style: getTextTheme().bodySmall),
             Text(
               '$finalSL days',
-              style: const TextStyle(
-                fontSize: 12,
+              style: getTextTheme().bodySmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: Colors.green,
               ),
@@ -1471,11 +1489,10 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Casual Leave:', style: TextStyle(fontSize: 12)),
+              Text('Casual Leave:', style: getTextTheme().bodySmall),
               Text(
                 '$finalCL days',
-                style: const TextStyle(
-                  fontSize: 12,
+                style: getTextTheme().bodySmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Colors.green,
                 ),
@@ -1544,19 +1561,21 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
     }
   }
 
-  /// Builds a user avatar with error handling for network images
-  Widget _buildUserAvatar(UserModel user, {double radius = 20}) {
+  /// Builds a user avatar with error handling for network images.
+  /// [radius] is expected to be already scaled (e.g. `20.r`); defaults to 20.r.
+  Widget _buildUserAvatar(UserModel user, {double? radius}) {
+    final double avatarRadius = radius ?? 20.r;
     final hasProfileImage =
         user.profileImageUrl != null && user.profileImageUrl!.isNotEmpty;
 
     if (!hasProfileImage) {
       return CircleAvatar(
-        radius: radius,
+        radius: avatarRadius,
         backgroundColor: Colors.blue.shade100,
         child: Text(
           user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
-          style: TextStyle(
-            fontSize: radius * 0.8,
+          style: getTextTheme().bodyLarge?.copyWith(
+            fontSize: avatarRadius * 0.8,
             fontWeight: FontWeight.bold,
             color: Colors.blue.shade800,
           ),
@@ -1565,40 +1584,34 @@ class _EmployeeOnboardingScreenState extends State<EmployeeOnboardingScreen> {
     }
 
     return CircleAvatar(
-      radius: radius,
+      radius: avatarRadius,
       backgroundColor: Colors.blue.shade100,
       child: ClipOval(
         child: Image.network(
           user.profileImageUrl!,
-          width: radius * 2,
-          height: radius * 2,
+          width: avatarRadius * 2,
+          height: avatarRadius * 2,
           fit: BoxFit.cover,
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) return child;
             return Center(
               child: SizedBox(
-                width: radius,
-                height: radius,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  value: loadingProgress.expectedTotalBytes != null
-                      ? loadingProgress.cumulativeBytesLoaded /
-                            loadingProgress.expectedTotalBytes!
-                      : null,
-                ),
+                width: avatarRadius,
+                height: avatarRadius,
+                child: AppLoadingIndicator(size: avatarRadius),
               ),
             );
           },
           errorBuilder: (context, error, stackTrace) {
             return Container(
-              width: radius * 2,
-              height: radius * 2,
+              width: avatarRadius * 2,
+              height: avatarRadius * 2,
               color: Colors.blue.shade100,
               child: Center(
                 child: Text(
                   user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
-                  style: TextStyle(
-                    fontSize: radius * 0.8,
+                  style: getTextTheme().bodyLarge?.copyWith(
+                    fontSize: avatarRadius * 0.8,
                     fontWeight: FontWeight.bold,
                     color: Colors.blue.shade800,
                   ),

@@ -1,8 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:intl/intl.dart';
+import '../widgets/device_info_card.dart';
 import 'package:provider/provider.dart';
+import '../constants/constant_snackbar.dart';
+import '../constants/constant_button.dart';
+import '../constants/apploading_indicator.dart';
 import '../providers/security_provider.dart';
 import '../providers/auth_provider.dart';
 import '../constants/const_textstyle.dart';
@@ -34,11 +36,9 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
     final securityProvider = Provider.of<SecurityProvider>(context, listen: false);
 
     if (!securityProvider.isDeviceSupported) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Biometric authentication is not supported on this device'),
-          backgroundColor: Colors.orange,
-        ),
+      ConstantSnackbar.show(
+        title: 'This device does not support biometric unlock',
+        backgroundColor: Colors.orange,
       );
       return;
     }
@@ -61,7 +61,10 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
               onPressed: () => Navigator.pop(context),
               child: Text('Cancel', style: getTextTheme().labelLarge),
             ),
-            ElevatedButton(
+            ConstantButton(
+              text: 'Setup PIN',
+              isFullWidth: false,
+              height: 40.h,
               onPressed: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -74,7 +77,6 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                   _setupBiometric();
                 });
               },
-              child: Text('Setup PIN', style: getTextTheme().labelLarge),
             ),
           ],
         ),
@@ -94,106 +96,15 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
       );
 
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Biometric authentication enabled successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        ConstantSnackbar.showSuccess(title: 'Biometric unlock is now on');
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Biometric authentication failed'),
-            backgroundColor: Colors.red,
-          ),
+        ConstantSnackbar.showError(
+          title: 'Biometric check failed. Please try again.',
         );
       }
     }
-  }
-
-  Widget _buildDeviceCard(Map<String, dynamic>? deviceInfo) {
-    final registeredAt = deviceInfo?['registeredAt'];
-    final device = '${deviceInfo?['manufacturer'] ?? ''} ${deviceInfo?['model'] ?? ''}'
-        .trim();
-    final os = '${deviceInfo?['platform'] ?? ''} ${deviceInfo?['osVersion'] ?? ''}'
-        .trim();
-
-    Widget row(IconData icon, String label, String value) {
-      return Padding(
-        padding: EdgeInsets.only(top: 8.h),
-        child: Row(
-          children: [
-            Icon(icon, size: 18.r, color: Colors.indigo),
-            SizedBox(width: 10.w),
-            Text('$label: ', style: getTextTheme().bodySmall),
-            Expanded(
-              child: Text(
-                value.isEmpty ? '-' : value,
-                style: getTextTheme().bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: EdgeInsets.all(16.w),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Registered Device',
-              style: getTextTheme().titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'Attendance punch in and out works only from this device.',
-              style: getTextTheme().bodySmall?.copyWith(
-                color: Colors.grey[600],
-              ),
-            ),
-            if (deviceInfo == null) ...[
-              SizedBox(height: 12.h),
-              Row(
-                children: [
-                  Icon(Icons.phonelink_off, color: Colors.orange, size: 20.r),
-                  SizedBox(width: 8.w),
-                  Expanded(
-                    child: Text(
-                      'No device registered yet. It is registered when you log in.',
-                      style: getTextTheme().bodyMedium?.copyWith(
-                        color: Colors.orange.shade800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ] else ...[
-              row(Icons.smartphone, 'Device', device),
-              row(Icons.system_update, 'OS', os),
-              row(
-                Icons.event_available,
-                'Registered on',
-                registeredAt is Timestamp
-                    ? DateFormat(
-                        'dd MMM yyyy, hh:mm a',
-                      ).format(registeredAt.toDate())
-                    : '',
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
   }
 
   @override
@@ -208,7 +119,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
       body: Consumer<SecurityProvider>(
         builder: (context, securityProvider, child) {
           if (securityProvider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: AppLoadingIndicator(size: 40));
           }
 
           return SingleChildScrollView(
@@ -287,13 +198,10 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                             securityProvider.isDeviceSupported)
                           SizedBox(
                             width: double.infinity,
-                            child: ElevatedButton.icon(
+                            child: ConstantButton(
+                              text: 'Setup Biometric',
                               onPressed: _setupBiometric,
                               icon: Icon(Icons.fingerprint, size: 20.r),
-                              label: Text('Setup Biometric'),
-                              style: ElevatedButton.styleFrom(
-                                padding: EdgeInsets.symmetric(vertical: 12.h),
-                              ),
                             ),
                           ),
                       ],
@@ -340,7 +248,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                   ),
                 ),
                 SizedBox(height: 16.h),
-                _buildDeviceCard(securityProvider.deviceInfo),
+                DeviceInfoCard(deviceInfo: securityProvider.deviceInfo),
               ],
             ),
           );

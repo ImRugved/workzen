@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../app_constants.dart';
 import '../constants/firestore_constants.dart';
+import '../models/leave_balance_model.dart';
+import '../models/leave_config_model.dart';
+import '../models/leave_statistics_model.dart';
 import '../services/fcm_service.dart';
 import '../models/user_model.dart';
 import 'user_provider.dart';
@@ -18,17 +21,31 @@ class OnboardingProvider extends ChangeNotifier {
   String _searchQuery = '';
   String? _editingUserId; // Track which user is being edited
 
-  // Leave configuration
-  int _privilegeLeaves = 12;
-  int _sickLeaves = 10;
-  int _casualLeaves = 8;
+  // Leave configuration (values come from organization_details/leave_config)
+  int _privilegeLeaves = 0;
+  int _sickLeaves = 0;
+  int _casualLeaves = 0;
   bool _enablePrivilegeLeaves = false;
-  bool _enableCasualLeaves = false;
+  bool _enableCasualLeaves = true; // sick and casual leave are on by default
+  // Sick leave was always on, so it stays on unless the admin turns it off
+  bool _enableSickLeaves = true;
 
   // Stored defaults from Firestore (used by resetToDefaultLeaves and calculateLeaves)
-  int _defaultPL = 12;
-  int _defaultSL = 10;
-  int _defaultCL = 8;
+  int _defaultPL = 0;
+  int _defaultSL = 0;
+  int _defaultCL = 0;
+
+  // What happens to unused days when next year's leave is assigned
+  // (organization_details/leave_config). Off means the days reset to 0.
+  bool _carryForwardPL = false;
+  bool _carryForwardCompOff = false;
+
+  bool get carryForwardPL => _carryForwardPL;
+  bool get carryForwardCompOff => _carryForwardCompOff;
+
+  // False until leave_config has been loaded from Firestore
+  bool _isLeaveConfigured = false;
+  bool get isLeaveConfigured => _isLeaveConfigured;
 
   // Individual user leave configurations
   Map<String, Map<String, int>> _individualUserLeaves = {};
@@ -55,6 +72,7 @@ class OnboardingProvider extends ChangeNotifier {
   int get casualLeaves => _casualLeaves;
   bool get enablePrivilegeLeaves => _enablePrivilegeLeaves;
   bool get enableCasualLeaves => _enableCasualLeaves;
+  bool get enableSickLeaves => _enableSickLeaves;
   // Auto-sync status getter
   bool get hasAutoSynced => _hasAutoSynced;
   Map<String, Map<String, dynamic>> get calculatedLeaves => _calculatedLeaves;
@@ -75,8 +93,21 @@ class OnboardingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Back to the defaults: sick and casual leave on, privilege leave off.
+  void resetLeaveToggles() {
+    _enablePrivilegeLeaves = false;
+    _enableSickLeaves = true;
+    _enableCasualLeaves = true;
+    notifyListeners();
+  }
+
   void setEnablePrivilegeLeaves(bool value) {
     _enablePrivilegeLeaves = value;
+    notifyListeners();
+  }
+
+  void setEnableSickLeaves(bool value) {
+    _enableSickLeaves = value;
     notifyListeners();
   }
 
@@ -85,27 +116,25 @@ class OnboardingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Load leave defaults from Firestore settings
-  Future<void> loadLeaveDefaults() async {
-    try {
-      final doc = await _firestore
-          .collection(FirestoreCollections.organizationDetails)
-          .doc(FirestoreDocs.leaveConfig)
-          .get();
+  /// Receives the live leave counts from [OrganizationProvider]. The defaults
+  /// always follow the admin's latest setting; the slider values are only
+  /// reset while nobody is selected, so an edit in progress is never lost.
+  void setLeaveConfig(LeaveConfigModel? config) {
+    _isLeaveConfigured = config != null;
+    _defaultPL = config?.privilegeLeaves ?? 0;
+    _defaultSL = config?.sickLeaves ?? 0;
+    _defaultCL = config?.casualLeaves ?? 0;
+    _carryForwardPL = config?.carryForwardPL ?? false;
+    _carryForwardCompOff = config?.carryForwardCompOff ?? false;
 
-      if (doc.exists) {
-        final data = doc.data()!;
-        _privilegeLeaves = (data['privilegeLeaves'] ?? 12) as int;
-        _sickLeaves = (data['sickLeaves'] ?? 10) as int;
-        _casualLeaves = (data['casualLeaves'] ?? 8) as int;
-        _defaultPL = _privilegeLeaves;
-        _defaultSL = _sickLeaves;
-        _defaultCL = _casualLeaves;
-      }
-    } catch (e) {
-      debugPrint('Error loading leave defaults: $e');
+    if (_selectedUserIds.isEmpty) {
+      _privilegeLeaves = _defaultPL;
+      _sickLeaves = _defaultSL;
+      _casualLeaves = _defaultCL;
     }
-    notifyListeners();
+
+    // Runs while the provider tree is updating, so notify afterwards
+    Future.microtask(notifyListeners);
   }
 
   // Reset to default leave values
@@ -260,6 +289,7 @@ class OnboardingProvider extends ChangeNotifier {
     }
 
     finalPL = _enablePrivilegeLeaves ? finalPL : 0;
+    finalSL = _enableSickLeaves ? finalSL : 0;
     final finalCL = _enableCasualLeaves ? casualLeaves : 0;
 
     print(
@@ -468,7 +498,7 @@ class OnboardingProvider extends ChangeNotifier {
       'privilegeLeaves': _enablePrivilegeLeaves && pl > 0 && remainingMonths > 0
           ? ((pl / 12) * remainingMonths).round()
           : 0,
-      'sickLeaves': remainingMonths > 0
+      'sickLeaves': _enableSickLeaves && remainingMonths > 0
           ? ((sl / 12) * remainingMonths).round()
           : 0,
       'casualLeaves': _enableCasualLeaves && cl > 0 && remainingMonths > 0
@@ -507,13 +537,14 @@ class OnboardingProvider extends ChangeNotifier {
         // This ensures the values shown in the UI are the same ones saved to Firestore
         final leavesToSave = {
           'privilegeLeaves': userLeaves['privilegeLeaves']!,
-          'sickLeaves': userLeaves['sickLeaves']!,
+          // A leave type switched off for this onboarding gets no allocation
+          'sickLeaves': _enableSickLeaves ? userLeaves['sickLeaves']! : 0,
           'casualLeaves': userLeaves['casualLeaves']!,
         };
 
         // Update user document with onboarding status
         final userRef = _firestore
-            .collection(AppConstants.usersCollection)
+            .collection(FirestoreCollections.users)
             .doc(userId);
         batch.update(userRef, {
           'isOnboarded': true,
@@ -525,6 +556,7 @@ class OnboardingProvider extends ChangeNotifier {
           'role': user.role ?? 'employee', // Set role if not already set
           'isPrivilegeLeave': _enablePrivilegeLeaves, // Set privilege leave preference
           'isCasualLeave': _enableCasualLeaves, // Set casual leave preference
+          'isSickLeave': _enableSickLeaves, // Set sick leave preference
         });
 
         // Create leaves subcollection for the user
@@ -621,7 +653,7 @@ class OnboardingProvider extends ChangeNotifier {
     try {
       final currentYear = DateTime.now().year;
       final leaveDoc = await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection(FirestoreSubCollections.leaves)
           .doc(FirestoreDocs.annualLeave(currentYear))
@@ -647,7 +679,7 @@ class OnboardingProvider extends ChangeNotifier {
     try {
       final currentYear = DateTime.now().year;
       final leaveRef = _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection(FirestoreSubCollections.leaves)
           .doc(FirestoreDocs.annualLeave(currentYear));
@@ -686,11 +718,11 @@ class OnboardingProvider extends ChangeNotifier {
   }
 
   /// Get leave statistics for admin dashboard
-  Future<Map<String, dynamic>> getLeaveStatistics() async {
+  Future<LeaveStatisticsModel> getLeaveStatistics() async {
     try {
       final currentYear = DateTime.now().year;
       final usersSnapshot = await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .where('isOnboarded', isEqualTo: true)
           .get();
 
@@ -708,47 +740,32 @@ class OnboardingProvider extends ChangeNotifier {
             .doc(FirestoreDocs.annualLeave(currentYear))
             .get();
 
-        if (leaveDoc.exists) {
-          final data = leaveDoc.data()!;
+        final data = leaveDoc.data();
+        if (data != null) {
+          // Typed read: tolerates half-day (fractional) values
+          final balance = LeaveBalanceModel.fromFirestore(data);
           totalUsers++;
-          totalAllocatedLeaves += data['totalAllocated'] as int;
-          totalUsedLeaves += data['totalUsed'] as int;
-          totalBalanceLeaves += data['totalBalance'] as int;
-
-          final plData = data['privilegeLeaves'] as Map<String, dynamic>;
-          final slData = data['sickLeaves'] as Map<String, dynamic>;
-          final clData = data['casualLeaves'] as Map<String, dynamic>;
-
-          totalPLAllocated += plData['allocated'] as int;
-          totalSLAllocated += slData['allocated'] as int;
-          totalCLAllocated += clData['allocated'] as int;
+          totalAllocatedLeaves += balance.totalAllocated;
+          totalUsedLeaves += balance.totalUsed;
+          totalBalanceLeaves += balance.totalBalance;
+          totalPLAllocated += balance.plTotal;
+          totalSLAllocated += balance.slTotal;
+          totalCLAllocated += balance.clTotal;
         }
       }
 
-      return {
-        'totalUsers': totalUsers,
-        'totalAllocatedLeaves': totalAllocatedLeaves,
-        'totalUsedLeaves': totalUsedLeaves,
-        'totalBalanceLeaves': totalBalanceLeaves,
-        'totalPLAllocated': totalPLAllocated,
-        'totalSLAllocated': totalSLAllocated,
-        'totalCLAllocated': totalCLAllocated,
-        'utilizationPercentage': totalAllocatedLeaves > 0
-            ? (totalUsedLeaves / totalAllocatedLeaves * 100).round()
-            : 0,
-      };
+      return LeaveStatisticsModel(
+        totalUsers: totalUsers,
+        totalAllocatedLeaves: totalAllocatedLeaves,
+        totalUsedLeaves: totalUsedLeaves,
+        totalBalanceLeaves: totalBalanceLeaves,
+        totalPLAllocated: totalPLAllocated,
+        totalSLAllocated: totalSLAllocated,
+        totalCLAllocated: totalCLAllocated,
+      );
     } catch (e) {
       debugPrint('Error getting leave statistics: $e');
-      return {
-        'totalUsers': 0,
-        'totalAllocatedLeaves': 0,
-        'totalUsedLeaves': 0,
-        'totalBalanceLeaves': 0,
-        'totalPLAllocated': 0,
-        'totalSLAllocated': 0,
-        'totalCLAllocated': 0,
-        'utilizationPercentage': 0,
-      };
+      return const LeaveStatisticsModel();
     }
   }
 
@@ -762,7 +779,7 @@ class OnboardingProvider extends ChangeNotifier {
       int renewedCount = 0;
 
       final usersSnapshot = await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .where('isOnboarded', isEqualTo: true)
           .get();
 
@@ -781,17 +798,46 @@ class OnboardingProvider extends ChangeNotifier {
             .doc(FirestoreDocs.annualLeave(previousYear))
             .get();
 
+        // Leave types switched on for this employee at onboarding (sick leave
+        // was always on, so a missing flag counts as on)
+        final userData = userDoc.data();
+        final plOn = userData['isPrivilegeLeave'] == true;
+        final clOn = userData['isCasualLeave'] == true;
+        final slOn = userData['isSickLeave'] != false;
+
+        // Unused PL moves to the new year only when the admin enabled carry
+        // forward; otherwise it resets to 0
         int carryForwardPL = 0;
-        if (prevYearDoc.exists) {
+        if (_carryForwardPL && plOn && prevYearDoc.exists) {
           final prevData = prevYearDoc.data()!;
           final plData = prevData['privilegeLeaves'] as Map<String, dynamic>?;
-          carryForwardPL = (plData?['balance'] as int?) ?? 0;
+          carryForwardPL = ((plData?['balance'] ?? 0) as num).toInt();
+          if (carryForwardPL < 0) carryForwardPL = 0;
         }
 
-        // Fresh annual allocation (full year for existing employees)
-        final freshPL = _defaultPL;
-        final freshSL = _defaultSL;
-        final freshCL = _defaultCL;
+        // Comp off credit is not tied to a year: kept when carry forward is on,
+        // reset to 0 otherwise
+        if (!_carryForwardCompOff) {
+          final compOffRef = userDoc.reference
+              .collection(FirestoreSubCollections.leaves)
+              .doc(FirestoreDocs.compOffBalance);
+          final compOffDoc = await compOffRef.get();
+          final compOffBalance =
+              ((compOffDoc.data()?['balance'] ?? 0) as num).toDouble();
+          if (compOffBalance != 0) {
+            await compOffRef.set({
+              'balance': 0,
+              'lastResetYear': newYear,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          }
+        }
+
+        // Fresh annual allocation (full year for existing employees), only for
+        // the leave types enabled for this employee
+        final freshPL = plOn ? _defaultPL : 0;
+        final freshSL = slOn ? _defaultSL : 0;
+        final freshCL = clOn ? _defaultCL : 0;
 
         final totalPL = freshPL + carryForwardPL;
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 import 'dart:math' as math;
 
@@ -12,6 +13,7 @@ import '../models/leave_model.dart';
 import '../models/request_model.dart';
 import '../models/user_model.dart';
 import '../constants/firestore_constants.dart';
+import '../services/attendance_summary_service.dart';
 import '../services/device_service.dart';
 import '../services/fcm_service.dart';
 
@@ -28,6 +30,9 @@ class AttendanceProvider with ChangeNotifier {
   LeaveModel? _todayLeave;
   bool? _isAtOffice;
 
+  // 'in' or 'out' for the whole punch flow (location, device check, save)
+  String? _punchAction;
+
   // Stream controllers
   Stream<List<AttendanceModel>>? _userAttendanceStream;
   Stream<List<AttendanceModel>>? _allAttendanceStream;
@@ -38,6 +43,14 @@ class AttendanceProvider with ChangeNotifier {
   AttendanceModel? get todayAttendance => _todayAttendance;
   LeaveModel? get todayLeave => _todayLeave;
   bool? get isAtOffice => _isAtOffice;
+  String? get punchAction => _punchAction;
+  bool get isPunching => _punchAction != null;
+
+  void setPunchAction(String? action) {
+    _punchAction = action;
+    notifyListeners();
+  }
+
   Stream<List<AttendanceModel>>? get userAttendanceStream =>
       _userAttendanceStream;
   Stream<List<AttendanceModel>>? get allAttendanceStream =>
@@ -89,7 +102,7 @@ class AttendanceProvider with ChangeNotifier {
     // This fetches all records for the user without ordering in Firestore
     // and then sorts them in memory
     _userAttendanceStream = _firestore
-        .collection(AppConstants.attendanceCollection)
+        .collection(FirestoreCollections.attendance)
         .where('userId', isEqualTo: userId)
         .snapshots()
         .map((snapshot) {
@@ -113,7 +126,7 @@ class AttendanceProvider with ChangeNotifier {
   // Get real-time stream of all attendance
   Stream<List<AttendanceModel>> getAllAttendanceStream() {
     _allAttendanceStream = _firestore
-        .collection(AppConstants.attendanceCollection)
+        .collection(FirestoreCollections.attendance)
         .orderBy('date', descending: true)
         .snapshots()
         .map((snapshot) {
@@ -146,7 +159,7 @@ class AttendanceProvider with ChangeNotifier {
 
       // Query for today's attendance
       QuerySnapshot attendanceQuery = await _firestore
-          .collection(AppConstants.attendanceCollection)
+          .collection(FirestoreCollections.attendance)
           .where('userId', isEqualTo: userId)
           .where('date', isGreaterThanOrEqualTo: today)
           .where('date', isLessThan: today.add(const Duration(days: 1)))
@@ -181,9 +194,9 @@ class AttendanceProvider with ChangeNotifier {
       final today = DateTime(now.year, now.month, now.day);
 
       QuerySnapshot leaveQuery = await _firestore
-          .collection(AppConstants.userCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
-          .collection(AppConstants.userRequestsCollection)
+          .collection(FirestoreSubCollections.requests)
           .where('type', isEqualTo: AppConstants.requestTypeLeave)
           .where('status', isEqualTo: AppConstants.statusApproved)
           .get();
@@ -294,7 +307,7 @@ class AttendanceProvider with ChangeNotifier {
   Future<String?> _checkRegisteredDevice(String userId) async {
     try {
       final userRef = _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId);
       final userDoc = await userRef.get();
       final securityDoc = await userRef
@@ -337,6 +350,24 @@ class AttendanceProvider with ChangeNotifier {
       logDebug('Error verifying device: $e');
       return 'Unable to verify your device. Please try again.';
     }
+  }
+
+  // Rebuilds the stored monthly summary (users/{id}/attendance_summary) after
+  // attendance changes. Runs in the background and never fails the punch.
+  void _refreshMonthSummary(String userId, {UserModel? user, DateTime? month}) {
+    final target = month ?? DateTime.now();
+    unawaited(() async {
+      try {
+        final service = AttendanceSummaryService();
+        if (user != null) {
+          await service.rebuildMonth(user, target);
+        } else {
+          await service.rebuildMonthById(userId, target);
+        }
+      } catch (e) {
+        logDebug('Error updating attendance summary: $e');
+      }
+    }());
   }
 
   // Punch in
@@ -409,7 +440,7 @@ class AttendanceProvider with ChangeNotifier {
         };
 
         await _firestore
-            .collection(AppConstants.attendanceCollection)
+            .collection(FirestoreCollections.attendance)
             .doc(todayAttendance.id)
             .update(updateData);
 
@@ -433,7 +464,7 @@ class AttendanceProvider with ChangeNotifier {
         );
 
         await _firestore
-            .collection(AppConstants.attendanceCollection)
+            .collection(FirestoreCollections.attendance)
             .doc(attendanceId)
             .set(todayAttendance.toJson());
       }
@@ -445,6 +476,8 @@ class AttendanceProvider with ChangeNotifier {
         "Punch In",
         "${user.name} has punched in at ${DateFormat('hh:mm a').format(now)}",
       );
+
+      _refreshMonthSummary(user.id, user: user);
 
       _isLoading = false;
       notifyListeners();
@@ -515,7 +548,7 @@ class AttendanceProvider with ChangeNotifier {
       );
 
       await _firestore
-          .collection(AppConstants.attendanceCollection)
+          .collection(FirestoreCollections.attendance)
           .doc(attendance.id)
           .update(updatedAttendance.toJson());
 
@@ -526,6 +559,8 @@ class AttendanceProvider with ChangeNotifier {
         'Punch Out',
         '${user.name} has punched out at ${DateFormat('hh:mm a').format(now)}',
       );
+
+      _refreshMonthSummary(user.id, user: user);
 
       return {'success': true};
     } catch (e) {
@@ -544,14 +579,14 @@ class AttendanceProvider with ChangeNotifier {
     try {
       // Try to get admin users by isAdmin field first
       QuerySnapshot adminSnapshot = await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .where('isAdmin', isEqualTo: true)
           .get();
 
       // If no admins found, try with role field
       if (adminSnapshot.docs.isEmpty) {
         adminSnapshot = await _firestore
-            .collection(AppConstants.usersCollection)
+            .collection(FirestoreCollections.users)
             .where('role', isEqualTo: AppConstants.adminRole)
             .get();
       }
@@ -590,7 +625,7 @@ class AttendanceProvider with ChangeNotifier {
       notifyListeners();
 
       final snapshot = await _firestore
-          .collection(AppConstants.attendanceCollection)
+          .collection(FirestoreCollections.attendance)
           .orderBy('date', descending: true)
           .get();
 
@@ -617,7 +652,7 @@ class AttendanceProvider with ChangeNotifier {
       notifyListeners();
 
       final snapshot = await _firestore
-          .collection(AppConstants.attendanceCollection)
+          .collection(FirestoreCollections.attendance)
           .where('userId', isEqualTo: userId)
           .get();
 
@@ -675,9 +710,11 @@ class AttendanceProvider with ChangeNotifier {
       );
 
       await _firestore
-          .collection(AppConstants.attendanceCollection)
+          .collection(FirestoreCollections.attendance)
           .doc(id)
           .set(attendanceModel.toJson());
+
+      _refreshMonthSummary(employee.id, user: employee, month: date);
 
       return true;
     } catch (e) {

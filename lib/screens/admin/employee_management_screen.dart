@@ -4,11 +4,16 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:workzen/constants/constant_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/employee_management_provider.dart';
 import '../../providers/onboarding_provider.dart';
-import '../../models/employee_model.dart';
+import '../../constants/permissions.dart';
 import '../../widgets/app_drawer.dart';
 import '../../constants/const_textstyle.dart';
+import '../../constants/constant_snackbar.dart';
+import '../../constants/constant_button.dart';
+import '../../constants/constant_dropdown.dart';
+import '../../constants/apploading_indicator.dart';
 import 'employee_details_screen.dart';
 import 'add_employee_screen.dart';
 
@@ -21,8 +26,8 @@ class EmployeeManagementScreen extends StatefulWidget {
 }
 
 class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
+  // Search text and status filter live in EmployeeManagementProvider
   final TextEditingController _searchController = TextEditingController();
-  String? _selectedFilter;
 
   // Controllers for add employee dialog
 
@@ -111,16 +116,15 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          ConstantButton(
+            text: 'Renew for $nextYear',
             onPressed: () async {
               Navigator.pop(context);
               await _executeYearlyRenewal(nextYear);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ConstColors.primary,
-              foregroundColor: ConstColors.white,
-            ),
-            child: Text('Renew for $nextYear'),
+            isFullWidth: false,
+            height: 40.h,
+            backgroundColor: ConstColors.primary,
           ),
         ],
       ),
@@ -134,7 +138,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       builder: (context) => AlertDialog(
         content: Row(
           children: [
-            const CircularProgressIndicator(),
+            const AppLoadingIndicator(size: 40),
             SizedBox(width: 16.w),
             Text('Renewing leaves for $year...'),
           ],
@@ -146,22 +150,34 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       context,
       listen: false,
     );
-    await onboardingProvider.loadLeaveDefaults();
+    // Leave defaults are kept live by OrganizationProvider
+    if (!onboardingProvider.isLeaveConfigured) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ConstantSnackbar.show(
+          title:
+              'Set the default leave counts first: Admin Dashboard > Leave Configuration',
+          backgroundColor: Colors.orange,
+        );
+      }
+      return;
+    }
+
     final count = await onboardingProvider.renewYearlyLeaves(newYear: year);
 
     if (mounted) {
       Navigator.pop(context); // Close loading dialog
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            count > 0
-                ? 'Successfully renewed leaves for $count employee(s) for $year'
-                : 'No employees to renew (already renewed or none onboarded)',
-          ),
-          backgroundColor: count > 0 ? Colors.green : Colors.orange,
-        ),
-      );
+      if (count > 0) {
+        ConstantSnackbar.showSuccess(
+          title: 'Leave for $year is renewed for $count employee(s)',
+        );
+      } else {
+        ConstantSnackbar.show(
+          title: 'Nothing to renew: leave is already renewed or nobody is onboarded',
+          backgroundColor: Colors.orange,
+        );
+      }
     }
   }
 
@@ -178,11 +194,12 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         backgroundColor: ConstColors.primary,
         foregroundColor: ConstColors.textColorWhite,
         actions: [
-          IconButton(
-            icon: Icon(Icons.autorenew, size: 20.r),
-            onPressed: () => _showRenewYearlyLeavesDialog(),
-            tooltip: 'Renew Yearly Leaves',
-          ),
+          if (context.read<AuthProvider>().can(Permissions.onboarding))
+            IconButton(
+              icon: Icon(Icons.autorenew, size: 20.r),
+              onPressed: () => _showRenewYearlyLeavesDialog(),
+              tooltip: 'Renew Yearly Leaves',
+            ),
           IconButton(
             icon: Icon(Icons.refresh, size: 20.r),
             onPressed: () {
@@ -196,11 +213,14 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         ],
       ),
       drawer: const AppDrawer(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _navigateToAddEmployee,
-        backgroundColor: ConstColors.primary,
-        child: Icon(Icons.person_add, color: ConstColors.white),
-      ),
+      floatingActionButton:
+          context.read<AuthProvider>().can(Permissions.addEmployee)
+          ? FloatingActionButton(
+              onPressed: _navigateToAddEmployee,
+              backgroundColor: ConstColors.primary,
+              child: Icon(Icons.person_add, color: ConstColors.white),
+            )
+          : null,
       body: Consumer<EmployeeManagementProvider>(
         builder: (context, provider, child) {
           return SafeArea(
@@ -245,7 +265,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
               hintText: 'Search by name, email, or emp ID...',
               hintStyle: getTextTheme().bodySmall,
               prefixIcon: Icon(Icons.search, size: 20.r),
-              suffixIcon: _searchController.text.isNotEmpty
+              suffixIcon: provider.searchQuery.isNotEmpty
                   ? IconButton(
                       icon: Icon(Icons.clear, size: 20.r),
                       onPressed: () {
@@ -269,37 +289,21 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
           Row(
             children: [
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: _selectedFilter,
-                  decoration: InputDecoration(
-                    labelText: 'Filter by Status',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  items: [
-                    DropdownMenuItem(
-                      value: null,
-                      child: Text(
-                        'All Employees',
-                        style: getTextTheme().bodyMedium,
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'onboarded',
-                      child: Text('Onboarded'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'pending',
-                      child: Text('Pending Onboarding'),
-                    ),
-                  ],
+                child: ConstantDropdown<String>(
+                  value: switch (provider.onboardingFilter) {
+                    true => 'onboarded',
+                    false => 'pending',
+                    null => 'all',
+                  },
+                  label: 'Filter by Status',
+                  items: const ['all', 'onboarded', 'pending'],
+                  itemLabel: (v) => switch (v) {
+                    'onboarded' => 'Onboarded',
+                    'pending' => 'Pending Onboarding',
+                    _ => 'All Employees',
+                  },
                   onChanged: (value) {
-                    setState(() {
-                      _selectedFilter = value;
-                    });
-
-                    if (value == null) {
+                    if (value == null || value == 'all') {
                       provider.clearFilters();
                     } else if (value == 'onboarded') {
                       provider.filterByOnboardingStatus(true);
@@ -310,25 +314,15 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                 ),
               ),
               SizedBox(width: 12.w),
-              ElevatedButton(
+              ConstantButton(
+                text: 'Clear',
                 onPressed: () {
                   _searchController.clear();
-                  setState(() {
-                    _selectedFilter = null;
-                  });
                   provider.clearFilters();
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ConstColors.primary,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 10.w,
-                    vertical: 5.h,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10.r),
-                  ),
-                ),
-                child: Text('Clear', style: getTextTheme().labelMedium),
+                isFullWidth: false,
+                height: 40.h,
+                backgroundColor: ConstColors.primary,
               ),
             ],
           ),
@@ -419,7 +413,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   Widget _buildEmployeeList(EmployeeManagementProvider provider) {
     if (provider.isLoading) {
       return Center(
-        child: CircularProgressIndicator(color: ConstColors.primary),
+        child: AppLoadingIndicator(size: 40),
       );
     }
 
@@ -441,17 +435,13 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
               ),
             ),
             SizedBox(height: 24.h),
-            ElevatedButton.icon(
+            ConstantButton(
+              text: 'Retry',
               onPressed: () => provider.refreshEmployees(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ConstColors.primary,
-                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.r),
-                ),
-              ),
-              icon: Icon(Icons.refresh, size: 20.r),
-              label: Text('Retry', style: getTextTheme().labelMedium),
+              isFullWidth: false,
+              backgroundColor: ConstColors.primary,
+              borderRadius: 12.r,
+              icon: Icon(Icons.refresh, size: 20.r, color: ConstColors.white),
             ),
           ],
         ),
@@ -480,210 +470,111 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       );
     }
 
-    return ListView.builder(
-      padding: EdgeInsets.all(16.w),
-      itemCount: provider.employees.length,
-      itemBuilder: (context, index) {
-        final employee = provider.employees[index];
-        return _buildEmployeeCard(employee, provider);
-      },
+    final canManage = context.read<AuthProvider>().can(
+      Permissions.manageEmployees,
     );
-  }
-
-  Widget _buildEmployeeCard(
-    EmployeeModel employee,
-    EmployeeManagementProvider provider,
-  ) {
     final dateFormat = DateFormat('dd/MM/yyyy');
 
-    return GestureDetector(
-      onTap: () {
-        Get.to(
-          () => EmployeeDetailsScreen(employee: employee),
-          transition: Transition.rightToLeft,
-        );
-      },
-      child: Card(
-        color: ConstColors.white,
-        margin: EdgeInsets.only(bottom: 12.h),
-        elevation: 3,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.r),
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16.r),
-            gradient: LinearGradient(
-              colors: [
-                ConstColors.white,
-                ConstColors.lightShade.withOpacity(0.3),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+    // Name, ID, department, role, joining date and status in a table; the
+    // row's edit button opens the edit bottom sheet
+    return SingleChildScrollView(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          columnSpacing: 20.w,
+          headingRowColor: WidgetStatePropertyAll(
+            ConstColors.primary.withValues(alpha: 0.08),
           ),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Name and Status Row
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        employee.name,
-                        style: getTextTheme().titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+          columns: const [
+            DataColumn(label: Text('Name')),
+            DataColumn(label: Text('Emp ID')),
+            DataColumn(label: Text('Department')),
+            DataColumn(label: Text('Role')),
+            DataColumn(label: Text('Job Role')),
+            DataColumn(label: Text('Joined')),
+            DataColumn(label: Text('Status')),
+            DataColumn(label: Text('Actions')),
+          ],
+          rows: provider.employees.map((employee) {
+            final statusColor = employee.isOnboarded
+                ? ConstColors.successGreen
+                : ConstColors.warningAmber;
+
+            return DataRow(
+              cells: [
+                DataCell(
+                  Text(
+                    employee.name,
+                    style: getTextTheme().bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                DataCell(Text(employee.employeeId ?? '-')),
+                DataCell(Text(employee.department ?? '-')),
+                DataCell(Text(employee.roleLabel)),
+                DataCell(Text(employee.jobRole ?? '-')),
+                DataCell(
+                  Text(
+                    employee.joiningDate != null
+                        ? dateFormat.format(employee.joiningDate!)
+                        : '-',
+                  ),
+                ),
+                DataCell(
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 8.w,
+                      vertical: 2.h,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8.r),
+                      border: Border.all(color: statusColor),
+                    ),
+                    child: Text(
+                      employee.isOnboarded ? 'Onboarded' : 'Pending',
+                      style: getTextTheme().labelSmall?.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(width: 8.w),
-                    // Status Chip
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 8.w,
-                        vertical: 2.h,
-                      ),
-                      decoration: BoxDecoration(
-                        color: employee.isOnboarded
-                            ? ConstColors.successGreen.withOpacity(0.1)
-                            : ConstColors.warningAmber.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8.r),
-                        border: Border.all(
-                          color: employee.isOnboarded
-                              ? ConstColors.successGreen
-                              : ConstColors.warningAmber,
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            employee.isOnboarded
-                                ? Icons.check_circle
-                                : Icons.pending,
-                            color: employee.isOnboarded
-                                ? ConstColors.successGreen
-                                : ConstColors.warningAmber,
-                            size: 12.r,
-                          ),
-                          SizedBox(width: 4.w),
-                          Text(
-                            employee.isOnboarded ? 'Onboarded' : 'Pending',
-                            style: getTextTheme().labelSmall?.copyWith(
-                              color: employee.isOnboarded
-                                  ? ConstColors.successGreen
-                                  : ConstColors.warningAmber,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 10.sp,
+                  ),
+                ),
+                DataCell(
+                  canManage
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: Icon(Icons.edit, size: 20.r),
+                              color: ConstColors.primary,
+                              tooltip: 'Edit',
+                              onPressed: () => Get.to(
+                                () => EmployeeDetailsScreen(
+                                  employee: employee,
+                                  startInEditMode: true,
+                                ),
+                                transition: Transition.rightToLeft,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 4.h),
-                // Email and Arrow Icon Row
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        employee.email,
-                        style: getTextTheme().bodySmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    SizedBox(width: 8.w),
-                    // Arrow Icon
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      size: 16.r,
-                      color: ConstColors.textColorLight,
-                    ),
-                  ],
-                ),
-
-                SizedBox(height: 8.h),
-
-                // Employee Details: ID, Department, Joining Date
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildInfoItem(
-                        'Emp ID',
-                        employee.employeeId ?? 'Not Set',
-                        Icons.badge,
-                      ),
-                    ),
-                    SizedBox(width: 8.w),
-                    Expanded(
-                      child: _buildInfoItem(
-                        'Department',
-                        employee.department ?? 'Not Set',
-                        Icons.work,
-                      ),
-                    ),
-                    SizedBox(width: 8.w),
-                    Expanded(
-                      child: _buildInfoItem(
-                        'Joining Date',
-                        employee.joiningDate != null
-                            ? dateFormat.format(employee.joiningDate!)
-                            : 'Not Set',
-                        Icons.calendar_today,
-                      ),
-                    ),
-                  ],
+                            IconButton(
+                              icon: Icon(Icons.visibility, size: 20.r),
+                              tooltip: 'Details',
+                              onPressed: () => Get.to(
+                                () => EmployeeDetailsScreen(employee: employee),
+                                transition: Transition.rightToLeft,
+                              ),
+                            ),
+                          ],
+                        )
+                      : const Text('-'),
                 ),
               ],
-            ),
-          ),
+            );
+          }).toList(),
         ),
       ),
-    );
-  }
-
-  Widget _buildInfoItem(
-    String label,
-    String value,
-    IconData icon, {
-    Color? color,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 12.r, color: color ?? ConstColors.primary),
-            SizedBox(width: 4.w),
-            Expanded(
-              child: Text(
-                label,
-                style: getTextTheme().labelSmall?.copyWith(fontSize: 10.sp),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 2.h),
-        Text(
-          value,
-          style: getTextTheme().bodySmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: color,
-            fontSize: 11.sp,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
     );
   }
 }

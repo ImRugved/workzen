@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'constants/const_textstyle.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:workzen/firebase_options.dart';
@@ -17,6 +18,8 @@ import 'providers/onboarding_provider.dart';
 import 'providers/employee_management_provider.dart';
 import 'providers/security_provider.dart';
 import 'providers/dashboard_provider.dart';
+import 'providers/calendar_provider.dart';
+import 'providers/organization_provider.dart';
 import 'services/fcm_service.dart';
 import 'services/notification_service.dart';
 
@@ -48,10 +51,33 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => RequestProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => AttendanceProvider()),
-        ChangeNotifierProvider(create: (_) => OnboardingProvider()),
+        // Organization data: one live listener per session, started on login
+        // and stopped on logout, shared by every screen
+        ChangeNotifierProxyProvider<AuthProvider, OrganizationProvider>(
+          create: (_) => OrganizationProvider(),
+          update: (_, auth, org) {
+            if (auth.isLoggedIn) {
+              org!.start();
+            } else {
+              org!.stop();
+            }
+            return org;
+          },
+        ),
+        ChangeNotifierProxyProvider<OrganizationProvider, OnboardingProvider>(
+          create: (_) => OnboardingProvider(),
+          update: (_, org, onboarding) =>
+              onboarding!..setLeaveConfig(org.leaveConfig),
+        ),
         ChangeNotifierProvider(create: (_) => EmployeeManagementProvider()),
         ChangeNotifierProvider(create: (_) => SecurityProvider()),
         ChangeNotifierProvider(create: (_) => DashboardProvider()),
+        // Calendar colours follow the admin's live office hours and holidays
+        ChangeNotifierProxyProvider<OrganizationProvider, CalendarProvider>(
+          create: (_) => CalendarProvider(),
+          update: (_, org, calendar) =>
+              calendar!..setOrganization(org.officeHours, org.holidays),
+        ),
       ],
       child: const MyApp(),
     ),
@@ -74,7 +100,9 @@ class MyApp extends StatelessWidget {
       useInheritedMediaQuery: true,
       minTextAdapt: true,
       splitScreenMode: true,
-      child: GetMaterialApp(
+      // builder (not child) so the theme below is built after ScreenUtil is
+      // initialised and can use .sp / .w / .h / .r
+      builder: (context, _) => GetMaterialApp(
         title: 'SeenWork',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
@@ -87,21 +115,20 @@ class MyApp extends StatelessWidget {
             errorColor: Colors.red,
           ),
           fontFamily: 'Poppins',
-          appBarTheme: const AppBarTheme(
+          appBarTheme: AppBarTheme(
             elevation: 0,
             backgroundColor: Colors.indigo,
-            iconTheme: IconThemeData(color: Colors.white),
-            titleTextStyle: TextStyle(
+            iconTheme: const IconThemeData(color: Colors.white),
+            titleTextStyle: getTextTheme().titleLarge?.copyWith(
               color: Colors.white,
-              fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
           elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+              padding: EdgeInsets.symmetric(vertical: 15.h, horizontal: 20.w),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(8.r),
               ),
             ),
           ),

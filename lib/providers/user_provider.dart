@@ -21,8 +21,9 @@ class UserProvider extends ChangeNotifier {
       if (!silent) notifyListeners();
 
       final snapshot = await _firestore
-          .collection(AppConstants.usersCollection)
-          .where('role', isEqualTo: AppConstants.employeeRole)
+          .collection(FirestoreCollections.users)
+          // Everyone who is not an admin: employees, interns, freelancers
+          .where('isAdmin', isEqualTo: false)
           .get();
 
       _employees = snapshot.docs
@@ -45,7 +46,7 @@ class UserProvider extends ChangeNotifier {
   Future<UserModel?> getEmployeeById(String id) async {
     try {
       final doc = await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(id)
           .get();
 
@@ -64,7 +65,7 @@ class UserProvider extends ChangeNotifier {
   Future<List<UserModel>> getAdmins() async {
     try {
       final snapshot = await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .where('role', isEqualTo: AppConstants.adminRole)
           .get();
 
@@ -90,7 +91,7 @@ class UserProvider extends ChangeNotifier {
 
       // Update in Firestore only
       await FirebaseFirestore.instance
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .update({'fcmToken': token});
 
@@ -109,7 +110,7 @@ class UserProvider extends ChangeNotifier {
 
       // Get from Firestore only
       final docSnapshot = await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .get();
 
@@ -135,7 +136,7 @@ class UserProvider extends ChangeNotifier {
 
       logDebug('Updating user data for $userId');
       await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .update(data);
 
@@ -157,7 +158,7 @@ class UserProvider extends ChangeNotifier {
 
       // Remove from Firestore only
       await FirebaseFirestore.instance
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .update({'fcmToken': FieldValue.delete()});
 
@@ -173,7 +174,7 @@ class UserProvider extends ChangeNotifier {
   Future<List<UserModel>> getAllUsers() async {
     try {
       final snapshot = await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .get();
 
       return snapshot.docs.map((doc) {
@@ -233,7 +234,7 @@ class UserProvider extends ChangeNotifier {
     try {
       final currentYear = DateTime.now().year;
       final leaveDoc = await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection(FirestoreSubCollections.leaves)
           .doc(FirestoreDocs.annualLeave(currentYear))

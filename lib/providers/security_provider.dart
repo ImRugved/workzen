@@ -1,6 +1,7 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:workzen/utils/logger.dart';
+import '../models/security_settings_model.dart';
 import '../services/auth_security_service.dart';
 import 'package:local_auth/local_auth.dart';
 
@@ -12,9 +13,9 @@ class SecurityProvider with ChangeNotifier {
   bool _isLoading = false;
   bool _isDeviceSupported = false;
   List<BiometricType> _availableBiometrics = [];
-  Map<String, dynamic>? _deviceInfo; // registered device (security/settings)
+  DeviceInfoModel? _deviceInfo; // registered device (security/settings)
 
-  Map<String, dynamic>? get deviceInfo => _deviceInfo;
+  DeviceInfoModel? get deviceInfo => _deviceInfo;
   bool get biometricEnabled => _biometricEnabled;
   bool get hasAppUnlockPin => _hasAppUnlockPin;
   bool get isLoading => _isLoading;
@@ -36,10 +37,9 @@ class SecurityProvider with ChangeNotifier {
       // Load security settings from Firestore
       // Always overwrite so values never carry over from a previous account
       final settings = await _securityService.getSecuritySettings(userId);
-      _biometricEnabled = settings?['biometricEnabled'] ?? false;
-      _hasAppUnlockPin = settings?['hasAppUnlockPin'] ?? false;
-      final device = settings?['deviceInfo'];
-      _deviceInfo = device is Map ? Map<String, dynamic>.from(device) : null;
+      _biometricEnabled = settings?.biometricEnabled ?? false;
+      _hasAppUnlockPin = settings?.hasAppUnlockPin ?? false;
+      _deviceInfo = settings?.deviceInfo;
     } catch (e) {
       logDebug('Error initializing security: $e');
     }

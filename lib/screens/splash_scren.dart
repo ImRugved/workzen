@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:workzen/utils/logger.dart';
 import '../providers/auth_provider.dart';
 import '../constants/const_textstyle.dart';
+import '../constants/apploading_indicator.dart';
+import '../constants/constant_colors.dart';
 
 import 'admin/dashboard/admin_dashboard_screen.dart';
 import 'auth/login_screen.dart';
@@ -179,9 +181,7 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
                 SizedBox(height: 40.h),
                 // Loading indicator
-                const CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
+                AppLoadingIndicator(size: 40, color: ConstColors.white),
               ],
             ),
           ),

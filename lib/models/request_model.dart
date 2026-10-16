@@ -87,6 +87,36 @@ class RequestModel {
     );
   }
 
+  // Factory constructor for comp off requests (credit for a day worked).
+  // [date] is the day worked; additionalData holds days (1 or 0.5) and, for a
+  // half day, the fromTime / toTime that were worked ("HH:mm").
+  factory RequestModel.compOff({
+    required String id,
+    required String userId,
+    required String userName,
+    required DateTime date,
+    required String shift,
+    required String reason,
+    String status = AppConstants.statusPending,
+    String? adminRemark,
+    required DateTime appliedOn,
+    required Map<String, dynamic> additionalData,
+  }) {
+    return RequestModel(
+      id: id,
+      userId: userId,
+      userName: userName,
+      type: AppConstants.requestTypeCompOff,
+      date: date,
+      shift: shift,
+      reason: reason,
+      status: status,
+      adminRemark: adminRemark,
+      appliedOn: appliedOn,
+      additionalData: additionalData,
+    );
+  }
+
   // Factory constructor for break requests
   factory RequestModel.breakRequest({
     required String id,
@@ -157,6 +187,52 @@ class RequestModel {
   bool get isLeaveRequest => type == AppConstants.requestTypeLeave;
   bool get isWFHRequest => type == AppConstants.requestTypeWFH;
   bool get isBreakRequest => type == AppConstants.requestTypeBreak;
+  bool get isCompOffRequest => type == AppConstants.requestTypeCompOff;
+
+  /// Days of credit a comp off request asks for (1 or 0.5).
+  double get compOffDays =>
+      ((additionalData?['days'] ?? 1) as num).toDouble();
+
+  /// Days a leave request takes (0.5 for a half day, otherwise the inclusive
+  /// number of days); for a comp off request the credit asked.
+  double get requestedDays {
+    if (isCompOffRequest) return compOffDays;
+    final from = fromDate;
+    final to = toDate;
+    if (from == null || to == null) return 0;
+    if ((shift ?? '').toLowerCase().contains('half')) return 0.5;
+    return (DateTime(to.year, to.month, to.day)
+                .difference(DateTime(from.year, from.month, from.day))
+                .inDays +
+            1)
+        .toDouble();
+  }
+
+  /// Matches a leave type filter value ('All', 'PL', 'SL', 'CL', 'CO'). CO
+  /// covers both leave taken from comp off and requests to earn comp off.
+  bool matchesLeaveTypeFilter(String filter) {
+    if (filter == 'All') return true;
+    if (filter == 'CO') return isCompOffRequest || leaveType == 'co';
+    return leaveType?.toLowerCase() == filter.toLowerCase();
+  }
+
+  /// Leave type of a leave request ('pl', 'sl', 'cl', 'co'), or null.
+  String? get leaveType => additionalData?['leaveType'] as String?;
+
+  /// The day the employee wants off in return for the comp off request (date
+  /// only), or null for older requests that only asked for credit.
+  DateTime? get compOffDate {
+    final value = additionalData?['compOffDate'];
+    if (value is! String) return null;
+    final parsed = DateTime.tryParse(value);
+    return parsed == null
+        ? null
+        : DateTime(parsed.year, parsed.month, parsed.day);
+  }
+
+  /// Time worked on a half day comp off request, or null.
+  String? get fromTime => additionalData?['fromTime']?.toString();
+  String? get toTime => additionalData?['toTime']?.toString();
 
   bool get isPending => status == AppConstants.statusPending;
   bool get isApproved => status == AppConstants.statusApproved;
@@ -164,7 +240,7 @@ class RequestModel {
 
   // Get display date based on request type
   String get displayDate {
-    if (isBreakRequest && date != null) {
+    if ((isBreakRequest || isCompOffRequest) && date != null) {
       return '${date!.day}/${date!.month}/${date!.year}';
     } else if ((isLeaveRequest || isWFHRequest) &&
         fromDate != null &&
@@ -189,6 +265,8 @@ class RequestModel {
         return 'Work From Home';
       case AppConstants.requestTypeBreak:
         return 'Break';
+      case AppConstants.requestTypeCompOff:
+        return 'Comp Off';
       default:
         return type.toUpperCase();
     }

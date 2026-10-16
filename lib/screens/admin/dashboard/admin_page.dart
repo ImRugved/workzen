@@ -6,17 +6,25 @@ import '../../../providers/employee_management_provider.dart';
 import '../../../providers/onboarding_provider.dart';
 import '../../../providers/attendance_provider.dart';
 import '../../../providers/dashboard_provider.dart';
+import '../../../providers/auth_provider.dart';
+import '../../../providers/organization_provider.dart';
+import '../../../providers/admin_settings_form_provider.dart';
+import '../../../providers/value_provider.dart';
+import '../../../constants/permissions.dart';
 import 'package:intl/intl.dart';
 import '../../../models/attendance_model.dart';
 import '../../../models/holiday_model.dart';
+import '../../../models/office_hours_model.dart';
 import '../../../widgets/department_role_manager.dart';
 import '../../../constants/const_textstyle.dart';
+import '../../../constants/constant_button.dart';
 import '../../../constants/constant_colors.dart';
+import '../../../constants/constant_date_time_picker.dart';
 import '../../../constants/constant_snackbar.dart';
 import 'package:shimmer/shimmer.dart';
 
 class AdminDemoPage extends StatefulWidget {
-  const AdminDemoPage({Key? key}) : super(key: key);
+  const AdminDemoPage({super.key});
 
   @override
   State<AdminDemoPage> createState() => _AdminDemoPageState();
@@ -26,7 +34,13 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
   final TextEditingController _plController = TextEditingController();
   final TextEditingController _slController = TextEditingController();
   final TextEditingController _clController = TextEditingController();
-  bool _leaveConfigInitialized = false;
+
+  // Form state (carry forward, office times, minutes, assigning flag) lives in
+  // this scoped provider; the State only owns it and the text controllers.
+  final AdminSettingsFormProvider _form = AdminSettingsFormProvider();
+
+  final TextEditingController _lateAfterController = TextEditingController();
+  final TextEditingController _halfDayAfterController = TextEditingController();
 
   @override
   void initState() {
@@ -41,6 +55,9 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
     _plController.dispose();
     _slController.dispose();
     _clController.dispose();
+    _lateAfterController.dispose();
+    _halfDayAfterController.dispose();
+    _form.dispose();
     super.dispose();
   }
 
@@ -59,10 +76,14 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
 
   @override
   Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(value: _form, child: _buildPage());
+  }
+
+  Widget _buildPage() {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Analytics & Overview',
+          'Settings',
           style: getTextTheme().titleMedium?.copyWith(color: Colors.white),
         ),
         actions: [
@@ -80,6 +101,10 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
             DashboardProvider
           >(
             builder: (context, empProvider, attProvider, dashProvider, _) {
+              // Leave counts, office hours and holidays (live, shared)
+              final org = Provider.of<OrganizationProvider>(context);
+              final auth = Provider.of<AuthProvider>(context);
+
               return RefreshIndicator(
                 onRefresh: () async => _loadData(),
                 child: SingleChildScrollView(
@@ -88,60 +113,89 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Each section is shown only if this admin / sub admin
+                      // has the matching permission.
+
+                      // Reminder: leave not yet assigned for the current year
+                      if (auth.can(Permissions.onboarding) &&
+                          !dashProvider.isLoadingEmployeeLeaves &&
+                          dashProvider.missingLeaveCount > 0) ...[
+                        _buildAssignLeaveBanner(dashProvider.missingLeaveCount),
+                        SizedBox(height: 16.h),
+                      ],
+
                       // 1. Today's Attendance
-                      _buildAttendanceSection(empProvider, attProvider),
+                      if (auth.can(Permissions.viewAttendance))
+                        _buildAttendanceSection(empProvider, attProvider),
 
                       // 2. Department & Roles
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildSectionHeader(
-                              'Departments & Roles',
-                              Icons.business,
+                      if (auth.can(Permissions.departments)) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildSectionHeader(
+                                'Departments & Roles',
+                                Icons.business,
+                              ),
                             ),
-                          ),
-                          if (empProvider.departments.isNotEmpty)
-                            TextButton.icon(
-                              onPressed: () =>
-                                  DepartmentRoleManager.showAddDepartmentDialog(
-                                    context,
-                                    empProvider,
-                                  ),
-                              icon: Icon(Icons.add, size: 18.r),
-                              label: const Text('Add'),
-                            ),
-                        ],
-                      ),
-                      SizedBox(height: 10.h),
-                      _buildDepartmentSection(empProvider),
-                      SizedBox(height: 24.h),
+                            if (empProvider.departments.isNotEmpty)
+                              TextButton.icon(
+                                onPressed: () => DepartmentRoleManager
+                                    .showAddDepartmentDialog(
+                                      context,
+                                      empProvider,
+                                    ),
+                                icon: Icon(Icons.add, size: 18.r),
+                                label: const Text('Add'),
+                              ),
+                          ],
+                        ),
+                        SizedBox(height: 10.h),
+                        _buildDepartmentSection(empProvider),
+                        SizedBox(height: 24.h),
+                      ],
 
                       // 3. Leave Configuration
-                      _buildSectionHeader(
-                        'Leave Configuration',
-                        Icons.settings_outlined,
-                      ),
-                      SizedBox(height: 10.h),
-                      _buildLeaveConfigSection(dashProvider),
-                      SizedBox(height: 24.h),
+                      if (auth.can(Permissions.leaveConfig)) ...[
+                        _buildSectionHeader(
+                          'Leave Configuration',
+                          Icons.settings_outlined,
+                        ),
+                        SizedBox(height: 10.h),
+                        _buildLeaveConfigSection(org),
+                        SizedBox(height: 24.h),
+                      ],
+
+                      // Office Hours
+                      if (auth.can(Permissions.officeHours)) ...[
+                        _buildSectionHeader('Office Hours', Icons.access_time),
+                        SizedBox(height: 10.h),
+                        _buildOfficeHoursSection(org),
+                        SizedBox(height: 24.h),
+                      ],
 
                       // Holiday Calendar
-                      _buildSectionHeader(
-                        'Holiday Calendar',
-                        Icons.event_outlined,
-                      ),
-                      SizedBox(height: 10.h),
-                      _buildHolidaySection(dashProvider),
-                      SizedBox(height: 24.h),
+                      if (auth.can(Permissions.holidays)) ...[
+                        _buildSectionHeader(
+                          'Holiday Calendar',
+                          Icons.event_outlined,
+                        ),
+                        SizedBox(height: 10.h),
+                        _buildHolidaySection(org),
+                        SizedBox(height: 24.h),
+                      ],
 
                       // 4. Employee Leave Balances
-                      _buildSectionHeader(
-                        'Employee Leave Balances',
-                        Icons.people_outline,
-                      ),
-                      SizedBox(height: 10.h),
-                      _buildEmployeeLeaveSection(empProvider, dashProvider),
-                      SizedBox(height: 24.h),
+                      if (auth.can(Permissions.manageEmployees) ||
+                          auth.can(Permissions.onboarding)) ...[
+                        _buildSectionHeader(
+                          'Employee Leave Balances',
+                          Icons.people_outline,
+                        ),
+                        SizedBox(height: 10.h),
+                        _buildEmployeeLeaveSection(empProvider, dashProvider),
+                        SizedBox(height: 24.h),
+                      ],
                     ],
                   ),
                 ),
@@ -149,6 +203,119 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
             },
           ),
     );
+  }
+
+  // --- New year leave reminder ---
+  Widget _buildAssignLeaveBanner(int missing) {
+    final year = DateTime.now().year;
+
+    return Card(
+      color: Colors.orange.shade50,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.r),
+        side: BorderSide(color: Colors.orange.shade200),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(12.w),
+        child: Row(
+          children: [
+            Icon(
+              Icons.notifications_active,
+              color: Colors.orange.shade800,
+              size: 26.r,
+            ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Assign $year leaves',
+                    style: getTextTheme().titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange.shade900,
+                    ),
+                  ),
+                  Text(
+                    '$missing onboarded employee(s) have no leave for $year yet.',
+                    style: getTextTheme().bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: 8.w),
+            Selector<AdminSettingsFormProvider, bool>(
+              selector: (_, f) => f.isAssigningLeaves,
+              builder: (context, isAssigning, _) => ConstantButton(
+                text: 'Assign',
+                onPressed: isAssigning ? null : _assignYearLeaves,
+                isLoading: isAssigning,
+                isFullWidth: false,
+                height: 40.h,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _assignYearLeaves() async {
+    final onboarding = Provider.of<OnboardingProvider>(context, listen: false);
+    final year = DateTime.now().year;
+
+    if (!onboarding.isLeaveConfigured) {
+      ConstantSnackbar.show(
+        title: 'Set the default leave counts first (Leave Configuration)',
+        backgroundColor: Colors.orange,
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('Assign $year leaves?'),
+        content: Text(
+          'Every onboarded employee without leave for $year gets the default '
+          'PL / SL / CL (for the types enabled for them).\n\n'
+          'Unused PL: ${onboarding.carryForwardPL ? 'carried forward' : 'reset to 0'}\n'
+          'Unused comp off: ${onboarding.carryForwardCompOff ? 'carried forward' : 'reset to 0'}\n'
+          'SL and CL always reset.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancel'),
+          ),
+          ConstantButton(
+            text: 'Assign',
+            onPressed: () => Navigator.pop(c, true),
+            isFullWidth: false,
+            height: 40.h,
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    _form.setAssigningLeaves(true);
+    final count = await onboarding.renewYearlyLeaves(newYear: year);
+    if (!mounted) return;
+    _form.setAssigningLeaves(false);
+
+    if (count > 0) {
+      ConstantSnackbar.showSuccess(
+        title: 'Assigned $year leaves to $count employee(s)',
+      );
+    } else {
+      ConstantSnackbar.show(
+        title: 'No employees needed $year leaves',
+        backgroundColor: Colors.orange,
+      );
+    }
+    _loadData();
   }
 
   // --- Section Header ---
@@ -237,11 +404,11 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                                       title: '${d.count}',
                                       color: d.color,
                                       radius: 32.r,
-                                      titleStyle: TextStyle(
-                                        fontSize: 12.sp,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
+                                      titleStyle: getTextTheme().bodySmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
                                     ),
                                   )
                                   .toList(),
@@ -359,21 +526,14 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
               SizedBox(height: 14.h),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton.icon(
+                child: ConstantButton(
+                  text: 'Add Department',
                   onPressed: () => DepartmentRoleManager.showAddDepartmentDialog(
                     context,
                     provider,
                   ),
-                  icon: Icon(Icons.add, size: 20.r),
-                  label: const Text('Add Department'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ConstColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 12.h),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.r),
-                    ),
-                  ),
+                  icon: Icon(Icons.add, size: 20.r, color: ConstColors.white),
+                  backgroundColor: ConstColors.primary,
                 ),
               ),
             ],
@@ -582,7 +742,7 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
-                              '${emp.department ?? 'N/A'} • ${emp.role ?? 'N/A'}',
+                              '${emp.department ?? 'N/A'} • ${emp.jobRole ?? 'N/A'}',
                               style: getTextTheme().labelSmall?.copyWith(
                                 color: ConstColors.textColorLight,
                               ),
@@ -879,7 +1039,11 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          ConstantButton(
+            text: 'Save',
+            backgroundColor: ConstColors.primary,
+            isFullWidth: false,
+            height: 40.h,
             onPressed: () async {
               final newTotal = int.tryParse(controller.text);
               if (newTotal == null || newTotal < 0) return;
@@ -902,10 +1066,6 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                 onboardingProvider,
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ConstColors.primary,
-            ),
-            child: const Text('Save', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -913,16 +1073,20 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
   }
 
   // --- 3. Leave Configuration ---
-  Widget _buildLeaveConfigSection(DashboardProvider dashProvider) {
-    if (!_leaveConfigInitialized && !dashProvider.isLoadingLeaveConfig) {
-      _plController.text = dashProvider.defaultPL.toString();
-      _slController.text = dashProvider.defaultSL.toString();
-      _clController.text = dashProvider.defaultCL.toString();
-      _leaveConfigInitialized = true;
+  Widget _buildLeaveConfigSection(OrganizationProvider org) {
+    if (!org.leaveConfigLoaded) {
+      return _buildLeaveConfigShimmer();
     }
 
-    if (dashProvider.isLoadingLeaveConfig) {
-      return _buildLeaveConfigShimmer();
+    if (!_form.leaveConfigInitialized) {
+      // Left empty until the admin sets the defaults for the first time
+      final config = org.leaveConfig;
+      if (config != null) {
+        _plController.text = config.privilegeLeaves.toString();
+        _slController.text = config.sickLeaves.toString();
+        _clController.text = config.casualLeaves.toString();
+      }
+      _form.initLeaveConfig(config);
     }
 
     return Card(
@@ -957,36 +1121,55 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
               _clController,
               ConstColors.inProgressOrange,
             ),
-            SizedBox(height: 16.h),
+            SizedBox(height: 12.h),
+            const Divider(height: 1),
+            Text(
+              'When next year\'s leave is assigned',
+              style: getTextTheme().labelLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              'Ticked: unused days move to the new year. Unticked: they reset to 0. '
+              'Sick and casual leave always reset.',
+              style: getTextTheme().bodySmall?.copyWith(
+                color: ConstColors.textColorLight,
+              ),
+            ),
+            Consumer<AdminSettingsFormProvider>(
+              builder: (context, form, _) => Column(
+                children: [
+                  CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    activeColor: ConstColors.primary,
+                    title: const Text('Carry forward Privilege Leave (PL)'),
+                    value: form.carryForwardPL,
+                    onChanged: (v) => form.setCarryForwardPL(v ?? false),
+                  ),
+                  CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    activeColor: ConstColors.primary,
+                    title: const Text('Carry forward Comp Off'),
+                    value: form.carryForwardCompOff,
+                    onChanged: (v) => form.setCarryForwardCompOff(v ?? false),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 8.h),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
-                onPressed: dashProvider.isSavingLeaveConfig
+              child: ConstantButton(
+                text: 'Save Defaults',
+                onPressed: org.isSavingLeaveConfig
                     ? null
-                    : () => _saveLeaveConfig(dashProvider),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ConstColors.primary,
-                  padding: EdgeInsets.symmetric(vertical: 12.h),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8.r),
-                  ),
-                ),
-                child: dashProvider.isSavingLeaveConfig
-                    ? SizedBox(
-                        height: 20.h,
-                        width: 20.w,
-                        child: const CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Text(
-                        'Save Defaults',
-                        style: getTextTheme().labelLarge?.copyWith(
-                          color: Colors.white,
-                        ),
-                      ),
+                    : () => _saveLeaveConfig(org),
+                backgroundColor: ConstColors.primary,
+                isLoading: org.isSavingLeaveConfig,
               ),
             ),
           ],
@@ -1045,7 +1228,7 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
     );
   }
 
-  Future<void> _saveLeaveConfig(DashboardProvider dashProvider) async {
+  Future<void> _saveLeaveConfig(OrganizationProvider org) async {
     final pl = int.tryParse(_plController.text);
     final sl = int.tryParse(_slController.text);
     final cl = int.tryParse(_clController.text);
@@ -1057,7 +1240,13 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
       return;
     }
 
-    final success = await dashProvider.saveLeaveDefaults(pl, sl, cl);
+    final success = await org.saveLeaveConfig(
+      pl,
+      sl,
+      cl,
+      carryForwardPL: _form.carryForwardPL,
+      carryForwardCompOff: _form.carryForwardCompOff,
+    );
     if (success) {
       ConstantSnackbar.showSuccess(title: 'Leave defaults saved successfully');
     } else {
@@ -1065,13 +1254,269 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
     }
   }
 
-  // --- Holiday Calendar ---
-  Widget _buildHolidaySection(DashboardProvider dashProvider) {
-    if (dashProvider.isLoadingHolidays) {
+  // --- Office Hours ---
+  Widget _buildOfficeHoursSection(OrganizationProvider org) {
+    if (!org.officeHoursLoaded) {
       return _buildLeaveConfigShimmer();
     }
 
-    final holidays = dashProvider.holidays;
+    // Fill the form once from the saved values; stays empty until configured
+    if (!_form.officeHoursInitialized) {
+      final saved = org.officeHours;
+      if (saved != null) {
+        _lateAfterController.text = saved.lateAfterMinutes?.toString() ?? '';
+        _halfDayAfterController.text =
+            saved.halfDayAfterMinutes?.toString() ?? '';
+      }
+      _form.initOfficeHours(saved);
+    }
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+      child: Padding(
+        padding: EdgeInsets.all(12.w),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Set the office timing and when a punch in counts as late or a half day',
+              style: getTextTheme().bodySmall?.copyWith(
+                color: ConstColors.textColorLight,
+              ),
+            ),
+            SizedBox(height: 16.h),
+            Consumer<AdminSettingsFormProvider>(
+              builder: (context, form, _) => Row(
+                children: [
+                  Expanded(
+                    child: _buildTimeButton(
+                      'Office start',
+                      form.officeStart,
+                      form.setOfficeStart,
+                    ),
+                  ),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: _buildTimeButton(
+                      'Office end',
+                      form.officeEnd,
+                      form.setOfficeEnd,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 16.h),
+            _buildMinutesField(
+              'Late after (optional)',
+              _lateAfterController,
+              ConstColors.calendarLate,
+              _form.setLateAfterText,
+            ),
+            SizedBox(height: 12.h),
+            _buildMinutesField(
+              'Half day after (optional)',
+              _halfDayAfterController,
+              ConstColors.calendarHalfDay,
+              _form.setHalfDayAfterText,
+            ),
+            Consumer<AdminSettingsFormProvider>(
+              builder: (context, form, _) {
+                final preview = _officeHoursPreview(context, form);
+                if (preview == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: EdgeInsets.only(top: 12.h),
+                  child: Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(10.w),
+                    decoration: BoxDecoration(
+                      color: ConstColors.infoBlue.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                    child: Text(
+                      preview,
+                      style: getTextTheme().bodySmall?.copyWith(
+                        color: ConstColors.infoBlue,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            SizedBox(height: 16.h),
+            SizedBox(
+              width: double.infinity,
+              child: ConstantButton(
+                text: 'Save Office Hours',
+                onPressed: org.isSavingOfficeHours
+                    ? null
+                    : () => _saveOfficeHours(org),
+                backgroundColor: ConstColors.primary,
+                isLoading: org.isSavingOfficeHours,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Late and half day rules are optional; a blank field means "not used"
+  String? _officeHoursPreview(
+    BuildContext context,
+    AdminSettingsFormProvider form,
+  ) {
+    final startTime = form.officeStart;
+    final lateAfter = form.lateAfter;
+    final halfDayAfter = form.halfDayAfter;
+    if (startTime == null || (lateAfter == null && halfDayAfter == null)) {
+      return null;
+    }
+
+    final start = OfficeHoursModel(
+      startTime: startTime,
+      endTime: form.officeEnd ?? startTime,
+    );
+    final parts = <String>[];
+    if (lateAfter != null) {
+      parts.add('On time until ${start.startPlus(lateAfter).format(context)}');
+    }
+    if (lateAfter != null && halfDayAfter != null) {
+      parts.add('Late until ${start.startPlus(halfDayAfter).format(context)}');
+    }
+    if (halfDayAfter != null) {
+      parts.add(
+        'Half day after ${start.startPlus(halfDayAfter).format(context)}',
+      );
+    }
+    return parts.join(' • ');
+  }
+
+  Widget _buildTimeButton(
+    String label,
+    TimeOfDay? value,
+    ValueChanged<TimeOfDay> onPicked,
+  ) {
+    return ConstantButton(
+      text: '$label: ${value == null ? 'Select' : value.format(context)}',
+      isOutlined: true,
+      backgroundColor: ConstColors.primary,
+      height: 44.h,
+      maxLines: 2,
+      horizontalInnerPadding: 8.w,
+      onPressed: () async {
+        final picked = await ConstantTimePicker.pick(
+          context,
+          initialTime: value ?? const TimeOfDay(hour: 10, minute: 0),
+        );
+        if (picked != null) onPicked(picked);
+      },
+    );
+  }
+
+  Widget _buildMinutesField(
+    String label,
+    TextEditingController controller,
+    Color accentColor,
+    ValueChanged<String> onChanged,
+  ) {
+    return Row(
+      children: [
+        Container(
+          width: 8.w,
+          height: 8.h,
+          decoration: BoxDecoration(color: accentColor, shape: BoxShape.circle),
+        ),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            '$label (minutes after start)',
+            style: getTextTheme().bodySmall?.copyWith(
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        SizedBox(
+          width: 80.w,
+          child: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            onChanged: onChanged,
+            style: getTextTheme().bodyMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+            decoration: InputDecoration(
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 8.w,
+                vertical: 8.h,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              suffixText: 'min',
+              suffixStyle: getTextTheme().labelSmall,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _saveOfficeHours(OrganizationProvider org) async {
+    final start = _form.officeStart;
+    final end = _form.officeEnd;
+    final lateText = _lateAfterController.text.trim();
+    final halfDayText = _halfDayAfterController.text.trim();
+    // Blank means the rule is not used; anything typed must be a valid number
+    final lateAfter = lateText.isEmpty ? null : int.tryParse(lateText);
+    final halfDayAfter = halfDayText.isEmpty ? null : int.tryParse(halfDayText);
+
+    if (start == null || end == null) {
+      ConstantSnackbar.showError(title: 'Select the office start and end time');
+      return;
+    }
+    if ((lateText.isNotEmpty && (lateAfter == null || lateAfter < 0)) ||
+        (halfDayText.isNotEmpty && (halfDayAfter == null || halfDayAfter < 0))) {
+      ConstantSnackbar.showError(title: 'Enter valid minutes or leave blank');
+      return;
+    }
+    if (lateAfter != null && halfDayAfter != null && halfDayAfter <= lateAfter) {
+      ConstantSnackbar.showError(
+        title: 'Half day minutes must be more than late minutes',
+      );
+      return;
+    }
+    if (end.hour * 60 + end.minute <= start.hour * 60 + start.minute) {
+      ConstantSnackbar.showError(
+        title: 'Office end time must be after the start time',
+      );
+      return;
+    }
+
+    final success = await org.saveOfficeHours(
+      OfficeHoursModel(
+        startTime: start,
+        endTime: end,
+        lateAfterMinutes: lateAfter,
+        halfDayAfterMinutes: halfDayAfter,
+      ),
+    );
+    if (success) {
+      ConstantSnackbar.showSuccess(title: 'Office hours saved successfully');
+    } else {
+      ConstantSnackbar.showError(title: 'Failed to save office hours');
+    }
+  }
+
+  // --- Holiday Calendar ---
+  Widget _buildHolidaySection(OrganizationProvider org) {
+    if (!org.holidaysLoaded) {
+      return _buildLeaveConfigShimmer();
+    }
+
+    final holidays = org.holidays;
 
     return Card(
       elevation: 2,
@@ -1092,7 +1537,7 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: () => _showAddHolidayDialog(dashProvider),
+                  onPressed: () => _showAddHolidayDialog(org),
                   icon: Icon(Icons.add, size: 18.r),
                   label: const Text('Add'),
                 ),
@@ -1111,14 +1556,14 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                 ),
               )
             else
-              ...holidays.map((h) => _buildHolidayTile(h, dashProvider)),
+              ...holidays.map((h) => _buildHolidayTile(h, org)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHolidayTile(HolidayModel holiday, DashboardProvider provider) {
+  Widget _buildHolidayTile(HolidayModel holiday, OrganizationProvider provider) {
     final isPast = holiday.date.isBefore(
       DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
     );
@@ -1190,7 +1635,7 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
 
   Future<void> _confirmDeleteHoliday(
     HolidayModel holiday,
-    DashboardProvider provider,
+    OrganizationProvider provider,
   ) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -1204,7 +1649,10 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text(
+              'Delete',
+              style: getTextTheme().labelLarge?.copyWith(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -1220,7 +1668,7 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
     }
   }
 
-  Future<void> _showAddHolidayDialog(DashboardProvider provider) async {
+  Future<void> _showAddHolidayDialog(OrganizationProvider provider) async {
     final result = await showDialog<_HolidayInput>(
       context: context,
       builder: (_) => const _AddHolidayDialog(),
@@ -1378,40 +1826,37 @@ class _AddHolidayDialog extends StatefulWidget {
 class _AddHolidayDialogState extends State<_AddHolidayDialog> {
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
-  DateTime? _selectedDate;
+  // Picked date, scoped to this dialog
+  final ValueProvider<DateTime?> _selectedDate = ValueProvider<DateTime?>(null);
 
   @override
   void dispose() {
     _nameController.dispose();
     _descController.dispose();
+    _selectedDate.dispose();
     super.dispose();
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate ?? DateTime.now(),
+    final picked = await ConstantDatePicker.pick(
+      context,
+      initialDate: _selectedDate.value ?? DateTime.now(),
       firstDate: DateTime(DateTime.now().year - 1),
       lastDate: DateTime(DateTime.now().year + 3),
     );
-    if (picked != null) {
-      setState(() => _selectedDate = picked);
-    }
+    if (picked != null) _selectedDate.value = picked;
   }
 
   void _save() {
     final name = _nameController.text.trim();
-    if (name.isEmpty || _selectedDate == null) {
+    final date = _selectedDate.value;
+    if (name.isEmpty || date == null) {
       ConstantSnackbar.showError(title: 'Enter holiday name and select a date');
       return;
     }
     final description = _descController.text.trim();
     Navigator.of(context).pop(
-      _HolidayInput(
-        name,
-        _selectedDate!,
-        description.isEmpty ? null : description,
-      ),
+      _HolidayInput(name, date, description.isEmpty ? null : description),
     );
   }
 
@@ -1438,14 +1883,25 @@ class _AddHolidayDialogState extends State<_AddHolidayDialog> {
             ),
           ),
           SizedBox(height: 12.h),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.calendar_today, size: 18),
-            label: Text(
-              _selectedDate == null
-                  ? 'Select date'
-                  : DateFormat('dd MMM yyyy').format(_selectedDate!),
+          ChangeNotifierProvider.value(
+            value: _selectedDate,
+            child: Consumer<ValueProvider<DateTime?>>(
+              builder: (context, picked, _) => ConstantButton(
+                icon: Icon(
+                  Icons.calendar_today,
+                  size: 18.r,
+                  color: ConstColors.primary,
+                ),
+                text: picked.value == null
+                    ? 'Select date'
+                    : DateFormat('dd MMM yyyy').format(picked.value!),
+                isOutlined: true,
+                backgroundColor: ConstColors.primary,
+                isFullWidth: false,
+                height: 40.h,
+                onPressed: _pickDate,
+              ),
             ),
-            onPressed: _pickDate,
           ),
         ],
       ),
@@ -1454,7 +1910,12 @@ class _AddHolidayDialogState extends State<_AddHolidayDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        ElevatedButton(onPressed: _save, child: const Text('Save')),
+        ConstantButton(
+          text: 'Save',
+          onPressed: _save,
+          isFullWidth: false,
+          height: 40.h,
+        ),
       ],
     );
   }

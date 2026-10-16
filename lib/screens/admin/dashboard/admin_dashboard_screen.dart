@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:provider/provider.dart';
+import '../../../providers/value_provider.dart';
 import '../admin_home.dart';
 import 'admin_page.dart';
 import '../../profile_screen.dart';
@@ -12,7 +14,8 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  int _selectedIndex = 0;
+  // Selected tab (scoped state, no setState)
+  final ValueProvider<int> _selectedIndex = ValueProvider<int>(0);
   late PageController _pageController;
 
   final List<Widget> _screens = [
@@ -32,13 +35,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    _selectedIndex.dispose();
     super.dispose();
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    _selectedIndex.value = index;
     _pageController.animateToPage(
       index,
       duration: const Duration(milliseconds: 300),
@@ -83,47 +85,49 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           controller: _pageController,
           physics: const NeverScrollableScrollPhysics(),
           children: _screens,
-          onPageChanged: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
+          onPageChanged: (index) => _selectedIndex.value = index,
         ),
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.withOpacity(0.3),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
+        bottomNavigationBar: ChangeNotifierProvider.value(
+          value: _selectedIndex,
+          child: Container(
+            decoration: BoxDecoration(
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: Selector<ValueProvider<int>, int>(
+              selector: (_, tab) => tab.value,
+              builder: (context, selected, _) => BottomNavigationBar(
+                type: BottomNavigationBarType.fixed,
+                currentIndex: selected,
+                selectedItemColor: Colors.blue,
+                unselectedItemColor: Colors.grey,
+                backgroundColor: Colors.white,
+                elevation: 0,
+                onTap: _onItemTapped,
+                items: [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.dashboard_outlined, size: 22.r),
+                    activeIcon: Icon(Icons.dashboard, size: 22.r),
+                    label: 'Dashboard',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.settings_outlined, size: 22.r),
+                    activeIcon: Icon(Icons.settings, size: 22.r),
+                    label: 'Settings',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.person_outline, size: 22.r),
+                    activeIcon: Icon(Icons.person, size: 22.r),
+                    label: 'Profile',
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: BottomNavigationBar(
-            type: BottomNavigationBarType.fixed,
-            currentIndex: _selectedIndex,
-            selectedItemColor: Colors.blue,
-            unselectedItemColor: Colors.grey,
-            backgroundColor: Colors.white,
-            elevation: 0,
-            onTap: _onItemTapped,
-            items: [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.dashboard_outlined, size: 22.r),
-                activeIcon: Icon(Icons.dashboard, size: 22.r),
-                label: 'Dashboard',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.science_outlined, size: 22.r),
-                activeIcon: Icon(Icons.science, size: 22.r),
-                label: 'Admin Page',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline, size: 22.r),
-                activeIcon: Icon(Icons.person, size: 22.r),
-                label: 'Profile',
-              ),
-            ],
+            ),
           ),
         ),
       ),

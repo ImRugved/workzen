@@ -4,10 +4,12 @@ import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/security_provider.dart';
-import '../../widgets/custom_button.dart';
+import '../../providers/toggle_provider.dart';
+import '../../constants/constant_button.dart';
 import '../../constants/constant_textfield.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_snackbar.dart';
+import '../../utils/validators.dart';
 import '../app_unlock_pin_setup_screen.dart';
 import '../app_unlock_screen.dart';
 import '../admin/dashboard/admin_dashboard_screen.dart';
@@ -24,13 +26,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isPasswordVisible = false;
-
-  void _togglePasswordVisibility() {
-    setState(() {
-      _isPasswordVisible = !_isPasswordVisible;
-    });
-  }
+  // Password visibility (scoped state, no setState)
+  final ToggleProvider _passwordVisible = ToggleProvider();
 
   void _showForgotPasswordDialog(BuildContext context) {
     final resetEmailController = TextEditingController();
@@ -47,17 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
             customText: 'Please enter your email',
             prefixIcon: Icon(Icons.email_outlined, size: 20.r),
             keyoardType: TextInputType.emailAddress,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your email';
-              }
-              if (!RegExp(
-                r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-              ).hasMatch(value)) {
-                return 'Please enter a valid email';
-              }
-              return null;
-            },
+            validator: Validators.email,
           ),
         ),
         actions: [
@@ -136,11 +123,8 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login failed. Please check your credentials.'),
-            backgroundColor: Colors.red,
-          ),
+        ConstantSnackbar.showError(
+          title: 'Login failed. Please check your email and password.',
         );
       }
     }
@@ -191,50 +175,37 @@ class _LoginScreenState extends State<LoginScreen> {
                     customText: 'Email',
                     prefixIcon: Icon(Icons.email_outlined, size: 20.r),
                     keyoardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
-                      }
-                      if (!RegExp(
-                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                      ).hasMatch(value)) {
-                        return 'Please enter a valid email';
-                      }
-                      return null;
-                    },
+                    validator: Validators.email,
                   ),
                   SizedBox(height: 16.h),
 
                   // Password Field
-                  ConstTextField(
-                    controller: _passwordController,
-                    customText: 'Password',
-                    prefixIcon: Icon(Icons.lock_outline, size: 20.r),
-                    obsercureText: !_isPasswordVisible,
-                    iconss: IconButton(
-                      icon: Icon(
-                        _isPasswordVisible
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                        color: Colors.grey,
+                  ChangeNotifierProvider.value(
+                    value: _passwordVisible,
+                    child: Consumer<ToggleProvider>(
+                      builder: (context, visible, _) => ConstTextField(
+                        controller: _passwordController,
+                        customText: 'Password',
+                        prefixIcon: Icon(Icons.lock_outline, size: 20.r),
+                        obsercureText: !visible.value,
+                        iconss: IconButton(
+                          icon: Icon(
+                            visible.value
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: Colors.grey,
+                          ),
+                          onPressed: visible.toggle,
+                        ),
+                        validator: Validators.password,
                       ),
-                      onPressed: _togglePasswordVisibility,
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
-                      }
-                      if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
-                      }
-                      return null;
-                    },
                   ),
                   SizedBox(height: 24.h),
 
                   // Login Button
-                  CustomButton(
-                    label: 'Sign In',
+                  ConstantButton(
+                    text: 'Sign In',
                     isLoading: authProvider.isLoading,
                     onPressed: _login,
                   ),
@@ -291,6 +262,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _passwordVisible.dispose();
     super.dispose();
   }
 }

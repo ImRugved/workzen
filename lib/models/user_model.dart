@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../app_constants.dart';
 
 class UserModel {
   final String id;
@@ -18,9 +19,23 @@ class UserModel {
   final String? totalExperience;
   final String? emergencyContactNumber;
   final bool isSubAdmin;
+  // The actual job role picked from the department's roles (role itself is the
+  // access role: admin / employee)
+  final String? jobRole;
   final double? officeLatitude;
   final double? officeLongitude;
   final bool isFirstLogin; // false until the first login registers the device
+  final List<String> subAdminPermissions; // what a sub admin may access
+
+  // Personal and contact details (the employee fills these in their profile)
+  final String? address;
+  final String? mobileNumber;
+  final String? alternateNumber;
+  final String? bloodGroup;
+
+  // Documents (admin only)
+  final String? aadharNumber;
+  final String? panCardNumber;
 
   UserModel({
     required this.id,
@@ -39,9 +54,17 @@ class UserModel {
     this.totalExperience,
     this.emergencyContactNumber,
     this.isSubAdmin = false,
+    this.jobRole,
     this.officeLatitude,
     this.officeLongitude,
     this.isFirstLogin = false,
+    this.subAdminPermissions = const [],
+    this.address,
+    this.mobileNumber,
+    this.alternateNumber,
+    this.bloodGroup,
+    this.aadharNumber,
+    this.panCardNumber,
     String? userId,
   }) : userId = userId ?? id;
 
@@ -92,11 +115,35 @@ class UserModel {
       totalExperience: json['totalExperience']?.toString(),
       emergencyContactNumber: json['emergencyContactNumber']?.toString(),
       isSubAdmin: json['isSubAdmin'] ?? false,
+      // Employees added before jobRole existed kept the job role in role
+      jobRole:
+          json['jobRole']?.toString() ??
+          (json['role'] != null &&
+                  json['role'] != AppConstants.adminRole &&
+                  !AppConstants.assignableRoles.contains(json['role'])
+              ? json['role'].toString()
+              : null),
       officeLatitude: (json['officeLatitude'] as num?)?.toDouble(),
       officeLongitude: (json['officeLongitude'] as num?)?.toDouble(),
       isFirstLogin: json['isFirstLogin'] ?? false,
+      subAdminPermissions: json['subAdminPermissions'] is List
+          ? List<String>.from(json['subAdminPermissions'] as List)
+          : const [],
+      address: json['address']?.toString(),
+      mobileNumber: json['mobileNumber']?.toString(),
+      alternateNumber: json['alternateNumber']?.toString(),
+      bloodGroup: json['bloodGroup']?.toString(),
+      aadharNumber: json['aadharNumber']?.toString(),
+      panCardNumber: json['panCardNumber']?.toString(),
       userId: json['userId'],
     );
+  }
+
+  /// Admin, Sub Admin, Employee, Intern or Freelancer.
+  String get roleLabel {
+    if (isAdmin) return 'Admin';
+    if (isSubAdmin) return 'Sub Admin';
+    return AppConstants.roleLabel(role);
   }
 
   Map<String, dynamic> toJson() {
@@ -117,9 +164,17 @@ class UserModel {
       'totalExperience': totalExperience,
       'emergencyContactNumber': emergencyContactNumber,
       'isSubAdmin': isSubAdmin,
+      'jobRole': jobRole,
       'officeLatitude': officeLatitude,
       'officeLongitude': officeLongitude,
       'isFirstLogin': isFirstLogin,
+      'subAdminPermissions': subAdminPermissions,
+      'address': address,
+      'mobileNumber': mobileNumber,
+      'alternateNumber': alternateNumber,
+      'bloodGroup': bloodGroup,
+      'aadharNumber': aadharNumber,
+      'panCardNumber': panCardNumber,
       'userId': userId,
     };
   }

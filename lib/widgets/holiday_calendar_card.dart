@@ -6,12 +6,13 @@ import 'package:shimmer/shimmer.dart';
 import '../constants/constant_colors.dart';
 import '../constants/const_textstyle.dart';
 import '../models/holiday_model.dart';
-import '../providers/dashboard_provider.dart';
+import '../providers/organization_provider.dart';
+import '../providers/toggle_provider.dart';
 
 /// Read-only holiday calendar shown on the admin and user dashboards.
 /// Data comes from organization_details/holidays/items.
 class HolidayCalendarCard extends StatefulWidget {
-  const HolidayCalendarCard({Key? key}) : super(key: key);
+  const HolidayCalendarCard({super.key});
 
   @override
   State<HolidayCalendarCard> createState() => _HolidayCalendarCardState();
@@ -19,20 +20,28 @@ class HolidayCalendarCard extends StatefulWidget {
 
 class _HolidayCalendarCardState extends State<HolidayCalendarCard> {
   static const int _collapsedCount = 3;
-  bool _showAll = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      Provider.of<DashboardProvider>(context, listen: false).loadHolidays();
+      // Live list: updates as soon as the admin adds or removes a holiday
+      Provider.of<OrganizationProvider>(context, listen: false).start();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<DashboardProvider>(
+    // The "view all" flag is scoped to this card
+    return ChangeNotifierProvider(
+      create: (_) => ToggleProvider(),
+      child: _buildCard(),
+    );
+  }
+
+  Widget _buildCard() {
+    return Consumer<OrganizationProvider>(
       builder: (context, provider, _) {
         final now = DateTime.now();
         final today = DateTime(now.year, now.month, now.day);
@@ -77,7 +86,7 @@ class _HolidayCalendarCardState extends State<HolidayCalendarCard> {
                   ],
                 ),
                 SizedBox(height: 8.h),
-                if (provider.isLoadingHolidays && provider.holidays.isEmpty)
+                if (!provider.holidaysLoaded)
                   _buildShimmer()
                 else if (upcoming.isEmpty)
                   Padding(
@@ -91,22 +100,30 @@ class _HolidayCalendarCardState extends State<HolidayCalendarCard> {
                       ),
                     ),
                   )
-                else ...[
-                  ...(_showAll ? upcoming : upcoming.take(_collapsedCount))
-                      .map((h) => _buildHolidayRow(h, today)),
-                  if (upcoming.length > _collapsedCount)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => setState(() => _showAll = !_showAll),
-                        child: Text(
-                          _showAll
-                              ? 'Show less'
-                              : 'View all (${upcoming.length})',
-                        ),
-                      ),
+                else
+                  Consumer<ToggleProvider>(
+                    builder: (context, showAll, _) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ...(showAll.value
+                                ? upcoming
+                                : upcoming.take(_collapsedCount))
+                            .map((h) => _buildHolidayRow(h, today)),
+                        if (upcoming.length > _collapsedCount)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: showAll.toggle,
+                              child: Text(
+                                showAll.value
+                                    ? 'Show less'
+                                    : 'View all (${upcoming.length})',
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                ],
+                  ),
               ],
             ),
           ),

@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:workzen/utils/logger.dart';
-import '../app_constants.dart';
 import '../constants/firestore_constants.dart';
+import '../models/security_settings_model.dart';
 
 class AuthSecurityService {
   final LocalAuthentication _localAuth = LocalAuthentication();
@@ -69,19 +69,17 @@ class AuthSecurityService {
   }
 
   // Get security settings from Firestore
-  Future<Map<String, dynamic>?> getSecuritySettings(String userId) async {
+  Future<SecuritySettingsModel?> getSecuritySettings(String userId) async {
     try {
       final doc = await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection(FirestoreSubCollections.security)
           .doc(FirestoreDocs.securitySettings)
           .get();
 
-      if (doc.exists) {
-        return doc.data();
-      }
-      return null;
+      final data = doc.data();
+      return data == null ? null : SecuritySettingsModel.fromJson(data);
     } catch (e) {
       logDebug('Error getting security settings: $e');
       return null;
@@ -95,7 +93,7 @@ class AuthSecurityService {
   ) async {
     try {
       await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection(FirestoreSubCollections.security)
           .doc(FirestoreDocs.securitySettings)
@@ -111,7 +109,7 @@ class AuthSecurityService {
   Future<bool> updateBiometricEnabled(String userId, bool enabled) async {
     try {
       await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection(FirestoreSubCollections.security)
           .doc(FirestoreDocs.securitySettings)
@@ -131,7 +129,7 @@ class AuthSecurityService {
     try {
       // In production, PIN should be hashed before storing
       await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection(FirestoreSubCollections.security)
           .doc(FirestoreDocs.securitySettings)
@@ -151,7 +149,7 @@ class AuthSecurityService {
   Future<bool> verifyAppUnlockPIN(String userId, String pin) async {
     try {
       final settings = await getSecuritySettings(userId);
-      if (settings != null && settings['appUnlockPin'] == pin) {
+      if (settings != null && settings.appUnlockPin == pin) {
         return true;
       }
       return false;
@@ -165,7 +163,7 @@ class AuthSecurityService {
   Future<bool> hasAppUnlockPIN(String userId) async {
     try {
       final settings = await getSecuritySettings(userId);
-      return settings != null && (settings['hasAppUnlockPin'] == true);
+      return settings != null && settings.hasAppUnlockPin;
     } catch (e) {
       logDebug('Error checking app unlock PIN: $e');
       return false;

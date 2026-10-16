@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +8,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:workzen/utils/logger.dart';
 import '../app_constants.dart';
 import '../constants/firestore_constants.dart';
+import '../models/personal_info_model.dart';
 import '../models/user_model.dart';
 import '../services/device_service.dart';
 import 'user_provider.dart';
@@ -25,6 +27,17 @@ class AuthProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _user != null;
   bool get isAdmin => _userModel?.isAdmin ?? false;
+  bool get isSubAdmin => _userModel?.isSubAdmin ?? false;
+
+  /// Admin or sub admin: may open the admin area at all.
+  bool get isAdminArea => isAdmin || isSubAdmin;
+
+  /// Admins can do everything; a sub admin only what the admin granted.
+  bool can(String permission) {
+    if (isAdmin) return true;
+    if (!isSubAdmin) return false;
+    return _userModel?.subAdminPermissions.contains(permission) ?? false;
+  }
 
   AuthProvider() {
     _init();
@@ -34,14 +47,51 @@ class AuthProvider with ChangeNotifier {
     _user = _auth.currentUser;
     if (_user != null) {
       await _fetchUserData();
+      _listenToUserDoc();
       await _updateFcmToken();
     }
+  }
+
+  // The signed-in user's own document, kept live. Access the admin grants a
+  // sub admin (subAdminPermissions) is stored here, so a change reaches that
+  // sub admin's screens immediately instead of after the next login.
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userDocSub;
+
+  void _listenToUserDoc() {
+    final uid = _user?.uid;
+    if (uid == null) return;
+
+    _userDocSub?.cancel();
+    _userDocSub = _firestore
+        .collection(FirestoreCollections.users)
+        .doc(uid)
+        .snapshots()
+        .listen(
+          (doc) {
+            final data = doc.data();
+            if (data == null) return;
+            _userModel = UserModel.fromJson(data);
+            notifyListeners();
+          },
+          onError: (Object e) => logDebug('User document listener error: $e'),
+        );
+  }
+
+  void _stopListeningToUserDoc() {
+    _userDocSub?.cancel();
+    _userDocSub = null;
+  }
+
+  @override
+  void dispose() {
+    _stopListeningToUserDoc();
+    super.dispose();
   }
 
   Future<void> _fetchUserData() async {
     try {
       DocumentSnapshot userDoc = await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(_user!.uid)
           .get();
 
@@ -88,7 +138,7 @@ class AuthProvider with ChangeNotifier {
       }
 
       final userRef = _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(user.uid);
       // Device details live with the other security settings (PIN, biometric)
       final securityRef = userRef
@@ -137,6 +187,7 @@ class AuthProvider with ChangeNotifier {
       );
       _user = result.user;
       await _fetchUserData();
+      _listenToUserDoc();
       await _registerDeviceIfNeeded();
 
       // Always get fresh FCM token after successful login
@@ -196,7 +247,7 @@ class AuthProvider with ChangeNotifier {
       // Save to Firestore with error handling
       try {
         await _firestore
-            .collection(AppConstants.usersCollection)
+            .collection(FirestoreCollections.users)
             .doc(_user!.uid)
             .set(newUser.toJson());
         print('User data saved to Firestore successfully');
@@ -263,6 +314,7 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _stopListeningToUserDoc();
     try {
       if (_user != null) {
         // logDebug('Logging out user: ${_user!.uid}');
@@ -365,6 +417,23 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  /// Saves the personal details the employee edits on the profile screen.
+  /// The live listener on the user document refreshes [userModel]. Returns an
+  /// error message, or null on success.
+  Future<String?> updatePersonalInfo(PersonalInfoModel info) async {
+    if (_user == null) return 'You are not logged in';
+    try {
+      await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(_user!.uid)
+          .update(info.toJson());
+      return null;
+    } catch (e) {
+      logDebug('Error updating personal info: $e');
+      return 'Failed to update: $e';
+    }
+  }
+
   Future<bool> updateFcmToken(String token) async {
     try {
       if (_user == null) {
@@ -377,7 +446,7 @@ class AuthProvider with ChangeNotifier {
       // Update in Firestore with error handling
       try {
         await _firestore
-            .collection(AppConstants.usersCollection)
+            .collection(FirestoreCollections.users)
             .doc(_user!.uid)
             .update({'fcmToken': token});
         logDebug('FCM token updated successfully in Firestore');
@@ -396,27 +465,12 @@ class AuthProvider with ChangeNotifier {
 
       // Update local user model
       if (_userModel != null) {
-        _userModel = UserModel(
-          id: _userModel!.id,
-          name: _userModel!.name,
-          email: _userModel!.email,
-          fcmToken: token,
-          isAdmin: _userModel!.isAdmin,
-          profileImageUrl: _userModel!.profileImageUrl,
-          employeeId: _userModel!.employeeId,
-          department: _userModel!.department,
-          createdAt: _userModel!.createdAt,
-          joiningDate: _userModel!.joiningDate,
-          role: _userModel!.role,
-          isCasualLeave: _userModel!.isCasualLeave,
-          totalExperience: _userModel!.totalExperience,
-          emergencyContactNumber: _userModel!.emergencyContactNumber,
-          isSubAdmin: _userModel!.isSubAdmin,
-          officeLatitude: _userModel!.officeLatitude,
-          officeLongitude: _userModel!.officeLongitude,
-          isFirstLogin: _userModel!.isFirstLogin,
-          userId: _userModel!.userId,
-        );
+        // Same user with the new token; going through JSON keeps every field,
+        // including ones added to the model later
+        _userModel = UserModel.fromJson({
+          ..._userModel!.toJson(),
+          'fcmToken': token,
+        });
         notifyListeners();
       }
 
@@ -436,6 +490,7 @@ class AuthProvider with ChangeNotifier {
       _user = _auth.currentUser;
       if (_user != null) {
         await _fetchUserData();
+        _listenToUserDoc();
         await _registerDeviceIfNeeded();
         await _updateFcmToken();
       }

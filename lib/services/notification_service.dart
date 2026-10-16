@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:workzen/app_constants.dart';
+import 'package:workzen/constants/firestore_constants.dart';
 import 'package:workzen/providers/auth_provider.dart' as auth;
 import 'package:workzen/utils/logger.dart';
 
@@ -129,7 +129,7 @@ class PushNotificationsService {
         // Update in Firestore only
         try {
           await FirebaseFirestore.instance
-              .collection(AppConstants.usersCollection)
+              .collection(FirestoreCollections.users)
               .doc(userId)
               .update({'fcmToken': token});
           logDebug('FCM token updated successfully in Firestore');

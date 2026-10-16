@@ -9,11 +9,18 @@ import 'package:open_file/open_file.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../models/attendance_model.dart';
-import '../../models/user_model.dart';
+import '../../providers/admin_attendance_filter_provider.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../app_constants.dart';
 import '../../constants/const_textstyle.dart';
+import '../../constants/constant_snackbar.dart';
+import '../../constants/constant_button.dart';
+import '../../constants/constant_dropdown.dart';
+import '../../constants/constant_date_time_picker.dart';
+import '../../constants/constant_colors.dart';
+import '../../constants/apploading_indicator.dart';
+import '../../utils/logger.dart';
 
 class AdminAttendanceScreen extends StatefulWidget {
   const AdminAttendanceScreen({Key? key}) : super(key: key);
@@ -23,38 +30,39 @@ class AdminAttendanceScreen extends StatefulWidget {
 }
 
 class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
-  Stream<List<AttendanceModel>>? _attendanceStream;
-  bool _isLoading = false;
-  DateTime _selectedDate = DateTime.now();
-  String? _selectedEmployeeId;
-  List<UserModel> _employees = [];
+  // Stream, filters, employees and the busy flag live in this scoped provider
+  final AdminAttendanceFilterProvider _filter = AdminAttendanceFilterProvider();
 
   @override
   void initState() {
     super.initState();
-    _initializeStream();
 
-    // Use addPostFrameCallback to delay loading employees until after the build is complete
+    // Use addPostFrameCallback so context is ready for provider lookups
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeStream();
       _loadEmployees();
     });
   }
 
+  @override
+  void dispose() {
+    _filter.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadEmployees() async {
-    setState(() {
-      _isLoading = true;
-    });
+    _filter.setLoading(true);
 
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      _employees = await userProvider.getEmployees(silent: true);
+      final employees = await userProvider.getEmployees(silent: true);
+      if (!mounted) return;
+      _filter.setEmployees(employees);
     } catch (e) {
-      print("Error loading employees: $e");
+      logDebug('Error loading employees: $e');
     }
 
-    setState(() {
-      _isLoading = false;
-    });
+    if (mounted) _filter.setLoading(false);
   }
 
   void _initializeStream() {
@@ -62,60 +70,12 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       context,
       listen: false,
     );
-    _attendanceStream = attendanceProvider.getAllAttendanceStream();
-  }
-
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (BuildContext context, Widget? child) {
-        return Theme(
-          data: ThemeData.light().copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Colors.blue,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Colors.black,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-      });
-    }
-  }
-
-  List<AttendanceModel> _filterAttendance(
-    List<AttendanceModel> attendanceList,
-  ) {
-    return attendanceList.where((attendance) {
-      // Filter by date
-      final isSameDate =
-          attendance.date.year == _selectedDate.year &&
-          attendance.date.month == _selectedDate.month &&
-          attendance.date.day == _selectedDate.day;
-
-      // Filter by employee if selected
-      final isSelectedEmployee =
-          _selectedEmployeeId == null ||
-          attendance.userId == _selectedEmployeeId;
-
-      return isSameDate && isSelectedEmployee;
-    }).toList();
+    _filter.setStream(attendanceProvider.getAllAttendanceStream());
   }
 
   Future<void> _generatePdf(List<AttendanceModel> attendanceList) async {
-    setState(() {
-      _isLoading = true;
-    });
+    _filter.setLoading(true);
+    final selectedDate = _filter.selectedDate;
 
     try {
       final pdf = pw.Document();
@@ -139,7 +99,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
               ),
               pw.SizedBox(height: 10),
               pw.Text(
-                'Date: ${DateFormat('dd MMM yyyy').format(_selectedDate)}',
+                'Date: ${DateFormat('dd MMM yyyy').format(selectedDate)}',
                 style: pw.TextStyle(
                   fontSize: 14,
                   fontWeight: pw.FontWeight.bold,
@@ -238,35 +198,35 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       // Save the PDF
       final output = await getTemporaryDirectory();
       final file = File(
-        '${output.path}/attendance_report_${DateFormat('dd_MM_yyyy').format(_selectedDate)}.pdf',
+        '${output.path}/attendance_report_${DateFormat('dd_MM_yyyy').format(selectedDate)}.pdf',
       );
       await file.writeAsBytes(await pdf.save());
 
       // Open the PDF
       await OpenFile.open(file.path);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('PDF generated successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      ConstantSnackbar.showSuccess(title: 'PDF generated successfully');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error generating PDF: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ConstantSnackbar.showError(title: 'Error generating PDF: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) _filter.setLoading(false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: _filter,
+      child: Consumer<AdminAttendanceFilterProvider>(
+        builder: (context, filter, _) => _buildScreen(context, filter),
+      ),
+    );
+  }
+
+  Widget _buildScreen(
+    BuildContext context,
+    AdminAttendanceFilterProvider filter,
+  ) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -310,80 +270,33 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: InkWell(
-                        onTap: () => _selectDate(context),
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 12.w,
-                            vertical: 10.h,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(8.r),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                DateFormat('dd MMM yyyy').format(_selectedDate),
-                                style: getTextTheme().bodyMedium?.copyWith(
-                                  color: Colors.grey[700],
-                                ),
-                              ),
-                              Icon(
-                                Icons.calendar_today,
-                                size: 16.r,
-                                color: Colors.grey[700],
-                              ),
-                            ],
-                          ),
-                        ),
+                      child: ConstantDatePicker(
+                        value: filter.selectedDate,
+                        format: 'dd MMM yyyy',
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                        isDense: true,
+                        onChanged: (picked) {
+                          if (picked != filter.selectedDate) {
+                            _filter.setSelectedDate(picked);
+                          }
+                        },
                       ),
                     ),
                     SizedBox(width: 16.w),
                     Expanded(
-                      child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 12.w),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String?>(
-                            value: _selectedEmployeeId,
-                            isExpanded: true,
-                            hint: Text(
-                              'All Employees',
-                              style: getTextTheme().bodyMedium,
-                            ),
-                            icon: Icon(
-                              Icons.arrow_drop_down,
-                              color: Colors.grey[700],
-                            ),
-                            items: [
-                              DropdownMenuItem<String?>(
-                                value: null,
-                                child: Text(
-                                  'All Employees',
-                                  style: getTextTheme().bodyMedium,
-                                ),
-                              ),
-                              ..._employees.map((employee) {
-                                return DropdownMenuItem<String?>(
-                                  value: employee.id,
-                                  child: Text(
-                                    employee.name,
-                                    style: getTextTheme().bodyMedium,
-                                  ),
-                                );
-                              }).toList(),
-                            ],
-                            onChanged: (String? newValue) {
-                              setState(() {
-                                _selectedEmployeeId = newValue;
-                              });
-                            },
-                          ),
+                      // An empty id stands for "All Employees"
+                      child: ConstantDropdown<String>(
+                        value: filter.selectedEmployeeId ?? '',
+                        isDense: true,
+                        items: ['', ...filter.employees.map((e) => e.id)],
+                        itemLabel: (id) => id.isEmpty
+                            ? 'All Employees'
+                            : filter.employees
+                                  .firstWhere((e) => e.id == id)
+                                  .name,
+                        onChanged: (id) => filter.setSelectedEmployee(
+                          id == null || id.isEmpty ? null : id,
                         ),
                       ),
                     ),
@@ -396,10 +309,10 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
           // Attendance table
           Expanded(
             child: StreamBuilder<List<AttendanceModel>>(
-              stream: _attendanceStream,
+              stream: filter.stream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(child: AppLoadingIndicator(size: 40));
                 }
 
                 if (snapshot.hasError) {
@@ -435,13 +348,15 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                           textAlign: TextAlign.center,
                         ),
                         SizedBox(height: 16.h),
-                        ElevatedButton.icon(
+                        ConstantButton(
+                          text: 'Try Again',
                           onPressed: _initializeStream,
-                          icon: Icon(Icons.refresh, size: 20.r),
-                          label: Text(
-                            'Try Again',
-                            style: getTextTheme().labelLarge,
+                          icon: Icon(
+                            Icons.refresh,
+                            size: 20.r,
+                            color: ConstColors.white,
                           ),
+                          isFullWidth: false,
                         ),
                       ],
                     ),
@@ -457,7 +372,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                   );
                 }
 
-                final filteredAttendance = _filterAttendance(snapshot.data!);
+                final filteredAttendance = filter.filter(snapshot.data!);
 
                 if (filteredAttendance.isEmpty) {
                   return Center(
@@ -469,181 +384,121 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                           style: getTextTheme().bodyMedium,
                         ),
                         SizedBox(height: 16.h),
-                        ElevatedButton.icon(
+                        ConstantButton(
+                          text: 'Mark All Absent',
                           onPressed: () {
                             // Mark all employees as absent for this date
                             _markAbsentEmployees();
                           },
-                          icon: Icon(Icons.person_off, size: 20.r),
-                          label: Text(
-                            'Mark All Absent',
-                            style: getTextTheme().labelLarge,
+                          icon: Icon(
+                            Icons.person_off,
+                            size: 20.r,
+                            color: ConstColors.white,
                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                          ),
+                          isFullWidth: false,
+                          backgroundColor: ConstColors.errorRed,
                         ),
                       ],
                     ),
                   );
                 }
 
+                // Everyone's attendance for the chosen date in a data table
+                final employeesById = {
+                  for (final e in filter.employees) e.id: e,
+                };
+                final timeFormat = DateFormat('hh:mm a');
+
                 return Stack(
                   children: [
-                    Padding(
+                    SingleChildScrollView(
                       padding: EdgeInsets.all(16.w),
-                      child: Column(
-                        children: [
-                          // Table header
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Container(
-                              constraints: BoxConstraints(
-                                minWidth:
-                                    MediaQuery.of(context).size.width - 32,
-                              ),
-                              padding: EdgeInsets.symmetric(
-                                vertical: 12.h,
-                                horizontal: 16.w,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.blue,
-                                borderRadius: BorderRadius.circular(8.r),
-                              ),
-                              child: Row(
-                                children: [
-                                  SizedBox(
-                                    width: 150.w,
-                                    child: Text(
-                                      'Employee',
-                                      style: getTextTheme().bodyMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                          ),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: 120.w,
-                                    child: Text(
-                                      'Status',
-                                      style: getTextTheme().bodyMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                          ),
-                                    ),
-                                  ),
-                                  SizedBox(width: 20.w),
-                                  SizedBox(
-                                    width: 120.w,
-                                    child: Text(
-                                      'Punch In',
-                                      style: getTextTheme().bodyMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                          ),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: 120.w,
-                                    child: Text(
-                                      'Punch Out',
-                                      style: getTextTheme().bodyMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                          ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: DataTable(
+                          columnSpacing: 20.w,
+                          headingRowColor: WidgetStatePropertyAll(
+                            Colors.blue.withValues(alpha: 0.1),
                           ),
+                          columns: const [
+                            DataColumn(label: Text('Employee')),
+                            DataColumn(label: Text('Emp ID')),
+                            DataColumn(label: Text('Department')),
+                            DataColumn(label: Text('Status')),
+                            DataColumn(label: Text('Punch In')),
+                            DataColumn(label: Text('Punch Out')),
+                            DataColumn(label: Text('Hours')),
+                          ],
+                          rows: filteredAttendance.map((attendance) {
+                            final employee = employeesById[attendance.userId];
+                            final worked =
+                                attendance.punchInTime != null &&
+                                    attendance.punchOutTime != null
+                                ? attendance.punchOutTime!.difference(
+                                    attendance.punchInTime!,
+                                  )
+                                : null;
 
-                          // Table body
-                          Expanded(
-                            child: ListView.builder(
-                              itemCount: filteredAttendance.length,
-                              itemBuilder: (context, index) {
-                                final attendance = filteredAttendance[index];
-                                return Card(
-                                  margin: EdgeInsets.only(top: 8.h),
-                                  elevation: 1,
-                                  child: SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: Container(
-                                      constraints: BoxConstraints(
-                                        minWidth:
-                                            MediaQuery.of(context).size.width -
-                                            32,
-                                      ),
-                                      padding: EdgeInsets.all(12.w),
-                                      child: Row(
-                                        children: [
-                                          SizedBox(
-                                            width: 150.w,
-                                            child: Text(
-                                              attendance.userName,
-                                              style: getTextTheme().bodyMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                            ),
-                                          ),
-                                          SizedBox(
-                                            width: 120.w,
-                                            child: _buildStatusChip(
-                                              attendance.status,
-                                              hasPunchIn:
-                                                  attendance.punchInTime !=
-                                                  null,
-                                              hasPunchOut:
-                                                  attendance.punchOutTime !=
-                                                  null,
-                                            ),
-                                          ),
-                                          SizedBox(width: 20.w),
-                                          SizedBox(
-                                            width: 120.w,
-                                            child: Text(
-                                              attendance.punchInTime != null
-                                                  ? DateFormat(
-                                                      'hh:mm a',
-                                                    ).format(
-                                                      attendance.punchInTime!,
-                                                    )
-                                                  : '-',
-                                            ),
-                                          ),
-                                          SizedBox(
-                                            width: 120.w,
-                                            child: Text(
-                                              attendance.punchOutTime != null
-                                                  ? DateFormat(
-                                                      'hh:mm a',
-                                                    ).format(
-                                                      attendance.punchOutTime!,
-                                                    )
-                                                  : '-',
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                            return DataRow(
+                              cells: [
+                                DataCell(
+                                  Text(
+                                    attendance.userName,
+                                    style: getTextTheme().bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
+                                ),
+                                DataCell(Text(employee?.employeeId ?? '-')),
+                                DataCell(Text(employee?.department ?? '-')),
+                                DataCell(
+                                  _buildStatusChip(
+                                    attendance.status,
+                                    hasPunchIn: attendance.punchInTime != null,
+                                    hasPunchOut:
+                                        attendance.punchOutTime != null,
+                                  ),
+                                ),
+                                DataCell(
+                                  Text(
+                                    attendance.punchInTime != null
+                                        ? timeFormat.format(
+                                            attendance.punchInTime!,
+                                          )
+                                        : '-',
+                                  ),
+                                ),
+                                DataCell(
+                                  Text(
+                                    attendance.punchOutTime != null
+                                        ? timeFormat.format(
+                                            attendance.punchOutTime!,
+                                          )
+                                        : '-',
+                                  ),
+                                ),
+                                DataCell(
+                                  Text(
+                                    worked == null
+                                        ? '-'
+                                        : '${worked.inHours}h ${worked.inMinutes.remainder(60)}m',
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
-                    if (_isLoading)
+                    if (filter.isLoading)
                       Container(
                         color: Colors.black.withOpacity(0.3),
-                        child: const Center(child: CircularProgressIndicator()),
+                        child: const Center(
+                          child: AppLoadingIndicator(
+                            size: 40,
+                            color: ConstColors.white,
+                          ),
+                        ),
                       ),
                   ],
                 );
@@ -659,7 +514,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
             listen: false,
           );
           attendanceProvider.getAllAttendance().then((attendanceList) {
-            final filteredAttendance = _filterAttendance(attendanceList);
+            final filteredAttendance = filter.filter(attendanceList);
             _generatePdf(filteredAttendance);
           });
         },
@@ -671,9 +526,8 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
   }
 
   Future<void> _markAbsentEmployees() async {
-    setState(() {
-      _isLoading = true;
-    });
+    _filter.setLoading(true);
+    final selectedDate = _filter.selectedDate;
 
     try {
       final attendanceProvider = Provider.of<AttendanceProvider>(
@@ -682,52 +536,37 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       );
 
       // Get all employees who don't have attendance records for today
-      final employeesWithoutAttendance = _employees.where((employee) {
+      final employeesWithoutAttendance = _filter.employees.where((employee) {
         // Check if employee already has an attendance record for today
         return !attendanceProvider.hasAttendanceForDate(
           employee.id,
-          _selectedDate,
+          selectedDate,
         );
       }).toList();
 
       if (employeesWithoutAttendance.isNotEmpty) {
         // Mark all these employees as absent
         for (final employee in employeesWithoutAttendance) {
-          await attendanceProvider.markAbsent(employee, _selectedDate);
+          await attendanceProvider.markAbsent(employee, selectedDate);
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
+        ConstantSnackbar.showSuccess(
+          title:
               'Marked ${employeesWithoutAttendance.length} employees as absent',
-            ),
-            backgroundColor: Colors.green,
-          ),
         );
 
         // Refresh the stream
-        _initializeStream();
+        if (mounted) _initializeStream();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'All employees already have attendance records for this date',
-            ),
-            backgroundColor: Colors.orange,
-          ),
+        ConstantSnackbar.show(
+          title: 'All employees already have attendance records for this date',
+          backgroundColor: Colors.orange,
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error marking employees as absent: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ConstantSnackbar.showError(title: 'Error marking employees as absent: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) _filter.setLoading(false);
     }
   }
 

@@ -3,12 +3,17 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:get/get.dart';
+import '../../app_constants.dart';
 import '../../constants/constant_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/employee_management_provider.dart';
 import '../../constants/constant_textfield.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_snackbar.dart';
+import '../../utils/validators.dart';
+import '../../constants/constant_button.dart';
+import '../../constants/constant_dropdown.dart';
+import '../../widgets/sub_admin_permissions_picker.dart';
 
 class AddEmployeeScreen extends StatefulWidget {
   const AddEmployeeScreen({Key? key}) : super(key: key);
@@ -27,10 +32,13 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<EmployeeManagementProvider>(
+      final provider = Provider.of<EmployeeManagementProvider>(
         context,
         listen: false,
-      ).resetAddEmployeeForm();
+      );
+      provider.resetAddEmployeeForm();
+      // Departments and roles the admin created in the Settings tab
+      provider.fetchDepartments();
     });
   }
 
@@ -40,6 +48,80 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
     _emailController.dispose();
     _mobileController.dispose();
     super.dispose();
+  }
+
+  // Department, then a job role from that department. Both are optional and
+  // come from the Settings tab; with none created yet a hint explains where.
+  Widget _buildDepartmentAndJobRole(EmployeeManagementProvider provider) {
+    final departments = provider.departments;
+
+    if (departments.isEmpty) {
+      return Container(
+        padding: EdgeInsets.all(10.w),
+        decoration: BoxDecoration(
+          color: ConstColors.warningAmber.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(8.r),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.business_outlined,
+              size: 18.r,
+              color: ConstColors.inProgressOrange,
+            ),
+            SizedBox(width: 8.w),
+            Expanded(
+              child: Text(
+                'No departments yet. You can add departments and roles from the Settings tab.',
+                style: getTextTheme().bodySmall,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final roles = departments
+        .where((d) => d.name == provider.selectedDepartment)
+        .expand((d) => d.roles)
+        .toList();
+
+    return Column(
+      children: [
+        ConstantDropdown<String>(
+          value: provider.selectedDepartment,
+          label: 'Department (optional)',
+          prefixIcon: Icon(Icons.work_outline, size: 20.r),
+          items: departments.map((d) => d.name).toList(),
+          itemLabel: (d) => d,
+          onChanged: provider.setSelectedDepartment,
+        ),
+        SizedBox(height: 16.h),
+        if (provider.selectedDepartment != null && roles.isEmpty)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'This department has no roles yet. You can add roles from the Settings tab.',
+              style: getTextTheme().bodySmall?.copyWith(
+                color: ConstColors.textColorLight,
+              ),
+            ),
+          )
+        else
+          ConstantDropdown<String>(
+            // A new key resets the field when the department changes
+            key: ValueKey('job-role-${provider.selectedDepartment}'),
+            value: provider.selectedRole,
+            label: 'Job Role (optional)',
+            prefixIcon: Icon(Icons.badge_outlined, size: 20.r),
+            items: roles,
+            itemLabel: (r) => r,
+            onChanged: provider.selectedDepartment == null
+                ? null
+                : provider.setSelectedRole,
+          ),
+      ],
+    );
   }
 
   @override
@@ -78,12 +160,7 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
                       controller: _nameController,
                       customText: 'Full Name',
                       prefixIcon: Icon(Icons.person_outline, size: 20.r),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter employee name';
-                        }
-                        return null;
-                      },
+                      validator: Validators.required('employee name'),
                     ),
                     SizedBox(height: 12.h),
                     ConstTextField(
@@ -91,17 +168,7 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
                       customText: 'Email',
                       prefixIcon: Icon(Icons.email_outlined, size: 20.r),
                       keyoardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter email';
-                        }
-                        if (!RegExp(
-                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                        ).hasMatch(value)) {
-                          return 'Please enter a valid email';
-                        }
-                        return null;
-                      },
+                      validator: Validators.email,
                     ),
                     SizedBox(height: 12.h),
                     ConstTextField(
@@ -113,19 +180,25 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
                         FilteringTextInputFormatter.digitsOnly,
                         LengthLimitingTextInputFormatter(10),
                       ],
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter mobile number';
-                        }
-                        if (value.length != 10) {
-                          return 'Please enter a valid 10-digit number';
-                        }
-                        return null;
-                      },
+                      validator: Validators.mobileNumber,
                     ),
                     SizedBox(height: 12.h),
 
                     // Sub Admin Checkbox
+                    // Role: employee, intern or freelancer
+                    ConstantDropdown<String>(
+                      value: provider.newEmployeeRole,
+                      label: 'Role',
+                      prefixIcon: Icon(Icons.badge_outlined, size: 20.r),
+                      items: AppConstants.assignableRoles,
+                      itemLabel: AppConstants.roleLabel,
+                      onChanged: (role) {
+                        if (role != null) provider.setNewEmployeeRole(role);
+                      },
+                    ),
+                    SizedBox(height: 16.h),
+                    _buildDepartmentAndJobRole(provider),
+                    SizedBox(height: 12.h),
                     if (Provider.of<AuthProvider>(
                       context,
                       listen: false,
@@ -155,6 +228,18 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
                         ],
                       ),
 
+                    // What this sub admin may access (admin chooses)
+                    if (provider.isSubAdminChecked &&
+                        Provider.of<AuthProvider>(context, listen: false)
+                            .isAdmin) ...[
+                      SizedBox(height: 8.h),
+                      SubAdminPermissionsPicker(
+                        selected: provider.subAdminPermissions,
+                        onChanged: provider.setSubAdminPermission,
+                        onSelectAll: provider.setAllSubAdminPermissions,
+                      ),
+                    ],
+
                     SizedBox(height: 12.h),
                     Container(
                       padding: EdgeInsets.all(10.w),
@@ -181,59 +266,29 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
                         ],
                       ),
                     ),
-                    SizedBox(height: 8.h),
-                    Container(
-                      padding: EdgeInsets.all(10.w),
-                      decoration: BoxDecoration(
-                        color: ConstColors.warningAmber.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(8.r),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.business_outlined,
-                            size: 18.r,
-                            color: ConstColors.inProgressOrange,
-                          ),
-                          SizedBox(width: 8.w),
-                          Expanded(
-                            child: Text(
-                              'Department and role can be assigned from the employee details after adding.',
-                              style: getTextTheme().bodySmall,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                     SizedBox(height: 32.h),
 
                     // Buttons
                     Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton(
+                          child: ConstantButton(
+                            text: 'Cancel',
+                            isOutlined: true,
+                            backgroundColor: ConstColors.grey,
+                            textColor: ConstColors.textColorLight,
                             onPressed: () {
                               provider.resetAddEmployeeForm();
                               Get.back();
                             },
-                            style: OutlinedButton.styleFrom(
-                              padding: EdgeInsets.symmetric(vertical: 14.h),
-                              side: BorderSide(color: ConstColors.grey),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10.r),
-                              ),
-                            ),
-                            child: Text(
-                              'Cancel',
-                              style: getTextTheme().bodyMedium?.copyWith(
-                                color: ConstColors.textColorLight,
-                              ),
-                            ),
                           ),
                         ),
                         SizedBox(width: 12.w),
                         Expanded(
-                          child: ElevatedButton(
+                          child: ConstantButton(
+                            text: 'Add Employee',
+                            isLoading: provider.isLoading,
+                            backgroundColor: ConstColors.primary,
                             onPressed: provider.isLoading
                                 ? null
                                 : () async {
@@ -243,7 +298,14 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
                                         email: _emailController.text.trim(),
                                         mobileNumber: _mobileController.text
                                             .trim(),
+                                        department: provider.selectedDepartment,
+                                        role: provider.selectedRole,
+                                        employmentRole:
+                                            provider.newEmployeeRole,
                                         isSubAdmin: provider.isSubAdminChecked,
+                                        subAdminPermissions: provider
+                                            .subAdminPermissions
+                                            .toList(),
                                       );
 
                                       if (result['success']) {
@@ -259,28 +321,6 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
                                       }
                                     }
                                   },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: ConstColors.primary,
-                              padding: EdgeInsets.symmetric(vertical: 14.h),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10.r),
-                              ),
-                            ),
-                            child: provider.isLoading
-                                ? SizedBox(
-                                    width: 20.w,
-                                    height: 20.h,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: ConstColors.white,
-                                    ),
-                                  )
-                                : Text(
-                                    'Add Employee',
-                                    style: getTextTheme().bodyMedium?.copyWith(
-                                      color: ConstColors.white,
-                                    ),
-                                  ),
                           ),
                         ),
                       ],

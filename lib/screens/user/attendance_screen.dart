@@ -6,8 +6,14 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/calendar_provider.dart';
+import '../../providers/organization_provider.dart';
+import '../../models/office_hours_model.dart';
+import '../../constants/apploading_indicator.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_snackbar.dart';
+import '../../constants/constant_button.dart';
+import '../../constants/constant_colors.dart';
 import '../../utils/logger.dart';
 
 class AttendanceScreen extends StatefulWidget {
@@ -18,36 +24,40 @@ class AttendanceScreen extends StatefulWidget {
 }
 
 class _AttendanceScreenState extends State<AttendanceScreen> {
-  // True for the whole punch flow: location, device check and the save
-  bool _isPunching = false;
-  String? _punchAction; // 'in' or 'out'
-
+  // The punch flow flag lives in AttendanceProvider (isPunching / punchAction)
   Future<void> _runPunch(String action, Future<void> Function() punch) async {
-    if (_isPunching) return;
-    setState(() {
-      _isPunching = true;
-      _punchAction = action;
-    });
+    final provider = context.read<AttendanceProvider>();
+    if (provider.isPunching) return;
+    provider.setPunchAction(action);
     try {
       await punch();
     } finally {
-      if (mounted) {
-        setState(() {
-          _isPunching = false;
-          _punchAction = null;
-        });
-      }
+      provider.setPunchAction(null);
     }
   }
 
-  Widget _punchIcon(String action, IconData icon) {
-    if (_isPunching && _punchAction == action) {
+  // " (Late)" / " (Half day)" from the admin's office hours, or "" when on time
+  // or when no office hours have been set.
+  String _punchInSuffix(OfficeHoursModel? hours, DateTime punchIn) {
+    if (hours == null) return '';
+    switch (hours.punchInStatus(punchIn)) {
+      case PunchInStatus.late:
+        return ' (Late)';
+      case PunchInStatus.halfDay:
+        return ' (Half day)';
+      case PunchInStatus.onTime:
+        return '';
+    }
+  }
+
+  Widget _punchIcon(AttendanceProvider provider, String action, IconData icon) {
+    if (provider.punchAction == action) {
       return SizedBox(
         width: 20.r,
         height: 20.r,
-        child: const CircularProgressIndicator(
-          strokeWidth: 2.5,
-          color: Colors.white,
+        child: const AppLoadingIndicator(
+          size: 20,
+          color: ConstColors.white,
         ),
       );
     }
@@ -58,6 +68,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Live office hours and holidays set by the admin
+      Provider.of<OrganizationProvider>(context, listen: false).start();
+
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final attendanceProvider = Provider.of<AttendanceProvider>(
         context,
@@ -211,8 +224,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         );
 
         if (result['success'] == true) {
-          ConstantSnackbar.showSuccess(title: 'Successfully punched in');
+          final hours = Provider.of<OrganizationProvider>(
+            context,
+            listen: false,
+          ).officeHours;
+          ConstantSnackbar.showSuccess(
+            title:
+                'Successfully punched in${_punchInSuffix(hours, DateTime.now())}',
+          );
           await attendanceProvider.loadTodayData(authProvider.userModel!.id);
+          // Dashboard calendar must show the new punch
+          if (mounted) {
+            Provider.of<CalendarProvider>(context, listen: false).refresh();
+          }
         } else {
           final error = result['error'] ?? '';
           if (error == 'on_leave') {
@@ -273,6 +297,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         if (result['success'] == true) {
           ConstantSnackbar.showSuccess(title: 'Successfully punched out');
           await attendanceProvider.loadTodayData(authProvider.userModel!.id);
+          // Dashboard calendar must show the new punch
+          if (mounted) {
+            Provider.of<CalendarProvider>(context, listen: false).refresh();
+          }
         } else {
           final error = result['error'] ?? '';
           if (error == 'not_punched_in') {
@@ -331,13 +359,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       body: Consumer<AttendanceProvider>(
         builder: (context, attendanceProvider, _) {
           // Keep the page (and the button spinner) visible while punching
-          if (attendanceProvider.isLoading && !_isPunching) {
-            return const Center(child: CircularProgressIndicator());
+          if (attendanceProvider.isLoading && !attendanceProvider.isPunching) {
+            return const Center(child: AppLoadingIndicator(size: 40));
           }
 
           final todayAttendance = attendanceProvider.todayAttendance;
           final todayLeave = attendanceProvider.todayLeave;
           final isAtOffice = attendanceProvider.isAtOffice;
+
+          // Office hours and holidays the admin maintains (live)
+          final org = Provider.of<OrganizationProvider>(context);
+          final officeHours = org.officeHours;
+          final todayHoliday = org.holidayOn(DateTime.now());
 
           return SingleChildScrollView(
             padding: EdgeInsets.all(16.w),
@@ -446,7 +479,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                             todayAttendance.punchOutTime == null)
                           _buildStatusRow(
                             'Checked In',
-                            'Punched in at ${DateFormat('hh:mm a').format(todayAttendance.punchInTime!)}',
+                            'Punched in at ${DateFormat('hh:mm a').format(todayAttendance.punchInTime!)}${_punchInSuffix(officeHours, todayAttendance.punchInTime!)}',
                             Colors.green,
                             Icons.login,
                           )
@@ -462,6 +495,53 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     ),
                   ),
                 ),
+                if (todayHoliday != null) ...[
+                  SizedBox(height: 16.h),
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(12.w),
+                    decoration: BoxDecoration(
+                      color: Colors.lightBlue.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10.r),
+                      border: Border.all(
+                        color: Colors.lightBlue.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.celebration, color: Colors.lightBlue, size: 22.r),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Text(
+                            'Today is a holiday: ${todayHoliday.name}',
+                            style: getTextTheme().bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (officeHours != null) ...[
+                  SizedBox(height: 12.h),
+                  Row(
+                    children: [
+                      Icon(Icons.access_time, size: 16.r, color: Colors.grey),
+                      SizedBox(width: 6.w),
+                      Expanded(
+                        child: Text(
+                          'Office hours ${officeHours.startTime.format(context)} - ${officeHours.endTime.format(context)}'
+                          '${officeHours.lateAfterMinutes != null ? ' • Late after ${officeHours.startPlus(officeHours.lateAfterMinutes!).format(context)}' : ''}'
+                          '${officeHours.halfDayAfterMinutes != null ? ' • Half day after ${officeHours.startPlus(officeHours.halfDayAfterMinutes!).format(context)}' : ''}',
+                          style: getTextTheme().bodySmall?.copyWith(
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 SizedBox(height: 32.h),
 
                 // Punch buttons
@@ -469,67 +549,47 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: ConstantButton(
+                          text: attendanceProvider.punchAction == 'in'
+                              ? 'Verifying...'
+                              : 'Punch In',
                           onPressed:
                               (todayAttendance?.punchInTime == null &&
-                                  !_isPunching)
+                                  !attendanceProvider.isPunching)
                               ? () => _runPunch('in', _punchIn)
                               : null,
-                          icon: _punchIcon('in', Icons.login),
-                          label: Text(
-                            _isPunching && _punchAction == 'in'
-                                ? 'Verifying...'
-                                : 'Punch In',
-                            style: getTextTheme().labelLarge,
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            disabledBackgroundColor:
-                                _isPunching && _punchAction == 'in'
-                                ? Colors.green.withValues(alpha: 0.7)
-                                : null,
-                            disabledForegroundColor:
-                                _isPunching && _punchAction == 'in'
-                                ? Colors.white
-                                : null,
-                            padding: EdgeInsets.symmetric(vertical: 10.h),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10.r),
-                            ),
-                          ),
+                          icon: _punchIcon(attendanceProvider, 'in', Icons.login),
+                          backgroundColor: ConstColors.successGreen,
+                          disabledBackgroundColor:
+                              attendanceProvider.punchAction == 'in'
+                              ? ConstColors.successGreen.withValues(alpha: 0.7)
+                              : null,
                         ),
                       ),
                       SizedBox(width: 16.w),
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: ConstantButton(
+                          text: attendanceProvider.punchAction == 'out'
+                              ? 'Verifying...'
+                              : 'Punch Out',
                           onPressed:
                               (todayAttendance?.punchInTime != null &&
                                   todayAttendance?.punchOutTime == null &&
-                                  !_isPunching)
+                                  !attendanceProvider.isPunching)
                               ? () => _runPunch('out', _punchOut)
                               : null,
-                          icon: _punchIcon('out', Icons.logout),
-                          label: Text(
-                            _isPunching && _punchAction == 'out'
-                                ? 'Verifying...'
-                                : 'Punch Out',
-                            style: getTextTheme().labelLarge,
+                          icon: _punchIcon(
+                            attendanceProvider,
+                            'out',
+                            Icons.logout,
                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                            disabledBackgroundColor:
-                                _isPunching && _punchAction == 'out'
-                                ? Colors.orange.withValues(alpha: 0.7)
-                                : null,
-                            disabledForegroundColor:
-                                _isPunching && _punchAction == 'out'
-                                ? Colors.white
-                                : null,
-                            padding: EdgeInsets.symmetric(vertical: 10.h),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10.r),
-                            ),
-                          ),
+                          backgroundColor: ConstColors.inProgressOrange,
+                          disabledBackgroundColor:
+                              attendanceProvider.punchAction == 'out'
+                              ? ConstColors.inProgressOrange.withValues(
+                                  alpha: 0.7,
+                                )
+                              : null,
                         ),
                       ),
                     ],

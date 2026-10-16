@@ -70,6 +70,7 @@ dependencies:
   # Location
   geolocator: ^14.0.2
   shimmer: ^4.0.0
+  flutter_spinkit: ^5.2.1
   # Device binding for attendance
   device_info_plus: ^13.3.0
   android_id: ^0.6.0

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 import 'dart:convert';
 
@@ -7,8 +8,12 @@ import 'package:uuid/uuid.dart';
 import 'package:workzen/utils/logger.dart';
 import '../app_constants.dart';
 import '../constants/firestore_constants.dart';
+import '../constants/permissions.dart';
+import '../models/leave_allocation_model.dart';
+import '../models/leave_balance_model.dart';
 import '../models/request_model.dart';
 import '../models/user_model.dart';
+import '../services/attendance_summary_service.dart';
 import '../services/fcm_service.dart';
 
 class RequestProvider with ChangeNotifier {
@@ -30,8 +35,55 @@ class RequestProvider with ChangeNotifier {
   String? _shift; // null until user selects
   String _halfDayShift = 'First Half';
   String? _selectedLeaveType;
-  Map<String, dynamic>? _leaveBalances;
+  LeaveAllocationModel? _leaveAllocation; // this year's leave for the user
+  double _compOffBalance = 0; // approved comp off credit still available
+  double _compOffEarned = 0; // all comp off credit approved so far
+  double _compOffUsed = 0; // comp off credit taken as leave
   bool _isLoadingBalances = true;
+
+  double get compOffBalance => _compOffBalance;
+  double get compOffEarned => _compOffEarned;
+  double get compOffUsed => _compOffUsed;
+
+  // leaveType -> days held by the user's pending leave requests
+  Map<String, double> _pendingDays = {};
+
+  /// Days a leave request takes: half a day for a half-day shift, otherwise the
+  /// number of days from the first to the last date.
+  double leaveDaysFor(RequestModel request) {
+    final isHalf =
+        request.shift == 'First Half' ||
+        request.shift == 'Second Half' ||
+        request.shift == 'Half Day';
+    if (isHalf) return 0.5;
+    if (request.fromDate == null || request.toDate == null) return 1;
+    return (request.toDate!.difference(request.fromDate!).inDays + 1)
+        .toDouble();
+  }
+
+  /// Days of [leaveType] the employee can still ask for: the approved balance
+  /// minus what pending requests already hold.
+  double availableLeave(String leaveType) {
+    double balance;
+    if (leaveType == AppConstants.leaveTypeCO) {
+      balance = _compOffBalance;
+    } else {
+      final LeaveTypeBalance? type;
+      switch (leaveType) {
+        case AppConstants.leaveTypePL:
+          type = _leaveAllocation?.privilege;
+        case AppConstants.leaveTypeSL:
+          type = _leaveAllocation?.sick;
+        case AppConstants.leaveTypeCL:
+          type = _leaveAllocation?.casual;
+        default:
+          type = null;
+      }
+      balance = type?.balance ?? 0;
+    }
+    final available = balance - (_pendingDays[leaveType] ?? 0);
+    return available < 0 ? 0 : available;
+  }
 
   List<RequestModel> get userRequests => _userRequests;
   List<RequestModel> get allRequests => _allRequests;
@@ -46,7 +98,7 @@ class RequestProvider with ChangeNotifier {
   String? get shift => _shift;
   String get halfDayShift => _halfDayShift;
   String? get selectedLeaveType => _selectedLeaveType;
-  Map<String, dynamic>? get leaveBalances => _leaveBalances;
+  LeaveAllocationModel? get leaveAllocation => _leaveAllocation;
   bool get isLoadingBalances => _isLoadingBalances;
 
   // Initialize apply leave form
@@ -108,9 +160,9 @@ class RequestProvider with ChangeNotifier {
     String? type,
   }) {
     Query query = _firestore
-        .collection(AppConstants.usersCollection)
+        .collection(FirestoreCollections.users)
         .doc(userId)
-        .collection(AppConstants.userRequestsCollection);
+        .collection(FirestoreSubCollections.requests);
 
     // Filter by type if specified
     if (type != null) {
@@ -144,7 +196,7 @@ class RequestProvider with ChangeNotifier {
   // Get real-time stream of all requests (for admin view)
   Stream<List<RequestModel>> getAllRequestsStream({String? type}) {
     Query query = _firestore.collectionGroup(
-      AppConstants.userRequestsCollection,
+      FirestoreSubCollections.requests,
     );
 
     if (type != null) {
@@ -189,9 +241,9 @@ class RequestProvider with ChangeNotifier {
       }
 
       Query query = _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
-          .collection(AppConstants.userRequestsCollection);
+          .collection(FirestoreSubCollections.requests);
 
       if (type != null) {
         query = query.where('type', isEqualTo: type);
@@ -220,7 +272,7 @@ class RequestProvider with ChangeNotifier {
 
     try {
       Query query = _firestore.collectionGroup(
-        AppConstants.userRequestsCollection,
+        FirestoreSubCollections.requests,
       );
 
       if (type != null) {
@@ -250,29 +302,100 @@ class RequestProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Fires whenever something that changes the employee's leave balances
+  /// changes in Firestore: this year's leave document, the comp off credit, or
+  /// any of their requests (an admin approving or rejecting one). The first
+  /// snapshots are skipped, so it only reports later changes.
+  Stream<void> leaveBalanceChanges(String userId) {
+    final controller = StreamController<void>();
+    final subscriptions = <StreamSubscription<dynamic>>[];
+
+    void emit(dynamic _) {
+      if (!controller.isClosed) controller.add(null);
+    }
+
+    final userDoc = _firestore
+        .collection(FirestoreCollections.users)
+        .doc(userId);
+    final leaves = userDoc.collection(FirestoreSubCollections.leaves);
+
+    subscriptions.addAll([
+      leaves
+          .doc(FirestoreDocs.annualLeave(DateTime.now().year))
+          .snapshots()
+          .skip(1)
+          .listen(emit, onError: (_) {}),
+      leaves
+          .doc(FirestoreDocs.compOffBalance)
+          .snapshots()
+          .skip(1)
+          .listen(emit, onError: (_) {}),
+      userDoc
+          .collection(FirestoreSubCollections.requests)
+          .snapshots()
+          .skip(1)
+          .listen(emit, onError: (_) {}),
+    ]);
+
+    controller.onCancel = () async {
+      for (final subscription in subscriptions) {
+        await subscription.cancel();
+      }
+    };
+    return controller.stream;
+  }
+
   // Get user leave balances
-  Future<Map<String, dynamic>?> getUserLeaveBalances(String userId) async {
+  Future<LeaveBalanceModel?> getUserLeaveBalances(String userId) async {
     try {
       _isLoadingBalances = true;
       notifyListeners();
 
+      // Comp off credit (not tied to a year)
+      final compOffDoc = await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(userId)
+          .collection(FirestoreSubCollections.leaves)
+          .doc(FirestoreDocs.compOffBalance)
+          .get();
+      _compOffBalance = ((compOffDoc.data()?['balance'] ?? 0) as num)
+          .toDouble();
+      _compOffEarned = ((compOffDoc.data()?['earned'] ?? 0) as num).toDouble();
+      _compOffUsed = ((compOffDoc.data()?['used'] ?? 0) as num).toDouble();
+
+      // Days already asked for in requests still waiting for a decision. They
+      // are held against the balance, so applying shows the count going down
+      // at once, an approval keeps it down, and a rejection gives it back.
+      final pendingSnap = await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(userId)
+          .collection(FirestoreSubCollections.requests)
+          .where('status', isEqualTo: AppConstants.statusPending)
+          .get();
+      _pendingDays = {};
+      for (final doc in pendingSnap.docs) {
+        final request = RequestModel.fromJson(doc.data());
+        final leaveType = request.additionalData?['leaveType'] as String?;
+        if (request.isLeaveRequest && leaveType != null) {
+          _pendingDays[leaveType] =
+              (_pendingDays[leaveType] ?? 0) + leaveDaysFor(request);
+        }
+      }
+
       final currentYear = DateTime.now().year;
       final leaveDoc = await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(userId)
-          .collection(AppConstants.leavesCollection)
+          .collection(FirestoreSubCollections.leaves)
           .doc(FirestoreDocs.annualLeave(currentYear))
           .get();
 
-      if (leaveDoc.exists) {
-        _leaveBalances = leaveDoc.data();
-        _isLoadingBalances = false;
-        notifyListeners();
-        return leaveDoc.data();
-      }
+      _leaveAllocation = LeaveAllocationModel.tryFromJson(leaveDoc.data());
       _isLoadingBalances = false;
       notifyListeners();
-      return null;
+      return leaveDoc.exists
+          ? LeaveBalanceModel.fromFirestore(leaveDoc.data()!)
+          : null;
     } catch (e) {
       logDebug('Error fetching leave balances: $e');
       _isLoadingBalances = false;
@@ -305,6 +428,73 @@ class RequestProvider with ChangeNotifier {
       AppConstants.leaveRequestNotification,
       "${user.name} has applied for ${leaveType.toUpperCase()} leave from ${_formatDate(fromDate)} to ${_formatDate(toDate)}",
     );
+  }
+
+  /// Asks for comp off credit for a day the employee worked (for example a
+  /// holiday or weekly off). [fromTime] and [toTime] are required for a half
+  /// day. Returns null on success, or a message to show the user.
+  Future<String?> applyCompOff(
+    UserModel user,
+    DateTime workedDate,
+    bool isHalfDay,
+    String reason, {
+    required DateTime compOffDate,
+    TimeOfDay? fromTime,
+    TimeOfDay? toTime,
+  }) async {
+    final day = DateTime(workedDate.year, workedDate.month, workedDate.day);
+    final offDay = DateTime(compOffDate.year, compOffDate.month, compOffDate.day);
+
+    try {
+      // One request per worked day (a rejected one may be filed again)
+      final existing = await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(user.id)
+          .collection(FirestoreSubCollections.requests)
+          .where('type', isEqualTo: AppConstants.requestTypeCompOff)
+          .get();
+      final duplicate = existing.docs
+          .map((doc) => RequestModel.fromJson(doc.data()))
+          .any(
+            (r) =>
+                r.status != AppConstants.statusRejected &&
+                r.date != null &&
+                r.date!.year == day.year &&
+                r.date!.month == day.month &&
+                r.date!.day == day.day,
+          );
+      if (duplicate) {
+        return 'You have already applied for comp off for this date';
+      }
+    } catch (e) {
+      logDebug('Error checking existing comp off requests: $e');
+    }
+
+    String hhmm(TimeOfDay t) =>
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+    final success = await _applyRequest(
+      RequestModel.compOff(
+        id: const Uuid().v4(),
+        userId: user.id,
+        userName: user.name,
+        date: day,
+        shift: isHalfDay ? 'Half Day' : 'Full Day',
+        reason: reason,
+        appliedOn: DateTime.now(),
+        additionalData: {
+          'days': isHalfDay ? 0.5 : 1,
+          // The day off asked for in return (shown on the calendar once approved)
+          'compOffDate': offDay.toIso8601String(),
+          if (isHalfDay && fromTime != null) 'fromTime': hhmm(fromTime),
+          if (isHalfDay && toTime != null) 'toTime': hhmm(toTime),
+        },
+      ),
+      AppConstants.compOffRequestNotification,
+      "${user.name} has applied for ${isHalfDay ? 'half day' : 'full day'} comp off (worked ${_formatDate(day)}, off on ${_formatDate(offDay)})",
+    );
+
+    return success ? null : 'Failed to submit comp off request. Please try again.';
   }
 
   // Apply WFH request
@@ -351,6 +541,26 @@ class RequestProvider with ChangeNotifier {
     );
   }
 
+  // Ids of everyone who can decide a request: all admins, plus sub admins who
+  // were given the "approve leave requests" permission.
+  Future<List<String>> _requestApproverIds() async {
+    final ids = <String>{};
+    final users = _firestore.collection(FirestoreCollections.users);
+
+    final admins = await users.where('isAdmin', isEqualTo: true).get();
+    ids.addAll(admins.docs.map((d) => d.id));
+
+    final subAdmins = await users.where('isSubAdmin', isEqualTo: true).get();
+    for (final doc in subAdmins.docs) {
+      final granted = doc.data()[Permissions.field];
+      if (granted is List && granted.contains(Permissions.leaveRequests)) {
+        ids.add(doc.id);
+      }
+    }
+
+    return ids.toList();
+  }
+
   // Generic method to apply any type of request
   Future<bool> _applyRequest(
     RequestModel request,
@@ -367,9 +577,9 @@ class RequestProvider with ChangeNotifier {
 
       // Save to user's requests subcollection
       await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(request.userId)
-          .collection(AppConstants.userRequestsCollection)
+          .collection(FirestoreSubCollections.requests)
           .doc(request.id)
           .set(request.toJson());
 
@@ -377,20 +587,15 @@ class RequestProvider with ChangeNotifier {
         '${request.type} request saved to Firestore with ID: ${request.id}',
       );
 
-      // Fetch admins to notify
-      QuerySnapshot adminSnapshot = await _firestore
-          .collection(AppConstants.usersCollection)
-          .where('isAdmin', isEqualTo: true)
-          .get();
+      // Admins and sub admins allowed to approve requests are notified
+      final approverIds = await _requestApproverIds();
 
       logDebug(
-        'Found ${adminSnapshot.docs.length} admin users to notify about ${request.type} request',
+        'Found ${approverIds.length} approvers to notify about ${request.type} request',
       );
 
-      // Send notification to all admins
-      for (var adminDoc in adminSnapshot.docs) {
-        String adminId = adminDoc.id;
-        logDebug('Preparing to notify admin: $adminId');
+      for (final adminId in approverIds) {
+        logDebug('Preparing to notify approver: $adminId');
 
         try {
           Map<String, dynamic> notificationData = {
@@ -409,7 +614,7 @@ class RequestProvider with ChangeNotifier {
                 .toString();
             notificationData['toDate'] = request.toDate?.millisecondsSinceEpoch
                 .toString();
-          } else if (request.isBreakRequest) {
+          } else if (request.isBreakRequest || request.isCompOffRequest) {
             notificationData['date'] = request.date?.millisecondsSinceEpoch
                 .toString();
           }
@@ -464,15 +669,20 @@ class RequestProvider with ChangeNotifier {
 
       // Update in user's requests subcollection
       await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(request.userId)
-          .collection(AppConstants.userRequestsCollection)
+          .collection(FirestoreSubCollections.requests)
           .doc(request.id)
           .update({'status': status, 'adminRemark': remark});
 
       // If leave request is approved, deduct from balance
       if (status == AppConstants.statusApproved && request.isLeaveRequest) {
         await _deductLeaveBalance(request);
+      }
+
+      // An approved comp off request adds credit the employee can take as leave
+      if (status == AppConstants.statusApproved && request.isCompOffRequest) {
+        await _creditCompOff(request);
       }
 
       logDebug('Request status updated in Firestore');
@@ -522,6 +732,34 @@ class RequestProvider with ChangeNotifier {
         logDebug('Error sending notification: $e');
       }
 
+      // A decided leave / WFH request changes the employee's monthly summary.
+      // Best effort: a sub admin without attendance access just skips it, and
+      // the history screen rebuilds the month when the employee opens it.
+      // A comp off marks the day off that was asked for.
+      final summaryFrom = request.isCompOffRequest
+          ? request.compOffDate
+          : request.fromDate;
+      final summaryTo = request.isCompOffRequest
+          ? request.compOffDate
+          : request.toDate;
+      if ((request.isLeaveRequest ||
+              request.isWFHRequest ||
+              request.isCompOffRequest) &&
+          summaryFrom != null &&
+          summaryTo != null) {
+        unawaited(() async {
+          try {
+            await AttendanceSummaryService().rebuildMonthsBetween(
+              request.userId,
+              summaryFrom,
+              summaryTo,
+            );
+          } catch (e) {
+            logDebug('Could not update attendance summary: $e');
+          }
+        }());
+      }
+
       _isLoading = false;
       notifyListeners();
       return true;
@@ -548,9 +786,9 @@ class RequestProvider with ChangeNotifier {
 
       // Delete from user's requests subcollection
       await _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(request.userId)
-          .collection(AppConstants.userRequestsCollection)
+          .collection(FirestoreSubCollections.requests)
           .doc(request.id)
           .delete();
 
@@ -601,12 +839,67 @@ class RequestProvider with ChangeNotifier {
     }
   }
 
+  DocumentReference<Map<String, dynamic>> _compOffRef(String userId) =>
+      _firestore
+          .collection(FirestoreCollections.users)
+          .doc(userId)
+          .collection(FirestoreSubCollections.leaves)
+          .doc(FirestoreDocs.compOffBalance);
+
+  // Adds the approved comp off days to the employee's credit
+  Future<void> _creditCompOff(RequestModel request) async {
+    try {
+      final days = request.compOffDays;
+      // A request that names its day off is taken at once: the credit is
+      // earned and used, so the balance does not change
+      final takenAtOnce = request.compOffDate != null;
+      await _compOffRef(request.userId).set({
+        'earned': FieldValue.increment(days),
+        if (takenAtOnce)
+          'used': FieldValue.increment(days)
+        else
+          'balance': FieldValue.increment(days),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      logDebug('Comp off credited: $days day(s) for ${request.userId}');
+    } catch (e) {
+      logDebug('Error crediting comp off: $e');
+    }
+  }
+
+  // Takes the approved comp off leave days out of the employee's credit
+  Future<void> _useCompOff(RequestModel request) async {
+    try {
+      final isHalf =
+          request.shift == 'First Half' || request.shift == 'Second Half';
+      final days = isHalf
+          ? 0.5
+          : (request.toDate!.difference(request.fromDate!).inDays + 1)
+                .toDouble();
+
+      await _compOffRef(request.userId).set({
+        'used': FieldValue.increment(days),
+        'balance': FieldValue.increment(-days),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      logDebug('Comp off used: $days day(s) by ${request.userId}');
+    } catch (e) {
+      logDebug('Error using comp off: $e');
+    }
+  }
+
   Future<void> _deductLeaveBalance(RequestModel request) async {
     try {
       // Get leave type from additional data
       final leaveType = request.additionalData?['leaveType'] as String?;
       if (leaveType == null) {
         logDebug('Leave type not found in request additional data');
+        return;
+      }
+
+      // Comp off is taken from the earned credit, not from the yearly balance
+      if (leaveType == AppConstants.leaveTypeCO) {
+        await _useCompOff(request);
         return;
       }
 
@@ -623,9 +916,9 @@ class RequestProvider with ChangeNotifier {
 
       final currentYear = DateTime.now().year;
       final leaveRef = _firestore
-          .collection(AppConstants.usersCollection)
+          .collection(FirestoreCollections.users)
           .doc(request.userId)
-          .collection(AppConstants.leavesCollection)
+          .collection(FirestoreSubCollections.leaves)
           .doc(FirestoreDocs.annualLeave(currentYear));
 
       await _firestore.runTransaction((transaction) async {

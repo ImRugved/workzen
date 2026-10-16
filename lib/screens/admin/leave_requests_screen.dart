@@ -3,10 +3,14 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:workzen/app_constants.dart';
 import 'package:provider/provider.dart';
 import '../../models/request_model.dart';
+import '../../providers/request_filter_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/request_card.dart';
+import '../../widgets/requests_data_table.dart';
 import '../../constants/const_textstyle.dart';
+import '../../constants/permissions.dart';
+import '../../constants/constant_dropdown.dart';
+import '../../constants/apploading_indicator.dart';
 
 class LeaveRequestsScreen extends StatefulWidget {
   const LeaveRequestsScreen({Key? key}) : super(key: key);
@@ -16,13 +20,15 @@ class LeaveRequestsScreen extends StatefulWidget {
 }
 
 class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
-  Stream<List<RequestModel>>? _requestsStream;
   bool _isInitialized = false;
 
-  // Search and filter state
+  // Stream, search and status filter live in this scoped provider; the State
+  // only owns it and the search text controller.
+  final RequestFilterProvider _filter = RequestFilterProvider();
   final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-  String _selectedStatus = 'All'; // Default filter
+  // CO covers leave taken from comp off and requests to earn it
+  final List<String> _leaveTypeFilters = AppConstants.leaveFilterLabels.keys
+      .toList();
   final List<String> _statusFilters = [
     'All',
     'Pending',
@@ -33,11 +39,9 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(() {
-      setState(() {
-        _searchQuery = _searchController.text.toLowerCase();
-      });
-    });
+    _searchController.addListener(
+      () => _filter.setSearch(_searchController.text),
+    );
   }
 
   @override
@@ -57,30 +61,44 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
         context,
         listen: false,
       );
-      setState(() {
-        _requestsStream = requestProvider.getAllRequestsStream(
-          type: AppConstants.requestTypeLeave,
-        );
-      });
+      // Leave and comp off requests, newest first
+      _filter.setStream(
+        requestProvider.getAllRequestsStream().map(
+          (requests) => requests
+              .where((r) => r.isLeaveRequest || r.isCompOffRequest)
+              .toList(),
+        ),
+      );
     }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _filter.dispose();
     super.dispose();
   }
 
   // Filter requests based on search query and status
-  List<RequestModel> _filterRequests(List<RequestModel> requests) {
+  List<RequestModel> _filterRequests(
+    RequestFilterProvider filter,
+    List<RequestModel> requests,
+  ) {
     var filteredRequests = requests;
 
+    // Filter by leave type
+    filteredRequests = filteredRequests
+        .where(
+          (request) => request.matchesLeaveTypeFilter(filter.selectedLeaveType),
+        )
+        .toList();
+
     // Filter by status
-    if (_selectedStatus != 'All') {
+    if (filter.selectedStatus != 'All') {
       String statusConstant;
-      if (_selectedStatus == 'Pending') {
+      if (filter.selectedStatus == 'Pending') {
         statusConstant = AppConstants.statusPending;
-      } else if (_selectedStatus == 'Approved') {
+      } else if (filter.selectedStatus == 'Approved') {
         statusConstant = AppConstants.statusApproved;
       } else {
         statusConstant = AppConstants.statusRejected;
@@ -92,10 +110,11 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
     }
 
     // Filter by search query (employee name)
-    if (_searchQuery.isNotEmpty) {
+    if (filter.searchQuery.isNotEmpty) {
       filteredRequests = filteredRequests
           .where(
-            (request) => request.userName.toLowerCase().contains(_searchQuery),
+            (request) =>
+                request.userName.toLowerCase().contains(filter.searchQuery),
           )
           .toList();
     }
@@ -103,8 +122,36 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
     return filteredRequests;
   }
 
+  Widget _filterDropdown({
+    required String label,
+    required String value,
+    required List<String> options,
+    required ValueChanged<String> onChanged,
+    Map<String, String> labels = const {},
+  }) {
+    return ConstantDropdown<String>(
+      value: value,
+      label: label,
+      isDense: true,
+      items: options,
+      itemLabel: (o) => labels[o] ?? o,
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: _filter,
+      child: Consumer<RequestFilterProvider>(
+        builder: (context, filter, _) => _buildScreen(context, filter),
+      ),
+    );
+  }
+
+  Widget _buildScreen(BuildContext context, RequestFilterProvider filter) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -120,8 +167,8 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
           ),
         ],
       ),
-      body: _requestsStream == null
-          ? const Center(child: CircularProgressIndicator())
+      body: filter.stream == null
+          ? const Center(child: AppLoadingIndicator(size: 40))
           : Column(
               children: [
                 // Search bar
@@ -132,7 +179,7 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
                     decoration: InputDecoration(
                       hintText: 'Search by employee name...',
                       prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchQuery.isNotEmpty
+                      suffixIcon: filter.searchQuery.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear),
                               onPressed: () {
@@ -149,44 +196,30 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
                   ),
                 ),
 
-                // Status filter chips
+                // Status and leave type filters
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16.w),
-                  child: SizedBox(
-                    height: 50.h,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _statusFilters.length,
-                      itemBuilder: (context, index) {
-                        final status = _statusFilters[index];
-                        final isSelected = _selectedStatus == status;
-
-                        return Padding(
-                          padding: EdgeInsets.only(right: 8.w),
-                          child: FilterChip(
-                            label: Text(status),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              setState(() {
-                                _selectedStatus = status;
-                              });
-                            },
-                            selectedColor: Theme.of(
-                              context,
-                            ).primaryColor.withOpacity(0.2),
-                            checkmarkColor: Theme.of(context).primaryColor,
-                            labelStyle: getTextTheme().bodyMedium?.copyWith(
-                              color: isSelected
-                                  ? Theme.of(context).primaryColor
-                                  : Colors.black87,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _filterDropdown(
+                          label: 'Status',
+                          value: filter.selectedStatus,
+                          options: _statusFilters,
+                          onChanged: filter.setStatus,
+                        ),
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: _filterDropdown(
+                          label: 'Type',
+                          value: filter.selectedLeaveType,
+                          options: _leaveTypeFilters,
+                          labels: AppConstants.leaveFilterLabels,
+                          onChanged: filter.setLeaveType,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -195,10 +228,12 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
                 // Requests list
                 Expanded(
                   child: StreamBuilder<List<RequestModel>>(
-                    stream: _requestsStream,
+                    stream: filter.stream,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
+                        return const Center(
+                          child: AppLoadingIndicator(size: 40),
+                        );
                       }
 
                       if (snapshot.hasError) {
@@ -235,7 +270,10 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
                       }
 
                       final allRequests = snapshot.data!;
-                      final filteredRequests = _filterRequests(allRequests);
+                      final filteredRequests = _filterRequests(
+                        filter,
+                        allRequests,
+                      );
 
                       if (filteredRequests.isEmpty) {
                         return Center(
@@ -259,21 +297,13 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
                         );
                       }
 
-                      return ListView.builder(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 16.w,
-                          vertical: 8.h,
+                      // Admins and sub admins with the "approve leave
+                      // requests" permission can approve or reject
+                      return RequestsDataTable(
+                        requests: filteredRequests,
+                        canApproveReject: context.read<AuthProvider>().can(
+                          Permissions.leaveRequests,
                         ),
-                        itemCount: filteredRequests.length,
-                        itemBuilder: (context, index) {
-                          final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                          final isSubAdmin = authProvider.userModel?.isSubAdmin == true;
-                          return RequestCard(
-                            request: filteredRequests[index],
-                            isAdmin: true,
-                            canApproveReject: !isSubAdmin,
-                          );
-                        },
                       );
                     },
                   ),
