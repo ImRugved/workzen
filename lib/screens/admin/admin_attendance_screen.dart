@@ -1,23 +1,23 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:open_file/open_file.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../models/attendance_model.dart';
+import '../../models/office_hours_model.dart';
 import '../../providers/admin_attendance_filter_provider.dart';
 import '../../providers/attendance_provider.dart';
+import '../../providers/organization_provider.dart';
 import '../../providers/user_provider.dart';
+import '../../services/attendance_export_service.dart';
+import '../../services/attendance_report_service.dart';
+import '../../widgets/attendance_filter_sheet.dart';
 import '../../app_constants.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/constant_snackbar.dart';
 import '../../constants/constant_button.dart';
-import '../../constants/constant_dropdown.dart';
-import '../../constants/constant_date_time_picker.dart';
 import '../../constants/constant_colors.dart';
 import '../../constants/apploading_indicator.dart';
 import '../../constants/app_theme.dart';
@@ -42,6 +42,8 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeStream();
       _loadEmployees();
+      // Live office hours, needed for the extra hours column
+      context.read<OrganizationProvider>().start();
     });
   }
 
@@ -74,141 +76,211 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     _filter.setStream(attendanceProvider.getAllAttendanceStream());
   }
 
-  Future<void> _generatePdf(List<AttendanceModel> attendanceList) async {
-    _filter.setLoading(true);
-    final selectedDate = _filter.selectedDate;
+  // Time worked after the office end time ("1h 0m"), or "-" when there is none
+  // or no office hours are set
+  String _extraText(OfficeHoursModel? hours, AttendanceModel attendance) {
+    final out = attendance.punchOutTime;
+    if (hours == null || out == null) return '-';
+    final extra = hours.extraAfterEnd(out);
+    return extra == Duration.zero
+        ? '-'
+        : '${extra.inHours}h ${extra.inMinutes.remainder(60)}m';
+  }
 
-    try {
-      final pdf = pw.Document();
+  // Opens the filter sheet and applies what was chosen
+  Future<void> _openFilterSheet() async {
+    final selection = await AttendanceFilterSheet.show(
+      context,
+      employees: _filter.employees,
+      employeeId: _filter.selectedEmployeeId,
+      period: _filter.period,
+      customRange: _filter.customRange,
+    );
+    if (selection == null) return;
+    _filter.apply(
+      employeeId: selection.employeeId,
+      period: selection.period,
+      customRange: selection.customRange,
+    );
+  }
 
-      // Add title and date
-      pdf.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.symmetric(horizontal: 32, vertical: 32),
-          build: (pw.Context context) {
-            return [
-              pw.Header(
-                level: 0,
-                child: pw.Text(
-                  'Attendance Report',
-                  style: pw.TextStyle(
-                    fontSize: 20,
-                    fontWeight: pw.FontWeight.bold,
+  // Export options: PDF or Excel, for what the filter shows
+  Future<void> _showExportOptions() async {
+    final format = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40.w,
+                  height: 4.h,
+                  decoration: BoxDecoration(
+                    color: ConstColors.borderColor,
+                    borderRadius: BorderRadius.circular(2.r),
                   ),
                 ),
               ),
-              pw.SizedBox(height: 10),
-              pw.Text(
-                'Date: ${DateFormat('dd MMM yyyy').format(selectedDate)}',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
+              SizedBox(height: 12.h),
+              Text(
+                'Export attendance',
+                style: getTextTheme().titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: ConstColors.textColor,
                 ),
               ),
-              pw.SizedBox(height: 20),
-
-              // Create table
-              pw.Table.fromTextArray(
-                border: null,
-                headerDecoration: pw.BoxDecoration(color: PdfColors.blue300),
-                headerHeight: 30,
-                cellHeight: 30,
-                cellAlignments: {
-                  0: pw.Alignment.centerLeft,
-                  1: pw.Alignment.centerLeft,
-                  2: pw.Alignment.center,
-                  3: pw.Alignment.center,
-                  4: pw.Alignment.center,
-                },
-                headerStyle: pw.TextStyle(
-                  color: PdfColors.white,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-                cellStyle: const pw.TextStyle(fontSize: 10),
-                headers: [
-                  'Employee Name',
-                  'Status',
-                  'Punch In',
-                  'Punch Out',
-                  'Duration',
-                ],
-                data: attendanceList.map((attendance) {
-                  String duration = '';
-                  if (attendance.punchInTime != null &&
-                      attendance.punchOutTime != null) {
-                    final difference = attendance.punchOutTime!.difference(
-                      attendance.punchInTime!,
-                    );
-                    final hours = difference.inHours;
-                    final minutes = difference.inMinutes.remainder(60);
-                    duration = '$hours hrs $minutes mins';
-                  }
-
-                  return [
-                    attendance.userName,
-                    _getStatusText(attendance),
-                    attendance.punchInTime != null
-                        ? DateFormat('hh:mm a').format(attendance.punchInTime!)
-                        : '-',
-                    attendance.punchOutTime != null
-                        ? DateFormat('hh:mm a').format(attendance.punchOutTime!)
-                        : '-',
-                    duration.isNotEmpty ? duration : '-',
-                  ];
-                }).toList(),
-              ),
-
-              pw.SizedBox(height: 20),
-              pw.Text(
-                'Summary:',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
+              SizedBox(height: 2.h),
+              Text(
+                _filter.summaryText,
+                style: getTextTheme().bodySmall?.copyWith(
+                  color: ConstColors.textColorLight,
                 ),
               ),
-              pw.SizedBox(height: 10),
-
-              // Add summary statistics
-              pw.Bullet(text: 'Total Employees: ${attendanceList.length}'),
-              pw.Bullet(
-                text:
-                    'Present: ${attendanceList.where((a) => a.status == AppConstants.statusPresent && a.punchInTime != null && a.punchOutTime != null).length}',
+              SizedBox(height: 12.h),
+              _exportOption(
+                sheetContext,
+                icon: Icons.picture_as_pdf_outlined,
+                title: 'Export as PDF',
+                subtitle: 'Summary and the day by day table',
+                value: 'pdf',
               ),
-              pw.Bullet(
-                text:
-                    'In Progress: ${attendanceList.where((a) => a.status == AppConstants.statusPending && a.punchInTime != null && a.punchOutTime == null).length}',
+              SizedBox(height: 8.h),
+              _exportOption(
+                sheetContext,
+                icon: Icons.table_chart_outlined,
+                title: 'Export as Excel sheet',
+                subtitle: 'Summary and Attendance sheets (.xlsx)',
+                value: 'excel',
               ),
-              pw.Bullet(
-                text:
-                    'Absent: ${attendanceList.where((a) => a.status == AppConstants.statusAbsent).length}',
-              ),
-              pw.Bullet(
-                text:
-                    'Half-day: ${attendanceList.where((a) => a.status == AppConstants.statusHalfDay).length}',
-              ),
-              pw.Bullet(
-                text:
-                    'On Leave: ${attendanceList.where((a) => a.status == AppConstants.statusOnLeave).length}',
-              ),
-            ];
-          },
+              SizedBox(height: 8.h),
+            ],
+          ),
         ),
+      ),
+    );
+    if (format != null) await _export(format);
+  }
+
+  Widget _exportOption(
+    BuildContext sheetContext, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String value,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14.r),
+      onTap: () => Navigator.pop(sheetContext, value),
+      child: Ink(
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+        decoration: BoxDecoration(
+          color: ConstColors.lightShade,
+          borderRadius: BorderRadius.circular(14.r),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40.r,
+              height: 40.r,
+              decoration: const BoxDecoration(
+                color: ConstColors.cardBackground,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 22.r, color: ConstColors.primaryDeep),
+            ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: getTextTheme().bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: ConstColors.textColor,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: getTextTheme().bodySmall?.copyWith(
+                      color: ConstColors.textColorLight,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              size: 22.r,
+              color: ConstColors.textColorLight,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Builds the report for the current filter (every employee, or the chosen
+  // one, over the chosen dates) and writes it in the chosen format
+  Future<void> _export(String format) async {
+    final employees = _filter.selectedEmployee != null
+        ? [_filter.selectedEmployee!]
+        : _filter.employees;
+    if (employees.isEmpty) {
+      ConstantSnackbar.showError(title: 'No employees to export');
+      return;
+    }
+
+    _filter.setLoading(true);
+    try {
+      final report = await AttendanceReportService().build(
+        employees: employees,
+        range: _filter.range,
+        employeeLabel: _filter.selectedEmployee?.name ?? 'All employees',
       );
 
-      // Save the PDF
-      final output = await getTemporaryDirectory();
-      final file = File(
-        '${output.path}/attendance_report_${DateFormat('dd_MM_yyyy').format(selectedDate)}.pdf',
+      if (report.rows.isEmpty) {
+        ConstantSnackbar.show(
+          title: 'No attendance records for this filter',
+          backgroundColor: ConstColors.inProgressOrange,
+        );
+        return;
+      }
+
+      final exporter = AttendanceExportService();
+      if (format == 'pdf') {
+        final file = await exporter.toPdf(report);
+        await OpenFile.open(file.path);
+      } else {
+        // Opening an .xlsx directly hands it to whichever app the phone picks
+        // (some phones pick an unrelated one), so the share sheet is used: the
+        // admin chooses Excel, Sheets, Drive, mail or Save to device
+        final file = await exporter.toExcel(report);
+        await SharePlus.instance.share(
+          ShareParams(
+            title: 'Attendance report',
+            subject: 'Attendance report',
+            files: [
+              XFile(
+                file.path,
+                mimeType:
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              ),
+            ],
+          ),
+        );
+      }
+
+      ConstantSnackbar.showSuccess(
+        title: '${format == 'pdf' ? 'PDF' : 'Excel sheet'} exported',
       );
-      await file.writeAsBytes(await pdf.save());
-
-      // Open the PDF
-      await OpenFile.open(file.path);
-
-      ConstantSnackbar.showSuccess(title: 'PDF generated successfully');
     } catch (e) {
-      ConstantSnackbar.showError(title: 'Error generating PDF: $e');
+      logDebug('Error exporting attendance: $e');
+      ConstantSnackbar.showError(title: 'Error exporting attendance');
     } finally {
       if (mounted) _filter.setLoading(false);
     }
@@ -237,6 +309,17 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
           ),
         ),
         actions: [
+          // A dot shows when something other than "Today, all employees" is on
+          IconButton(
+            icon: Badge(
+              isLabelVisible: filter.isFiltered,
+              smallSize: 8.r,
+              backgroundColor: ConstColors.errorRed,
+              child: Icon(Icons.filter_list, size: 24.r),
+            ),
+            onPressed: _openFilterSheet,
+            tooltip: 'Filter',
+          ),
           IconButton(
             icon: Icon(Icons.refresh, size: 24.r),
             onPressed: _initializeStream,
@@ -246,66 +329,33 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       ),
       body: Column(
         children: [
-          // Filter section
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
-            decoration: BoxDecoration(
-              color: ConstColors.cardBackground,
-              boxShadow: [
-                BoxShadow(
-                  color: ConstColors.neuShadowDark,
-                  spreadRadius: 1,
-                  blurRadius: 2,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Filter Attendance',
-                  style: getTextTheme().titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+          // What the filter currently shows; tap to change it
+          InkWell(
+            onTap: _openFilterSheet,
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+              color: ConstColors.lightShade,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.filter_list,
+                    size: 18.r,
+                    color: ConstColors.primaryDeep,
                   ),
-                ),
-                SizedBox(height: 16.h),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ConstantDatePicker(
-                        value: filter.selectedDate,
-                        format: 'dd MMM yyyy',
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now(),
-                        isDense: true,
-                        onChanged: (picked) {
-                          if (picked != filter.selectedDate) {
-                            _filter.setSelectedDate(picked);
-                          }
-                        },
+                  SizedBox(width: 8.w),
+                  Expanded(
+                    child: Text(
+                      filter.summaryText,
+                      overflow: TextOverflow.ellipsis,
+                      style: getTextTheme().bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: ConstColors.textColor,
                       ),
                     ),
-                    SizedBox(width: 16.w),
-                    Expanded(
-                      // An empty id stands for "All Employees"
-                      child: ConstantDropdown<String>(
-                        value: filter.selectedEmployeeId ?? '',
-                        isDense: true,
-                        items: ['', ...filter.employees.map((e) => e.id)],
-                        itemLabel: (id) => id.isEmpty
-                            ? 'All Employees'
-                            : filter.employees
-                                  .firstWhere((e) => e.id == id)
-                                  .name,
-                        onChanged: (id) => filter.setSelectedEmployee(
-                          id == null || id.isEmpty ? null : id,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -383,24 +433,29 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          'No attendance records for this date',
+                          filter.isSingleDay
+                              ? 'No attendance records for this date'
+                              : 'No attendance records for this filter',
                           style: getTextTheme().bodyMedium,
                         ),
-                        SizedBox(height: 16.h),
-                        ConstantButton(
-                          text: 'Mark All Absent',
-                          onPressed: () {
-                            // Mark all employees as absent for this date
-                            _markAbsentEmployees();
-                          },
-                          icon: Icon(
-                            Icons.person_off,
-                            size: 20.r,
-                            color: ConstColors.white,
+                        // Marking everyone absent only makes sense for one day
+                        if (filter.isSingleDay) ...[
+                          SizedBox(height: 16.h),
+                          ConstantButton(
+                            text: 'Mark All Absent',
+                            onPressed: () {
+                              // Mark all employees as absent for this date
+                              _markAbsentEmployees();
+                            },
+                            icon: Icon(
+                              Icons.person_off,
+                              size: 20.r,
+                              color: ConstColors.white,
+                            ),
+                            isFullWidth: false,
+                            backgroundColor: ConstColors.errorRed,
                           ),
-                          isFullWidth: false,
-                          backgroundColor: ConstColors.errorRed,
-                        ),
+                        ],
                       ],
                     ),
                   );
@@ -411,6 +466,9 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                   for (final e in filter.employees) e.id: e,
                 };
                 final timeFormat = DateFormat('hh:mm a');
+                final officeHours = context
+                    .watch<OrganizationProvider>()
+                    .officeHours;
 
                 return Stack(
                   children: [
@@ -424,26 +482,39 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                             ConstColors.primary.withValues(alpha: 0.1),
                           ),
                           columns: const [
-                            DataColumn(label: Text('Employee')),
+                            DataColumn(label: Text('Date')),
+                            DataColumn(label: Text('Name')),
                             DataColumn(label: Text('Emp ID')),
                             DataColumn(label: Text('Department')),
                             DataColumn(label: Text('Status')),
                             DataColumn(label: Text('Punch In')),
                             DataColumn(label: Text('Punch Out')),
-                            DataColumn(label: Text('Hours')),
+                            DataColumn(label: Text('Break')),
+                            DataColumn(label: Text(' Working Hours')),
+                            DataColumn(label: Text('Extra Hrs')),
                           ],
                           rows: filteredAttendance.map((attendance) {
                             final employee = employeesById[attendance.userId];
+                            // Break time is taken off the hours worked
+                            final breakTime = attendance.breakDuration();
                             final worked =
                                 attendance.punchInTime != null &&
                                     attendance.punchOutTime != null
                                 ? attendance.punchOutTime!.difference(
-                                    attendance.punchInTime!,
-                                  )
+                                        attendance.punchInTime!,
+                                      ) -
+                                      breakTime
                                 : null;
 
                             return DataRow(
                               cells: [
+                                DataCell(
+                                  Text(
+                                    DateFormat(
+                                      'dd MMM yyyy',
+                                    ).format(attendance.date),
+                                  ),
+                                ),
                                 DataCell(
                                   Text(
                                     attendance.userName,
@@ -460,6 +531,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                                     hasPunchIn: attendance.punchInTime != null,
                                     hasPunchOut:
                                         attendance.punchOutTime != null,
+                                    halfDayLeave: attendance.halfDayLeave,
                                   ),
                                 ),
                                 DataCell(
@@ -480,12 +552,23 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
                                         : '-',
                                   ),
                                 ),
+                                // "-" when no break was taken
+                                DataCell(
+                                  Text(
+                                    attendance.breaks.isEmpty
+                                        ? '-'
+                                        : '${breakTime.inMinutes} min',
+                                  ),
+                                ),
                                 DataCell(
                                   Text(
                                     worked == null
                                         ? '-'
                                         : '${worked.inHours}h ${worked.inMinutes.remainder(60)}m',
                                   ),
+                                ),
+                                DataCell(
+                                  Text(_extraText(officeHours, attendance)),
                                 ),
                               ],
                             );
@@ -511,18 +594,18 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          final attendanceProvider = Provider.of<AttendanceProvider>(
-            context,
-            listen: false,
-          );
-          attendanceProvider.getAllAttendance().then((attendanceList) {
-            final filteredAttendance = filter.filter(attendanceList);
-            _generatePdf(filteredAttendance);
-          });
-        },
-        icon: Icon(Icons.download, size: 20.r),
-        label: Text('Export PDF', style: getTextTheme().labelLarge),
+        // Opens the PDF / Excel choice; busy while a report is being built
+        onPressed: filter.isLoading ? null : _showExportOptions,
+        icon: Icon(Icons.download, size: 20.r, color: ConstColors.textColor),
+        // The text style sets its own colour, so black is set here explicitly
+        // to stay readable on the soft blue button
+        label: Text(
+          'Export',
+          style: getTextTheme().labelLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: ConstColors.textColor,
+          ),
+        ),
         backgroundColor: ConstColors.primary,
         foregroundColor: ConstColors.textColor,
       ),
@@ -580,7 +663,19 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     String status, {
     bool hasPunchIn = false,
     bool hasPunchOut = false,
+    String? halfDayLeave,
   }) {
+    // A half day leave: the other half was worked, so say which half was off
+    if (halfDayLeave != null) {
+      return Text(
+        'HALF DAY (${halfDayLeave == 'Second Half' ? '2ND' : '1ST'} HALF LEAVE)',
+        style: getTextTheme().labelSmall?.copyWith(
+          color: ConstColors.inProgressOrange,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+    }
+
     // For pending status (punched in but not punched out), show a special indicator
     if (status.toLowerCase() == AppConstants.statusPending &&
         hasPunchIn &&
@@ -636,23 +731,4 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     );
   }
 
-  String _getStatusText(AttendanceModel attendance) {
-    if (attendance.status.toLowerCase() == AppConstants.statusPending &&
-        attendance.punchInTime != null &&
-        attendance.punchOutTime == null) {
-      return 'IN PROGRESS';
-    } else if (attendance.status.toLowerCase() == AppConstants.statusPresent &&
-        attendance.punchInTime != null &&
-        attendance.punchOutTime != null) {
-      return 'PRESENT';
-    } else if (attendance.status.toLowerCase() == AppConstants.statusAbsent) {
-      return 'ABSENT';
-    } else if (attendance.status.toLowerCase() == AppConstants.statusHalfDay) {
-      return 'HALF-DAY';
-    } else if (attendance.status.toLowerCase() == AppConstants.statusOnLeave) {
-      return 'ON LEAVE';
-    } else {
-      return 'INCOMPLETE';
-    }
-  }
 }

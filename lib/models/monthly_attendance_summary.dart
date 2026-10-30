@@ -17,6 +17,17 @@ class DaySummary {
   /// later change of office hours does not rewrite past days.
   final String? punchStatus;
 
+  /// Total break time of the day, in minutes (0 when no break was taken).
+  final int breakMinutes;
+
+  /// Minutes worked after the office end time (0 when none, or when no office
+  /// hours were set). Kept so a later change of office hours does not rewrite
+  /// past days.
+  final int extraMinutes;
+
+  /// Leave code of a leave day (pl, sl, cl, co), null for other days.
+  final String? leaveType;
+
   const DaySummary({
     required this.day,
     required this.status,
@@ -24,12 +35,33 @@ class DaySummary {
     this.punchIn,
     this.punchOut,
     this.punchStatus,
+    this.breakMinutes = 0,
+    this.extraMinutes = 0,
+    this.leaveType,
   });
 
-  /// Time between punch in and punch out, or null.
-  Duration? get worked => (punchIn != null && punchOut != null)
-      ? punchOut!.difference(punchIn!)
-      : null;
+  /// Extra time to show, null on a holiday or when there was none.
+  Duration? get shownExtra => (status == 'holiday' || extraMinutes <= 0)
+      ? null
+      : Duration(minutes: extraMinutes);
+
+  /// Break time to show, null on a holiday or when there was none.
+  Duration? get shownBreak => (status == 'holiday' || breakMinutes <= 0)
+      ? null
+      : Duration(minutes: breakMinutes);
+
+  /// Punch times to show. A holiday is a day off, so no times are shown for
+  /// it even if there is a punch record.
+  DateTime? get shownPunchIn => status == 'holiday' ? null : punchIn;
+  DateTime? get shownPunchOut => status == 'holiday' ? null : punchOut;
+
+  /// Time between punch in and punch out minus the breaks, or null.
+  Duration? get worked {
+    if (shownPunchIn == null || shownPunchOut == null) return null;
+    final total = shownPunchOut!.difference(shownPunchIn!);
+    final net = total - (shownBreak ?? Duration.zero);
+    return net.isNegative ? Duration.zero : net;
+  }
 
   factory DaySummary.fromJson(int day, Map<String, dynamic> json) {
     DateTime? ts(dynamic v) => v is Timestamp ? v.toDate() : null;
@@ -40,6 +72,9 @@ class DaySummary {
       punchIn: ts(json['punchIn']),
       punchOut: ts(json['punchOut']),
       punchStatus: json['punchStatus'],
+      breakMinutes: (json['breakMinutes'] as num?)?.toInt() ?? 0,
+      extraMinutes: (json['extraMinutes'] as num?)?.toInt() ?? 0,
+      leaveType: json['leaveType'] as String?,
     );
   }
 
@@ -49,6 +84,9 @@ class DaySummary {
     'punchIn': punchIn == null ? null : Timestamp.fromDate(punchIn!),
     'punchOut': punchOut == null ? null : Timestamp.fromDate(punchOut!),
     'punchStatus': punchStatus,
+    'breakMinutes': breakMinutes,
+    'extraMinutes': extraMinutes,
+    'leaveType': leaveType,
   };
 }
 

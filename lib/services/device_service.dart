@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:android_id/android_id.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:workzen/constants/firestore_constants.dart';
 import 'package:workzen/utils/logger.dart';
@@ -46,5 +47,55 @@ class DeviceService {
   Future<String?> getDeviceId() async {
     final info = await getDeviceInfo();
     return info[FirestoreFields.deviceId] as String?;
+  }
+
+  DocumentReference<Map<String, dynamic>> _securityDoc(String uid) =>
+      FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(uid)
+          .collection(FirestoreSubCollections.security)
+          .doc(FirestoreDocs.securitySettings);
+
+  /// True when [uid] already has a phone saved in users/{uid}/security/settings.
+  Future<bool> hasRegisteredDevice(String uid) async {
+    try {
+      final snapshot = await _securityDoc(uid).get();
+      final device = snapshot.data()?[FirestoreFields.deviceInfo];
+      return device is Map && device[FirestoreFields.deviceId] != null;
+    } catch (e) {
+      logDebug('Error reading registered device: $e');
+      return false;
+    }
+  }
+
+  /// Binds [uid] to this phone: sets isFirstLogin and saves the device details
+  /// in one batch, so the two can never disagree. Returns null on success, or a
+  /// short reason it could not be done.
+  Future<String?> registerDevice(String uid) async {
+    final info = await getDeviceInfo();
+    if (info[FirestoreFields.deviceId] == null) {
+      return 'Unable to read this phone\'s ID. Please try again.';
+    }
+
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final batch = firestore.batch();
+      batch.update(firestore.collection(FirestoreCollections.users).doc(uid), {
+        FirestoreFields.isFirstLogin: true,
+      });
+      batch.set(_securityDoc(uid), {
+        FirestoreFields.deviceInfo: {
+          ...info,
+          'registeredAt': FieldValue.serverTimestamp(),
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      await batch.commit();
+      logDebug('Device registered for user $uid');
+      return null;
+    } catch (e) {
+      logDebug('Error registering device: $e');
+      return 'Could not register your device. Please try again.';
+    }
   }
 }

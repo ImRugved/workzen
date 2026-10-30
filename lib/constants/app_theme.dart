@@ -297,16 +297,19 @@ class NeuCard extends StatelessWidget {
           radius: radius,
           borderColor: borderColor,
         ),
-        child: onTap == null
-            ? body
-            : Material(
-                color: Colors.transparent,
-                child: InkWell(
+        // A transparent Material inside the coloured box: ListTile, InkWell
+        // and the like paint their background and ink on the nearest Material,
+        // which would otherwise be hidden behind the box's colour
+        child: Material(
+          type: MaterialType.transparency,
+          child: onTap == null
+              ? body
+              : InkWell(
                   borderRadius: BorderRadius.circular(radius.r),
                   onTap: onTap,
                   child: body,
                 ),
-              ),
+        ),
       ),
     );
   }

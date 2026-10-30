@@ -164,7 +164,9 @@ class _HistoryView extends StatelessWidget {
                 'Status',
                 'In',
                 'Out',
+                'Break',
                 'Hours',
+                'Extra Hrs',
                 'Remarks',
               ],
               data: rows
@@ -173,25 +175,68 @@ class _HistoryView extends StatelessWidget {
                       dateFmt.format(r.date),
                       DateFormat('EEE').format(r.date),
                       _statusLabels[r.day.status] ?? r.day.status,
-                      _time(r.day.punchIn),
-                      _time(r.day.punchOut),
+                      _time(r.day.shownPunchIn),
+                      _time(r.day.shownPunchOut),
+                      _hours(r.day.shownBreak),
                       _hours(r.day.worked),
+                      _hours(r.day.shownExtra),
                       r.day.label,
                     ],
                   )
                   .toList(),
             ),
-            pw.SizedBox(height: 16),
+            pw.SizedBox(height: 18),
+            // The summary covers the whole period, whatever the status filter
+            // or search shows in the table above
             pw.Text(
-              'Summary',
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              'Summary (${dateFmt.format(provider.from)} - ${dateFmt.format(provider.to)})',
+              style: pw.TextStyle(
+                fontSize: 13,
+                fontWeight: pw.FontWeight.bold,
+              ),
             ),
             pw.SizedBox(height: 6),
-            ..._statusLabels.entries.map(
-              (e) => pw.Bullet(
-                text:
-                    '${e.value}: ${rows.where((r) => r.day.status == e.key).length}',
+            pw.TableHelper.fromTextArray(
+              headerDecoration: const pw.BoxDecoration(
+                color: PdfColors.blue300,
               ),
+              headerStyle: pw.TextStyle(
+                color: PdfColors.white,
+                fontWeight: pw.FontWeight.bold,
+              ),
+              cellStyle: const pw.TextStyle(fontSize: 10),
+              cellAlignments: {
+                0: pw.Alignment.centerLeft,
+                1: pw.Alignment.centerRight,
+              },
+              headers: ['Status', 'Days'],
+              data: [
+                for (final e in _statusLabels.entries)
+                  [e.value, '${provider.count(e.key)}'],
+                ['Total days', '${provider.allRows.length}'],
+                [
+                  'Days attended (present, late, half day, WFH)',
+                  '${provider.count('present') + provider.count('late') + provider.count('halfDay') + provider.count('wfh')}',
+                ],
+                [
+                  'Total hours worked',
+                  _hours(
+                    provider.allRows.fold<Duration>(
+                      Duration.zero,
+                      (sum, r) => sum + (r.day.worked ?? Duration.zero),
+                    ),
+                  ),
+                ],
+                [
+                  'Total extra hours (after office end time)',
+                  _hours(
+                    provider.allRows.fold<Duration>(
+                      Duration.zero,
+                      (sum, r) => sum + (r.day.shownExtra ?? Duration.zero),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ],
         ),
@@ -460,7 +505,9 @@ class _HistoryBody extends StatelessWidget {
                 const DataColumn(label: Text('Status')),
                 const DataColumn(label: Text('In')),
                 const DataColumn(label: Text('Out')),
+                const DataColumn(label: Text('Break')),
                 const DataColumn(label: Text('Hours')),
+                const DataColumn(label: Text('Extra Hrs')),
                 const DataColumn(label: Text('Remarks')),
               ],
               rows: rows.map(_buildDataRow).toList(),
@@ -494,9 +541,11 @@ class _HistoryBody extends StatelessWidget {
             ),
           ),
         ),
-        DataCell(Text(_time(row.day.punchIn))),
-        DataCell(Text(_time(row.day.punchOut))),
+        DataCell(Text(_time(row.day.shownPunchIn))),
+        DataCell(Text(_time(row.day.shownPunchOut))),
+        DataCell(Text(_hours(row.day.shownBreak))),
         DataCell(Text(_hours(row.day.worked))),
+        DataCell(Text(_hours(row.day.shownExtra))),
         DataCell(
           ConstrainedBox(
             constraints: BoxConstraints(maxWidth: 180.w),

@@ -95,6 +95,9 @@ class _AttendanceCalendarCardState extends State<AttendanceCalendarCard> {
     if (record?.punchOutTime != null) {
       parts.add('Out ${DateFormat('hh:mm a').format(record!.punchOutTime!)}');
     }
+    if (record != null && record.breaks.isNotEmpty) {
+      parts.add('Break ${record.breakDuration().inMinutes} min');
+    }
 
     ConstantSnackbar.show(title: parts.join(' • '));
   }
@@ -137,24 +140,45 @@ class _AttendanceCalendarCardState extends State<AttendanceCalendarCard> {
     );
   }
 
+  // In, Out and Break for today. A time (or break) that has not happened yet
+  // shows dashes, so an employee who takes no break simply sees "--".
   Widget _buildPunchRow(AttendanceModel? today) {
+    String timeText(DateTime? t) =>
+        t == null ? '--:-- --' : DateFormat('hh:mm a').format(t);
+
+    final breaks = today?.breaks ?? const <AttendanceBreak>[];
+    final breakText = breaks.isEmpty
+        ? '--'
+        : today!.isOnBreak
+        ? 'On break'
+        : '${today.breakDuration().inMinutes} min';
+
     return Row(
       children: [
         Expanded(
           child: _buildPunchTile(
             label: 'In Time',
-            time: today?.punchInTime,
+            value: timeText(today?.punchInTime),
             color: ConstColors.successGreen,
             icon: Icons.login,
           ),
         ),
-        SizedBox(width: 12.w),
+        SizedBox(width: 8.w),
         Expanded(
           child: _buildPunchTile(
             label: 'Out Time',
-            time: today?.punchOutTime,
+            value: timeText(today?.punchOutTime),
             color: ConstColors.errorRed,
             icon: Icons.logout,
+          ),
+        ),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: _buildPunchTile(
+            label: 'Break',
+            value: breakText,
+            color: ConstColors.inProgressOrange,
+            icon: Icons.coffee_outlined,
           ),
         ),
       ],
@@ -163,38 +187,41 @@ class _AttendanceCalendarCardState extends State<AttendanceCalendarCard> {
 
   Widget _buildPunchTile({
     required String label,
-    required DateTime? time,
+    required String value,
     required Color color,
     required IconData icon,
   }) {
     return Container(
-      padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 10.w),
+      padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 8.w),
       decoration: NeuStyle.raised(),
       child: Row(
         children: [
           Container(
             height: 36.h,
             width: 3.w,
-            margin: EdgeInsets.symmetric(horizontal: 10.w),
+            margin: EdgeInsets.only(right: 6.w),
             color: color,
           ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  time == null
-                      ? '--:-- --'
-                      : DateFormat('hh:mm a').format(time),
-                  style: getTextTheme().titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
+                // Scales down rather than wrapping when the tile is narrow
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: getTextTheme().titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 Text(label, style: getTextTheme().bodySmall),
               ],
             ),
           ),
-          Icon(icon, color: color, size: 24.r),
+          Icon(icon, color: color, size: 18.r),
         ],
       ),
     );

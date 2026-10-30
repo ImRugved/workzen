@@ -19,7 +19,7 @@
 //   ├─ leaves/comp_off                 comp off credit (earned / used / balance), not reset yearly
 //   ├─ security/settings               app-unlock PIN, biometric flag, registered device
 //   └─ attendance_summary/{yyyy-MM}    one document per month: day lists, counts, per-day detail
-// attendance/{attendanceId}            one punch record per user per day
+// attendance/{attendanceId}            one punch record per user per day, with its breaks
 // departments/{departmentId}           departments and their roles
 // organization_details                 org-wide settings, readable by every signed-in user
 //   ├─ leave_config                    default PL / SL / CL allocation
@@ -125,7 +125,11 @@
 //   "halfDays": [], "lateDays": [3], "wfhDays": [], "holidayDays": [2], "weekendDays": [4, 5],
 //   "counts": { "present": 3, "absent": 1, "leave": 0, "compOff": 0, "halfDay": 0, "late": 1, "wfh": 0, "holiday": 1, "weekend": 2 },
 //   "days": {
-//     "3": { "status": "late", "label": "Late", "punchIn": Timestamp, "punchOut": Timestamp, "punchStatus": "late" }
+//     "3": { "status": "late", "label": "Late", "punchIn": Timestamp, "punchOut": Timestamp, "punchStatus": "late",
+//            "breakMinutes": 25,                // total break time of the day, taken off the hours worked
+//            "extraMinutes": 60,                // worked past the office end time (punch out - end time)
+//            "leaveType": "pl" | "sl" | "cl" | "co" | null }   // which leave a leave / comp off / half day is
+//   "version": 2,                              // layout of "days"; a summary with another version is rebuilt
 //   },
 //   "builtOn": "2026-10-16",                     // day it was last rebuilt, used to know if it is stale
 //   "updatedAt": Timestamp
@@ -140,7 +144,11 @@
 //   // an employee can only write "pending" (punch in) or "present" (punch out);
 //   // "absent" is written by an admin
 //   "leaveId": null,
-//   "location": { "lat": 18.56, "lng": 73.76 }
+//   "location": { "lat": 18.56, "lng": 73.76 },
+//   "halfDayLeave": "First Half" | "Second Half" | null,   // set at punch in when the day is a half day leave
+//   "breaks": [                                // tea / lunch breaks of the day, in order
+//     { "start": Timestamp, "end": Timestamp | null }   // end is null while the break is on
+//   ]
 // }
 //
 // departments/{departmentId}                    (DepartmentModel)

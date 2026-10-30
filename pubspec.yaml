@@ -48,6 +48,7 @@ dependencies:
   googleapis_auth: ^2.0.0
   flutter_local_notifications: ^22.3.2
   pdf: ^3.10.7
+  excel: ^4.0.6
   # Supabase dependencies
   supabase_flutter: ^2.10.3
   path_provider: ^2.1.2
@@ -74,6 +75,7 @@ dependencies:
   # Device binding for attendance
   device_info_plus: ^13.3.0
   android_id: ^0.6.0
+  share_plus: ^13.3.1
 
 dev_dependencies:
   flutter_test:

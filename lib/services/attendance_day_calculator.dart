@@ -25,7 +25,10 @@ class DayResult {
   /// How the punch in was judged (null when there was no punch in).
   final PunchInStatus? punchStatus;
 
-  const DayResult(this.status, this.label, [this.punchStatus]);
+  /// Leave code of a leave day (pl, sl, cl or co), null for other days.
+  final String? leaveType;
+
+  const DayResult(this.status, this.label, [this.punchStatus, this.leaveType]);
 }
 
 /// Decides the status of every day of a month from the user's attendance,
@@ -123,6 +126,8 @@ class AttendanceDayCalculator {
         results[day] = DayResult(
           CalendarDayStatus.compOff,
           half ? 'Comp off (half day)' : 'Comp off',
+          null,
+          AppConstants.leaveTypeCO,
         );
       } else if (holiday != null) {
         results[day] = DayResult(
@@ -130,14 +135,30 @@ class AttendanceDayCalculator {
           'Holiday: ${holiday.name}',
         );
       } else if (leave != null && !_halfDayShifts.contains(leave.shift)) {
-        final isCompOff =
-            leave.additionalData?['leaveType'] == AppConstants.leaveTypeCO;
+        final code = leave.leaveType?.toLowerCase();
+        final isCompOff = code == AppConstants.leaveTypeCO;
         results[day] = isCompOff
-            ? const DayResult(CalendarDayStatus.compOff, 'Comp off')
-            : const DayResult(CalendarDayStatus.leave, 'On leave');
+            ? DayResult(CalendarDayStatus.compOff, 'Comp off', null, code)
+            : DayResult(
+                CalendarDayStatus.leave,
+                // "Privilege Leave", "Sick Leave" ... so the type is visible
+                code == null
+                    ? 'On leave'
+                    : RequestModel.leaveTypeFullName(code),
+                null,
+                code,
+              );
       } else if (leave != null ||
           record?.status == AppConstants.statusHalfDay) {
-        results[day] = const DayResult(CalendarDayStatus.halfDay, 'Half day');
+        final code = leave?.leaveType?.toLowerCase();
+        results[day] = DayResult(
+          CalendarDayStatus.halfDay,
+          code == null
+              ? 'Half day'
+              : 'Half day (${RequestModel.leaveTypeFullName(code)})',
+          null,
+          code,
+        );
       } else if (record != null &&
           (record.punchInTime != null ||
               record.status == AppConstants.statusPresent)) {

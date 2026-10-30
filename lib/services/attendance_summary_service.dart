@@ -46,13 +46,27 @@ class AttendanceSummaryService {
     if (!force) {
       final snap = await _summaryDoc(user.id, target).get();
       final data = snap.data();
-      if (data != null && _isFresh(data['builtOn'] as String?, target)) {
+      // A summary saved by an older version lacks newer fields (break, extra
+      // hours, leave type), so it is rebuilt once
+      if (data != null &&
+          data['version'] == _version &&
+          _isFresh(data['builtOn'] as String?, target)) {
         return MonthlyAttendanceSummary.fromJson(data);
       }
     }
 
     return rebuildMonth(user, target);
   }
+
+  // Bump when the stored day fields change, so older summaries are rebuilt
+  static const int _version = 2;
+
+  // Minutes past the office end time at punch out; 0 without office hours or a
+  // punch out
+  int _extraMinutes(OfficeHoursModel? hours, DateTime? punchOut) =>
+      (hours == null || punchOut == null)
+      ? 0
+      : hours.extraAfterEnd(punchOut).inMinutes;
 
   bool _isFresh(String? builtOn, DateTime month) {
     if (builtOn == null) return false;
@@ -200,6 +214,12 @@ class AttendanceSummaryService {
           punchIn: attendance[entry.key]?.punchInTime,
           punchOut: attendance[entry.key]?.punchOutTime,
           punchStatus: entry.value.punchStatus?.name,
+          breakMinutes: attendance[entry.key]?.breakDuration().inMinutes ?? 0,
+          extraMinutes: _extraMinutes(
+            officeHours,
+            attendance[entry.key]?.punchOutTime,
+          ),
+          leaveType: entry.value.leaveType,
         ),
     };
 
@@ -213,7 +233,11 @@ class AttendanceSummaryService {
       await _summaryDoc(
         user.id,
         target,
-      ).set({...summary.toJson(), 'builtOn': _dayKey(DateTime.now())});
+      ).set({
+        ...summary.toJson(),
+        'builtOn': _dayKey(DateTime.now()),
+        'version': _version,
+      });
     } catch (e) {
       // Still return the computed data if the write is not allowed
       logDebug('Could not store attendance summary: $e');

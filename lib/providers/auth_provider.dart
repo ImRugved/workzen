@@ -139,40 +139,27 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // Binds the account to this device on the first login (isFirstLogin == false).
-  // Attendance punches are later checked against the registered deviceId.
+  // Binds the account to this device when none is saved yet: on the first login,
+  // after the admin resets the device, or when isFirstLogin is set but the
+  // device details are missing. Attendance punches are later checked against
+  // the registered deviceId.
   Future<void> _registerDeviceIfNeeded() async {
     final user = _user;
     final model = _userModel;
-    if (user == null || model == null || model.isFirstLogin) return;
+    if (user == null || model == null) return;
 
     try {
-      final info = await DeviceService().getDeviceInfo();
-      if (info[FirestoreFields.deviceId] == null) {
-        logDebug('Device id unavailable, skipping device registration');
+      final service = DeviceService();
+      // isFirstLogin alone is not proof: the device details must be saved too
+      if (model.isFirstLogin && await service.hasRegisteredDevice(user.uid)) {
         return;
       }
 
-      final userRef = _firestore
-          .collection(FirestoreCollections.users)
-          .doc(user.uid);
-      // Device details live with the other security settings (PIN, biometric)
-      final securityRef = userRef
-          .collection(FirestoreSubCollections.security)
-          .doc(FirestoreDocs.securitySettings);
-
-      final batch = _firestore.batch();
-      batch.update(userRef, {FirestoreFields.isFirstLogin: true});
-      batch.set(securityRef, {
-        FirestoreFields.deviceInfo: {
-          ...info,
-          'registeredAt': FieldValue.serverTimestamp(),
-        },
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      await batch.commit();
-      logDebug('Device registered for user ${user.uid}');
-
+      final error = await service.registerDevice(user.uid);
+      if (error != null) {
+        logDebug('Device not registered at login: $error');
+        return;
+      }
       await _fetchUserData();
     } catch (e) {
       logDebug('Error registering device: $e');

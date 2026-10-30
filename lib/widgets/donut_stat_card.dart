@@ -5,13 +5,15 @@ import '../constants/const_textstyle.dart';
 import '../constants/constant_colors.dart';
 import 'app_donut_chart.dart';
 
-/// One row of a [DonutStatCard]: a name, its count and its colour.
+/// One row of a [DonutStatCard]: a name, its count and its colour. When
+/// [onTap] is given the row can be tapped (to list who is counted in it).
 class DonutStatItem {
   final String label;
   final int value;
   final Color color;
+  final VoidCallback? onTap;
 
-  const DonutStatItem(this.label, this.value, this.color);
+  const DonutStatItem(this.label, this.value, this.color, {this.onTap});
 }
 
 /// White card with the app's donut chart on the left (the total in the centre)
@@ -96,7 +98,7 @@ class DonutStatCard extends StatelessWidget {
   }
 
   Widget _row(DonutStatItem item) {
-    return Container(
+    final row = Container(
       padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
       decoration: BoxDecoration(
         color: item.color.withValues(alpha: 0.12),
@@ -130,8 +132,21 @@ class DonutStatCard extends StatelessWidget {
               color: ConstColors.textColor,
             ),
           ),
+          if (item.onTap != null)
+            Icon(
+              Icons.chevron_right,
+              size: 18.r,
+              color: ConstColors.textColorLight,
+            ),
         ],
       ),
+    );
+
+    if (item.onTap == null) return row;
+    return InkWell(
+      borderRadius: BorderRadius.circular(14.r),
+      onTap: item.onTap,
+      child: row,
     );
   }
 }

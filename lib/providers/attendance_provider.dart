@@ -13,6 +13,7 @@ import '../models/leave_model.dart';
 import '../models/request_model.dart';
 import '../models/user_model.dart';
 import '../constants/firestore_constants.dart';
+import '../constants/permissions.dart';
 import '../services/attendance_summary_service.dart';
 import '../services/device_service.dart';
 import '../services/fcm_service.dart';
@@ -28,6 +29,8 @@ class AttendanceProvider with ChangeNotifier {
   // Today's attendance screen state
   AttendanceModel? _todayAttendance;
   LeaveModel? _todayLeave;
+  // "First Half" / "Second Half" when today is a half day leave
+  String? _todayHalfDayLeave;
   bool? _isAtOffice;
 
   // 'in' or 'out' for the whole punch flow (location, device check, save)
@@ -42,6 +45,7 @@ class AttendanceProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   AttendanceModel? get todayAttendance => _todayAttendance;
   LeaveModel? get todayLeave => _todayLeave;
+  String? get todayHalfDayLeave => _todayHalfDayLeave;
   bool? get isAtOffice => _isAtOffice;
   String? get punchAction => _punchAction;
   bool get isPunching => _punchAction != null;
@@ -64,6 +68,7 @@ class AttendanceProvider with ChangeNotifier {
     try {
       _todayAttendance = await getTodayAttendance(userId, notify: false);
       _todayLeave = await checkLeaveForToday(userId);
+      _todayHalfDayLeave = await checkHalfDayLeaveForToday(userId);
     } catch (e) {
       logDebug('Error loading today data: $e');
     }
@@ -187,57 +192,79 @@ class AttendanceProvider with ChangeNotifier {
     }
   }
 
-  // Check if user has leave for today
+  // Shifts that cover only half of the day
+  static const Set<String> _halfDayShifts = {
+    'Half Day',
+    'First Half',
+    'Second Half',
+  };
+
+  // The approved leave requests that include today
+  Future<List<RequestModel>> _approvedLeavesToday(String userId) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final leaveQuery = await _firestore
+        .collection(FirestoreCollections.users)
+        .doc(userId)
+        .collection(FirestoreSubCollections.requests)
+        .where('type', isEqualTo: AppConstants.requestTypeLeave)
+        .where('status', isEqualTo: AppConstants.statusApproved)
+        .get();
+
+    final result = <RequestModel>[];
+    for (final doc in leaveQuery.docs) {
+      final request = RequestModel.fromJson(doc.data());
+      final from = request.fromDate;
+      final to = request.toDate;
+      if (from == null || to == null) continue;
+      final fromDate = DateTime(from.year, from.month, from.day);
+      final toDate = DateTime(to.year, to.month, to.day);
+      if (!today.isBefore(fromDate) && !today.isAfter(toDate)) {
+        result.add(request);
+      }
+    }
+    return result;
+  }
+
+  // Check if the user is on a FULL day leave today. A half day leave does not
+  // count: the employee still comes in for the other half and punches in/out.
   Future<LeaveModel?> checkLeaveForToday(String userId) async {
     try {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-
-      QuerySnapshot leaveQuery = await _firestore
-          .collection(FirestoreCollections.users)
-          .doc(userId)
-          .collection(FirestoreSubCollections.requests)
-          .where('type', isEqualTo: AppConstants.requestTypeLeave)
-          .where('status', isEqualTo: AppConstants.statusApproved)
-          .get();
-
-      // Check if any approved leave includes today
-      for (var doc in leaveQuery.docs) {
-        final request = RequestModel.fromJson(
-          doc.data() as Map<String, dynamic>,
+      for (final request in await _approvedLeavesToday(userId)) {
+        if (_halfDayShifts.contains(request.shift)) continue;
+        // Convert RequestModel to LeaveModel for backward compatibility
+        return LeaveModel(
+          id: request.id,
+          userId: request.userId,
+          userName: request.userName,
+          fromDate: request.fromDate!,
+          toDate: request.toDate!,
+          shift: request.shift ?? '',
+          reason: request.reason,
+          status: request.status,
+          adminRemark: request.adminRemark,
+          appliedOn: request.appliedOn,
         );
-        final fromDate = DateTime(
-          request.fromDate!.year,
-          request.fromDate!.month,
-          request.fromDate!.day,
-        );
-        final toDate = DateTime(
-          request.toDate!.year,
-          request.toDate!.month,
-          request.toDate!.day,
-        );
-
-        if ((today.isAtSameMomentAs(fromDate) || today.isAfter(fromDate)) &&
-            (today.isAtSameMomentAs(toDate) || today.isBefore(toDate))) {
-          // Convert RequestModel to LeaveModel for backward compatibility
-          return LeaveModel(
-            id: request.id,
-            userId: request.userId,
-            userName: request.userName,
-            fromDate: request.fromDate!,
-            toDate: request.toDate!,
-            shift: request.shift ?? '',
-            reason: request.reason,
-            status: request.status,
-            adminRemark: request.adminRemark,
-            appliedOn: request.appliedOn,
-          );
-        }
       }
-
       return null;
     } catch (e) {
       logDebug("Error checking leave for today: $e");
+      return null;
+    }
+  }
+
+  // "First Half" / "Second Half" when the user has an approved half day leave
+  // today, else null
+  Future<String?> checkHalfDayLeaveForToday(String userId) async {
+    try {
+      for (final request in await _approvedLeavesToday(userId)) {
+        final shift = request.shift;
+        if (shift != null && _halfDayShifts.contains(shift)) return shift;
+      }
+      return null;
+    } catch (e) {
+      logDebug("Error checking half day leave for today: $e");
       return null;
     }
   }
@@ -332,8 +359,10 @@ class AttendanceProvider with ChangeNotifier {
       );
 
       if (isFirstLogin != true || registeredId == null) {
-        logDebug('Device check failed: no device registered for $userId');
-        return 'Your device is not registered yet. Please log out and log in again.';
+        // No phone is bound yet (the login could not register it, or the admin
+        // reset it): bind this one now, as the login would, and carry on
+        logDebug('No device registered for $userId, registering this phone');
+        return await DeviceService().registerDevice(userId);
       }
 
       final currentId = await DeviceService().getDeviceId();
@@ -435,6 +464,11 @@ class AttendanceProvider with ChangeNotifier {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
 
+      // A half day leave still needs a punch in and out for the other half;
+      // the day is saved with it so it is not judged as late or half day by the
+      // punch times
+      final halfDayLeave = await checkHalfDayLeaveForToday(user.id);
+
       // Build location map (latitude and longitude are guaranteed non-null here)
       final locationMap = {'lat': latitude, 'lng': longitude};
 
@@ -452,6 +486,7 @@ class AttendanceProvider with ChangeNotifier {
           'punchInTime': now,
           'status': AppConstants.statusPending,
           'location': locationMap,
+          'halfDayLeave': halfDayLeave,
         };
 
         await _firestore
@@ -463,6 +498,7 @@ class AttendanceProvider with ChangeNotifier {
           punchInTime: now,
           status: AppConstants.statusPending,
           location: locationMap,
+          halfDayLeave: halfDayLeave,
         );
       } else {
         // Create new attendance record
@@ -476,6 +512,7 @@ class AttendanceProvider with ChangeNotifier {
           punchInTime: now,
           status: AppConstants.statusPending,
           location: locationMap,
+          halfDayLeave: halfDayLeave,
         );
 
         await _firestore
@@ -496,7 +533,7 @@ class AttendanceProvider with ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-      return {'success': true};
+      return {'success': true, 'halfDayLeave': halfDayLeave};
     } catch (e) {
       logDebug("Error punching in: $e");
       _isLoading = false;
@@ -563,6 +600,11 @@ class AttendanceProvider with ChangeNotifier {
         return {'success': false, 'error': 'already_punched_out'};
       }
 
+      // A break still running has to be ended first
+      if (attendance.isOnBreak) {
+        return {'success': false, 'error': 'on_break'};
+      }
+
       // Build location map (latitude and longitude are guaranteed non-null here)
       final locationMap = {'lat': latitude, 'lng': longitude};
 
@@ -599,7 +641,126 @@ class AttendanceProvider with ChangeNotifier {
     }
   }
 
-  // Notify admins
+  // Starts a break (tea, lunch...) in today's record. Needs a punch in, no
+  // punch out yet and no break already running. No location check: a break
+  // can be taken away from the desk.
+  Future<Map<String, dynamic>> startBreak(UserModel user) async {
+    try {
+      final attendance = await getTodayAttendance(user.id, notify: false);
+      if (attendance == null || attendance.punchInTime == null) {
+        return {'success': false, 'error': 'not_punched_in'};
+      }
+      if (attendance.punchOutTime != null) {
+        return {'success': false, 'error': 'already_punched_out'};
+      }
+      if (attendance.isOnBreak) {
+        return {'success': false, 'error': 'already_on_break'};
+      }
+
+      final now = DateTime.now();
+      final updated = attendance.copyWith(
+        breaks: [...attendance.breaks, AttendanceBreak(start: now)],
+      );
+      await _saveBreaks(updated);
+
+      // Same as a punch: the admins and the sub admins who view attendance
+      await _notifyAdmins(
+        user,
+        AppConstants.breakStartNotification,
+        'Break Start',
+        '${user.name} has started a break at ${DateFormat('hh:mm a').format(now)}',
+      );
+      return {'success': true};
+    } catch (e) {
+      logDebug('Error starting break: $e');
+      return {
+        'success': false,
+        'error': 'Failed to start the break. Please try again.',
+      };
+    }
+  }
+
+  // Ends the running break
+  Future<Map<String, dynamic>> endBreak(UserModel user) async {
+    try {
+      final attendance = await getTodayAttendance(user.id, notify: false);
+      if (attendance == null || !attendance.isOnBreak) {
+        return {'success': false, 'error': 'not_on_break'};
+      }
+
+      final breaks = [...attendance.breaks];
+      final now = DateTime.now();
+      breaks[breaks.length - 1] = AttendanceBreak(
+        start: breaks.last.start,
+        end: now,
+      );
+      await _saveBreaks(attendance.copyWith(breaks: breaks));
+
+      // Always told, as for a punch; a break past the limit says so
+      final minutes = now.difference(breaks.last.start).inMinutes;
+      final tooLong = minutes > AppConstants.maxBreakMinutes;
+      await _notifyAdmins(
+        user,
+        tooLong
+            ? AppConstants.longBreakNotification
+            : AppConstants.breakEndNotification,
+        tooLong ? 'Long Break' : 'Break End',
+        tooLong
+            ? '${user.name} ended a $minutes min break '
+                  '(limit ${AppConstants.maxBreakMinutes} min)'
+            : '${user.name} has ended the break at '
+                  '${DateFormat('hh:mm a').format(now)} ($minutes min)',
+      );
+      return {'success': true};
+    } catch (e) {
+      logDebug('Error ending break: $e');
+      return {
+        'success': false,
+        'error': 'Failed to end the break. Please try again.',
+      };
+    }
+  }
+
+  // Writes only the breaks field, keeps the screen's copy in step and rebuilds
+  // the month summary (break time is taken off the hours worked)
+  Future<void> _saveBreaks(AttendanceModel updated) async {
+    await _firestore
+        .collection(FirestoreCollections.attendance)
+        .doc(updated.id)
+        .update({'breaks': updated.breaks.map((b) => b.toJson()).toList()});
+    _todayAttendance = updated;
+    notifyListeners();
+    _refreshMonthSummary(updated.userId);
+  }
+
+  // Ids of everyone who follows attendance: all admins, plus sub admins who
+  // were given the "view attendance" permission.
+  Future<List<String>> _attendanceViewerIds() async {
+    final ids = <String>{};
+    final users = _firestore.collection(FirestoreCollections.users);
+
+    var admins = await users.where('isAdmin', isEqualTo: true).get();
+    // Older accounts may only have the admin role
+    if (admins.docs.isEmpty) {
+      admins = await users
+          .where('role', isEqualTo: AppConstants.adminRole)
+          .get();
+    }
+    ids.addAll(admins.docs.map((d) => d.id));
+
+    final subAdmins = await users
+        .where(
+          Permissions.field,
+          arrayContains: Permissions.viewAttendance,
+        )
+        .get();
+    ids.addAll(subAdmins.docs.map((d) => d.id));
+
+    return ids.toList();
+  }
+
+  // Tells the admins and the sub admins who can view attendance (never the
+  // employee themselves)
   Future<void> _notifyAdmins(
     UserModel user,
     String notificationType,
@@ -607,44 +768,25 @@ class AttendanceProvider with ChangeNotifier {
     String body,
   ) async {
     try {
-      // Try to get admin users by isAdmin field first
-      QuerySnapshot adminSnapshot = await _firestore
-          .collection(FirestoreCollections.users)
-          .where('isAdmin', isEqualTo: true)
-          .get();
+      final recipients = await _attendanceViewerIds();
 
-      // If no admins found, try with role field
-      if (adminSnapshot.docs.isEmpty) {
-        adminSnapshot = await _firestore
-            .collection(FirestoreCollections.users)
-            .where('role', isEqualTo: AppConstants.adminRole)
-            .get();
-      }
+      for (final recipientId in recipients) {
+        if (recipientId == user.id) continue;
 
-      //  log("Found ${adminSnapshot.docs.length} admin users to notify");
-
-      for (var doc in adminSnapshot.docs) {
-        final adminId = doc.id;
-        if (adminId != user.id) {
-          // Don't notify the user themselves
-          //  log("Sending notification to admin: $adminId");
-
-          // Send notification
-          await _fcmService.sendNotificationToUser(
-            userId: adminId,
-            title: title,
-            body: body,
-            data: {
-              'userId': user.id,
-              'userName': user.name,
-              'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
-              'type': notificationType,
-            },
-          );
-        }
+        await _fcmService.sendNotificationToUser(
+          userId: recipientId,
+          title: title,
+          body: body,
+          data: {
+            'userId': user.id,
+            'userName': user.name,
+            'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
+            'type': notificationType,
+          },
+        );
       }
     } catch (e) {
-      // log('Error notifying admins: $e');
+      logDebug('Error notifying admins: $e');
     }
   }
 

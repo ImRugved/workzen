@@ -103,7 +103,7 @@ class MyApp extends StatelessWidget {
       // builder (not child) so the theme below is built after ScreenUtil is
       // initialised and can use .sp / .w / .h / .r
       builder: (context, _) => GetMaterialApp(
-        title: 'SeenWork',
+        title: 'SeenIT',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
         initialRoute: '/splash_screen',

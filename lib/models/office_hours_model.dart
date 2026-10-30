@@ -81,6 +81,16 @@ class OfficeHoursModel {
     return PunchInStatus.onTime;
   }
 
+  /// Time worked past the office end time on the day of [punchOut]: end 19:00
+  /// and punch out 20:00 gives one hour. Zero when the punch out is at or
+  /// before the end time.
+  Duration extraAfterEnd(DateTime punchOut) {
+    final minutes =
+        (punchOut.hour * 60 + punchOut.minute) -
+        (endTime.hour * 60 + endTime.minute);
+    return minutes > 0 ? Duration(minutes: minutes) : Duration.zero;
+  }
+
   /// Wall clock time of [start] plus [minutes], e.g. 10:00 + 25 -> 10:25.
   TimeOfDay startPlus(int minutes) {
     final total = startTime.hour * 60 + startTime.minute + minutes;

@@ -17,6 +17,7 @@ import '../../../models/office_hours_model.dart';
 import '../../../widgets/department_role_manager.dart';
 import '../../../widgets/holiday_calendar_card.dart';
 import '../../../widgets/donut_stat_card.dart';
+import '../../../widgets/employee_name_sheet.dart';
 import '../../../constants/const_textstyle.dart';
 import '../../../constants/constant_button.dart';
 import '../../../constants/constant_colors.dart';
@@ -363,23 +364,67 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
           return aDate.isAtSameMomentAs(today);
         }).toList();
 
-        final present = todayRecords.where((a) => a.status == 'present').length;
-        final absent = todayRecords.where((a) => a.status == 'absent').length;
-        final onLeave = todayRecords
+        // Someone who has punched in is present even before punching out
+        // (their record is "pending" until then)
+        // A half day leave is counted as a half day, not as present
+        final presentRecords = todayRecords
+            .where(
+              (a) =>
+                  a.halfDayLeave == null &&
+                  (a.status == 'present' ||
+                      (a.status == 'pending' && a.punchInTime != null)),
+            )
+            .toList();
+        final absentRecords = todayRecords
+            .where((a) => a.status == 'absent')
+            .toList();
+        final leaveRecords = todayRecords
             .where((a) => a.status == 'on-leave')
-            .length;
-        final halfDay = todayRecords
-            .where((a) => a.status == 'half-day')
-            .length;
+            .toList();
+        final halfDayRecords = todayRecords
+            .where((a) => a.status == 'half-day' || a.halfDayLeave != null)
+            .toList();
+
         // Onboarded employees with no record today have not punched in yet
-        final headcount = empProvider.employees
-            .where((e) => e.isOnboarded)
-            .length;
-        final recorded = present + absent + onLeave + halfDay;
-        final notMarked = (headcount - recorded).clamp(0, headcount);
-        final total = recorded + notMarked;
+        final recordedIds = todayRecords.map((a) => a.userId).toSet();
+        final notInYet = empProvider.employees
+            .where((e) => e.isOnboarded && !recordedIds.contains(e.id))
+            .toList();
+
+        final total =
+            presentRecords.length +
+            halfDayRecords.length +
+            leaveRecords.length +
+            absentRecords.length +
+            notInYet.length;
 
         if (total == 0) return const SizedBox.shrink();
+
+        // Names of the people counted in a row, shown in a bottom sheet
+        void showNames(
+          String title,
+          Color color,
+          List<AttendanceModel> records,
+        ) {
+          final time = DateFormat('hh:mm a');
+          EmployeeNameSheet.show(
+            context,
+            title: title,
+            color: color,
+            entries: [
+              for (final a in records)
+                EmployeeNameEntry(
+                  a.userName,
+                  [
+                    if (a.punchInTime != null)
+                      'In ${time.format(a.punchInTime!)}',
+                    if (a.punchOutTime != null)
+                      'Out ${time.format(a.punchOutTime!)}',
+                  ].join(' • '),
+                ),
+            ],
+          );
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -404,12 +449,68 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
             // The app's donut: today's employees by attendance type
             DonutStatCard(
               centerLabel: 'Employees',
+              // Tap a row to see who is in it
               items: [
-                DonutStatItem('Present', present, ConstColors.successGreen),
-                DonutStatItem('Half Day', halfDay, ConstColors.warningAmber),
-                DonutStatItem('On Leave', onLeave, ConstColors.inProgressOrange),
-                DonutStatItem('Absent', absent, ConstColors.errorRed),
-                DonutStatItem('Not in yet', notMarked, ConstColors.pendingGrey),
+                DonutStatItem(
+                  'Present',
+                  presentRecords.length,
+                  ConstColors.successGreen,
+                  onTap: () => showNames(
+                    'Present',
+                    ConstColors.successGreen,
+                    presentRecords,
+                  ),
+                ),
+                DonutStatItem(
+                  'Half Day',
+                  halfDayRecords.length,
+                  ConstColors.warningAmber,
+                  onTap: () => showNames(
+                    'Half Day',
+                    ConstColors.warningAmber,
+                    halfDayRecords,
+                  ),
+                ),
+                DonutStatItem(
+                  'On Leave',
+                  leaveRecords.length,
+                  ConstColors.inProgressOrange,
+                  onTap: () => showNames(
+                    'On Leave',
+                    ConstColors.inProgressOrange,
+                    leaveRecords,
+                  ),
+                ),
+                DonutStatItem(
+                  'Absent',
+                  absentRecords.length,
+                  ConstColors.errorRed,
+                  onTap: () => showNames(
+                    'Absent',
+                    ConstColors.errorRed,
+                    absentRecords,
+                  ),
+                ),
+                DonutStatItem(
+                  'Not in yet',
+                  notInYet.length,
+                  ConstColors.pendingGrey,
+                  onTap: () => EmployeeNameSheet.show(
+                    context,
+                    title: 'Not in yet',
+                    color: ConstColors.pendingGrey,
+                    entries: [
+                      for (final e in notInYet)
+                        EmployeeNameEntry(
+                          e.name,
+                          [
+                            if (e.department != null) e.department!,
+                            if (e.jobRole != null) e.jobRole!,
+                          ].join(' • '),
+                        ),
+                    ],
+                  ),
+                ),
               ],
             ),
             SizedBox(height: 24.h),

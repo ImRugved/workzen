@@ -20,6 +20,13 @@ class AppConstants {
   static const String requestStatusUpdateNotification = "REQUEST_STATUS_UPDATE";
   static const String punchInNotification = "PUNCH_IN";
   static const String punchOutNotification = "PUNCH_OUT";
+  static const String breakStartNotification = "BREAK_START";
+  static const String breakEndNotification = "BREAK_END";
+  static const String longBreakNotification = "LONG_BREAK";
+
+  /// A break longer than this many minutes is reported to the admins as a
+  /// long break when it ends.
+  static const int maxBreakMinutes = 30;
 
   // Request/Leave status
   static const String statusPending = "pending";
