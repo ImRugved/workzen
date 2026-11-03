@@ -11,9 +11,9 @@ import '../../models/request_model.dart';
 import '../../widgets/leave_balance_card.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
+import '../../providers/my_data_provider.dart';
 import '../../providers/user_home_provider.dart';
 import '../../services/notification_service.dart';
-import '../../providers/calendar_provider.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/birthday_banner.dart';
 import '../../widgets/quick_action_tile.dart';
@@ -38,8 +38,6 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
   // Requests stream and leave balances live in this scoped provider
   final UserHomeProvider _home = UserHomeProvider();
   late AnimationController _animationController;
-  // Reloads the leave balances when an admin decides a request
-  StreamSubscription<void>? _balanceSubscription;
 
   @override
   void initState() {
@@ -52,8 +50,9 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeStream();
       _initializeNotifications();
-      _loadLeaveBalances();
-      _listenForBalanceChanges();
+      _requestProvider = context.read<RequestProvider>()
+        ..addListener(_startAnimationWhenLoaded);
+      _startAnimationWhenLoaded();
       _requestLocationAndStore();
       // Animation will start after leave balances are loaded
     });
@@ -61,68 +60,38 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _balanceSubscription?.cancel();
+    _requestProvider?.removeListener(_startAnimationWhenLoaded);
     _animationController.dispose();
     _home.dispose();
     super.dispose();
   }
 
   void _initializeStream() {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final requestProvider = Provider.of<RequestProvider>(
-      context,
-      listen: false,
+    // The user's live requests: the same listener every other screen uses
+    final myData = Provider.of<MyDataProvider>(context, listen: false);
+    // Leave and comp off requests together
+    _home.setRequestsStream(
+      myData.requestsStream.map(
+        (requests) => requests
+            .where((r) => r.isLeaveRequest || r.isCompOffRequest)
+            .toList(),
+      ),
     );
-
-    if (authProvider.userModel != null) {
-      // Leave and comp off requests together
-      _home.setRequestsStream(
-        requestProvider
-            .getUserRequestsStream(authProvider.userModel!.id)
-            .map(
-              (requests) => requests
-                  .where((r) => r.isLeaveRequest || r.isCompOffRequest)
-                  .toList(),
-            ),
-      );
-    }
   }
 
-  void _listenForBalanceChanges() {
-    final user = context.read<AuthProvider>().userModel;
-    if (user == null) return;
+  // The leave balances are live (RequestProvider gets them from
+  // MyDataProvider), so nothing is loaded here. This only starts the card
+  // animation once, when the first balances arrive.
+  RequestProvider? _requestProvider;
 
-    _balanceSubscription?.cancel();
-    _balanceSubscription = context
-        .read<RequestProvider>()
-        .leaveBalanceChanges(user.id)
-        .listen((_) {
-          if (mounted) _loadLeaveBalances();
-        });
-  }
-
-  Future<void> _loadLeaveBalances() async {
-    // Only shows loading if data hasn't been loaded before
-    _home.startLoadingBalances();
-
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final requestProvider = Provider.of<RequestProvider>(
-      context,
-      listen: false,
-    );
-
-    if (authProvider.userModel != null) {
-      final balances = await requestProvider.getUserLeaveBalances(
-        authProvider.userModel!.id,
-      );
-
-      // Marked as loaded even when there is no data
-      _home.setBalances(balances);
-      // Start animation after data is loaded (only first time)
-      if (balances != null &&
-          _animationController.status != AnimationStatus.completed) {
-        _animationController.forward();
-      }
+  void _startAnimationWhenLoaded() {
+    final provider = _requestProvider;
+    if (provider == null || !mounted) return;
+    if (!provider.isLoadingBalances &&
+        provider.leaveBalances != null &&
+        _animationController.status != AnimationStatus.completed &&
+        !_animationController.isAnimating) {
+      _animationController.forward();
     }
   }
 
@@ -179,12 +148,11 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
   }
 
   Future<void> _onRefresh() async {
-    // Refresh stream, leave balances and the attendance calendar
+    // Everything here is live. Pulling only makes sure the listeners are
+    // running (one that was dropped by an error is started again).
+    final uid = context.read<AuthProvider>().user?.uid;
+    if (uid != null) context.read<MyDataProvider>().start(uid);
     _initializeStream();
-    await Future.wait([
-      _loadLeaveBalances(),
-      Provider.of<CalendarProvider>(context, listen: false).refresh(),
-    ]);
   }
 
   @override
@@ -284,9 +252,9 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                       SizedBox(height: 24.h),
 
                       // Leave Balance Section
-                      Consumer<UserHomeProvider>(
-                        builder: (context, home, _) =>
-                            _buildLeaveBalanceSection(home),
+                      Consumer<RequestProvider>(
+                        builder: (context, requests, _) =>
+                            _buildLeaveBalanceSection(requests),
                       ),
                       SizedBox(height: 24.h),
 
@@ -544,9 +512,9 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildLeaveBalanceSection(UserHomeProvider home) {
-    // Only show loading indicator on first load
-    if (home.showBalanceLoading) {
+  Widget _buildLeaveBalanceSection(RequestProvider requests) {
+    // Loading only until the first live snapshot arrives
+    if (requests.isLoadingBalances) {
       return NeuCard(
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 40.w, vertical: 40.h),
@@ -570,7 +538,7 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
     }
 
     // If still loading but has loaded before, show previous data or empty state
-    final balances = home.balances;
+    final balances = requests.leaveBalances;
     if (balances == null || !balances.hasAnyLeaves) {
       return NeuCard(
         color: ConstColors.inProgressOrange.withValues(alpha: 0.12),

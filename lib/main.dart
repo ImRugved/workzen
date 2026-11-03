@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 import 'package:get_storage/get_storage.dart';
 import 'providers/auth_provider.dart';
 import 'providers/request_provider.dart';
+import 'providers/my_data_provider.dart';
 import 'providers/attendance_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/onboarding_provider.dart';
@@ -48,7 +49,25 @@ Future<void> main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => RequestProvider()),
+        // The signed-in user's own attendance, requests and leave balances:
+        // one live listener each for the session, shared by every employee
+        // screen, started on login and stopped on logout
+        ChangeNotifierProxyProvider<AuthProvider, MyDataProvider>(
+          create: (_) => MyDataProvider(),
+          update: (_, auth, my) {
+            final uid = auth.user?.uid;
+            if (uid != null) {
+              my!.start(uid);
+            } else {
+              my!.stop();
+            }
+            return my;
+          },
+        ),
+        ChangeNotifierProxyProvider<MyDataProvider, RequestProvider>(
+          create: (_) => RequestProvider(),
+          update: (_, my, requests) => requests!..setMyData(my),
+        ),
         ChangeNotifierProvider(create: (_) => UserProvider()),
         // Organization data: one live listener per session, started on login
         // and stopped on logout, shared by every screen
@@ -64,10 +83,15 @@ Future<void> main() async {
           },
         ),
         // Punches and breaks are checked against the office the admin set
-        ChangeNotifierProxyProvider<OrganizationProvider, AttendanceProvider>(
+        ChangeNotifierProxyProvider2<
+          OrganizationProvider,
+          MyDataProvider,
+          AttendanceProvider
+        >(
           create: (_) => AttendanceProvider(),
-          update: (_, org, attendance) =>
-              attendance!..setOfficeLocation(org.officeLocation),
+          update: (_, org, my, attendance) => attendance!
+            ..setOfficeLocation(org.officeLocation)
+            ..setMyData(my),
         ),
         ChangeNotifierProxyProvider<OrganizationProvider, OnboardingProvider>(
           create: (_) => OnboardingProvider(),
@@ -78,10 +102,16 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => SecurityProvider()),
         ChangeNotifierProvider(create: (_) => DashboardProvider()),
         // Calendar colours follow the admin's live office hours and holidays
-        ChangeNotifierProxyProvider<OrganizationProvider, CalendarProvider>(
+        // and the user's live attendance and requests
+        ChangeNotifierProxyProvider2<
+          OrganizationProvider,
+          MyDataProvider,
+          CalendarProvider
+        >(
           create: (_) => CalendarProvider(),
-          update: (_, org, calendar) =>
-              calendar!..setOrganization(org.officeHours, org.holidays),
+          update: (_, org, my, calendar) => calendar!
+            ..setOrganization(org.officeHours, org.holidays)
+            ..setMyData(my),
         ),
       ],
       child: const MyApp(),
@@ -91,7 +121,8 @@ Future<void> main() async {
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  // Options passed explicitly: iOS has no GoogleService-Info.plist in the project
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   print("Handling a background message: ${message.messageId}");
 }
 

@@ -153,11 +153,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Logo or App Name
-                  Icon(
-                    Icons.calendar_today_rounded,
-                    size: 80.r,
-                    color: ConstColors.primaryDeep,
+                  // Logo
+                  Center(
+                    child: Image.asset('assets/images/logo.png', width: 140.w),
                   ),
                   SizedBox(height: 16.h),
                   Text(

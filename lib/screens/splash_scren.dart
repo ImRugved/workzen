@@ -4,7 +4,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:workzen/utils/logger.dart';
 import '../providers/auth_provider.dart';
-import '../constants/app_theme.dart';
 import '../constants/const_textstyle.dart';
 import '../constants/apploading_indicator.dart';
 import '../constants/constant_colors.dart';
@@ -136,20 +135,7 @@ class _SplashScreenState extends State<SplashScreen>
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // App Logo
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
-                decoration: BoxDecoration(
-                  color: ConstColors.cardBackground,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: ConstColors.borderColor),
-                  boxShadow: NeuStyle.softShadow(),
-                ),
-                child: Icon(
-                  Icons.calendar_today_rounded,
-                  size: 80.r,
-                  color: ConstColors.primaryDeep,
-                ),
-              ),
+              Image.asset('assets/images/logo.png', width: 180.w),
               SizedBox(height: 30.h),
               // App Name
               Center(

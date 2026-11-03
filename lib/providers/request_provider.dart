@@ -15,6 +15,7 @@ import '../models/leave_balance_model.dart';
 import '../models/past_request_entry.dart';
 import '../models/request_model.dart';
 import '../models/user_model.dart';
+import 'my_data_provider.dart';
 import '../services/attendance_summary_service.dart';
 import '../services/fcm_service.dart';
 
@@ -27,8 +28,6 @@ class RequestProvider with ChangeNotifier {
   bool _isLoading = false;
 
   // Stream controllers
-  Stream<List<RequestModel>>? _userRequestsStream;
-  Stream<List<RequestModel>>? _allRequestsStream;
 
   // Apply Leave Form State
   DateTime _fromDate = DateTime.now();
@@ -90,8 +89,6 @@ class RequestProvider with ChangeNotifier {
   List<RequestModel> get userRequests => _userRequests;
   List<RequestModel> get allRequests => _allRequests;
   bool get isLoading => _isLoading;
-  Stream<List<RequestModel>>? get userRequestsStream => _userRequestsStream;
-  Stream<List<RequestModel>>? get allRequestsStream => _allRequestsStream;
 
   // Apply Leave Form Getters
   DateTime get fromDate => _fromDate;
@@ -156,75 +153,84 @@ class RequestProvider with ChangeNotifier {
     }
   }
 
-  // Get real-time stream of user requests
-  Stream<List<RequestModel>> getUserRequestsStream(
-    String userId, {
-    String? type,
-  }) {
-    Query query = _firestore
-        .collection(FirestoreCollections.users)
-        .doc(userId)
-        .collection(FirestoreSubCollections.requests);
+  // --- Every employee's requests (admin screens) ---
+  //
+  // One Firestore listener serves every admin screen that shows requests (the
+  // dashboard counts and recent list, and the Leave Requests screen). Opening
+  // a screen, pressing refresh or coming back from another screen reuses it
+  // instead of reading every request again.
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _allRequestsSub;
+  List<RequestModel> _allRequestsCache = [];
+  bool _allRequestsLoaded = false;
+  int _allRequestsListeners = 0;
+  Timer? _allRequestsStopTimer;
+  final StreamController<List<RequestModel>> _allRequestsChanges =
+      StreamController<List<RequestModel>>.broadcast();
 
-    // Filter by type if specified
-    if (type != null) {
-      query = query.where('type', isEqualTo: type);
-    }
+  // How long the listener stays on after the last screen stopped listening, so
+  // a screen that swaps its stream (or one opened right after another) reuses it
+  static const Duration _allRequestsGrace = Duration(seconds: 45);
 
-    _userRequestsStream = query
+  void _startAllRequests() {
+    _allRequestsStopTimer?.cancel();
+    _allRequestsStopTimer = null;
+
+    _allRequestsSub ??= _firestore
+        .collectionGroup(FirestoreSubCollections.requests)
         .orderBy('appliedOn', descending: true)
         .snapshots()
-        .handleError((error) {
-          logDebug('Error in getUserRequestsStream: $error');
-          return <RequestModel>[];
-        })
-        .map((snapshot) {
-          try {
-            return snapshot.docs
-                .map(
-                  (doc) =>
-                      RequestModel.fromJson(doc.data() as Map<String, dynamic>),
-                )
-                .toList();
-          } catch (e) {
-            logDebug('Error parsing user request documents: $e');
-            return <RequestModel>[];
-          }
-        });
-
-    return _userRequestsStream!;
+        .listen(
+          (snapshot) {
+            try {
+              _allRequestsCache = snapshot.docs
+                  .map((doc) => RequestModel.fromJson(doc.data()))
+                  .toList();
+              _allRequestsLoaded = true;
+              _allRequestsChanges.add(_allRequestsCache);
+            } catch (e) {
+              logDebug('Error parsing request documents: $e');
+            }
+          },
+          onError: (Object error) {
+            logDebug('Error in all requests listener: $error');
+            // Dropped, so the next screen to listen starts it again
+            _allRequestsSub?.cancel();
+            _allRequestsSub = null;
+            _allRequestsLoaded = false;
+            _allRequestsChanges.addError(error);
+          },
+        );
   }
 
-  // Get real-time stream of all requests (for admin view)
-  Stream<List<RequestModel>> getAllRequestsStream({String? type}) {
-    Query query = _firestore.collectionGroup(FirestoreSubCollections.requests);
+  void _stopAllRequests() {
+    _allRequestsSub?.cancel();
+    _allRequestsSub = null;
+    _allRequestsCache = [];
+    _allRequestsLoaded = false;
+  }
 
-    if (type != null) {
-      query = query.where('type', isEqualTo: type);
-    }
+  /// Live list of every employee's requests, newest first, from the one shared
+  /// listener. A new listener gets the current list straight away.
+  Stream<List<RequestModel>> getAllRequestsStream() {
+    return Stream.multi((controller) {
+      _allRequestsListeners++;
+      _startAllRequests();
+      if (_allRequestsLoaded) controller.add(_allRequestsCache);
 
-    _allRequestsStream = query
-        .orderBy('appliedOn', descending: true)
-        .snapshots()
-        .handleError((error) {
-          logDebug('Error in getAllRequestsStream: $error');
-          return <RequestModel>[];
-        })
-        .map((snapshot) {
-          try {
-            return snapshot.docs
-                .map(
-                  (doc) =>
-                      RequestModel.fromJson(doc.data() as Map<String, dynamic>),
-                )
-                .toList();
-          } catch (e) {
-            logDebug('Error parsing request documents: $e');
-            return <RequestModel>[];
-          }
-        });
-
-    return _allRequestsStream!;
+      final subscription = _allRequestsChanges.stream.listen(
+        controller.add,
+        onError: controller.addError,
+      );
+      controller.onCancel = () {
+        subscription.cancel();
+        _allRequestsListeners--;
+        if (_allRequestsListeners <= 0) {
+          _allRequestsListeners = 0;
+          _allRequestsStopTimer?.cancel();
+          _allRequestsStopTimer = Timer(_allRequestsGrace, _stopAllRequests);
+        }
+      };
+    }, isBroadcast: true);
   }
 
   Future<void> fetchUserRequests(
@@ -302,106 +308,50 @@ class RequestProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Fires whenever something that changes the employee's leave balances
-  /// changes in Firestore: this year's leave document, the comp off credit, or
-  /// any of their requests (an admin approving or rejecting one). The first
-  /// snapshots are skipped, so it only reports later changes.
-  Stream<void> leaveBalanceChanges(String userId) {
-    final controller = StreamController<void>();
-    final subscriptions = <StreamSubscription<dynamic>>[];
+  // This year's leave as the home screen shows it (null when none allocated)
+  LeaveBalanceModel? _leaveBalances;
+  LeaveBalanceModel? get leaveBalances => _leaveBalances;
 
-    void emit(dynamic _) {
-      if (!controller.isClosed) controller.add(null);
-    }
+  /// Takes the user's live leave data from [MyDataProvider] (no reads here):
+  /// the comp off credit, this year's leave, and the days held by requests that
+  /// are still pending. Those days are held against the balance, so applying
+  /// shows the count going down at once, an approval keeps it down, and a
+  /// rejection gives it back.
+  void setMyData(MyDataProvider my) {
+    // A copy: cancelling removes from this list before the snapshot arrives
+    _userRequests = List.of(my.requests);
 
-    final userDoc = _firestore
-        .collection(FirestoreCollections.users)
-        .doc(userId);
-    final leaves = userDoc.collection(FirestoreSubCollections.leaves);
-
-    subscriptions.addAll([
-      leaves
-          .doc(FirestoreDocs.annualLeave(DateTime.now().year))
-          .snapshots()
-          .skip(1)
-          .listen(emit, onError: (_) {}),
-      leaves
-          .doc(FirestoreDocs.compOffBalance)
-          .snapshots()
-          .skip(1)
-          .listen(emit, onError: (_) {}),
-      userDoc
-          .collection(FirestoreSubCollections.requests)
-          .snapshots()
-          .skip(1)
-          .listen(emit, onError: (_) {}),
-    ]);
-
-    controller.onCancel = () async {
-      for (final subscription in subscriptions) {
-        await subscription.cancel();
-      }
-    };
-    return controller.stream;
-  }
-
-  // Get user leave balances
-  Future<LeaveBalanceModel?> getUserLeaveBalances(String userId) async {
-    try {
+    // Until the leave documents arrive the balances show as loading
+    if (!my.leaveLoaded || !my.requestsLoaded) {
       _isLoadingBalances = true;
-      notifyListeners();
-
-      // Comp off credit (not tied to a year)
-      final compOffDoc = await _firestore
-          .collection(FirestoreCollections.users)
-          .doc(userId)
-          .collection(FirestoreSubCollections.leaves)
-          .doc(FirestoreDocs.compOffBalance)
-          .get();
-      _compOffBalance = ((compOffDoc.data()?['balance'] ?? 0) as num)
-          .toDouble();
-      _compOffEarned = ((compOffDoc.data()?['earned'] ?? 0) as num).toDouble();
-      _compOffUsed = ((compOffDoc.data()?['used'] ?? 0) as num).toDouble();
-
-      // Days already asked for in requests still waiting for a decision. They
-      // are held against the balance, so applying shows the count going down
-      // at once, an approval keeps it down, and a rejection gives it back.
-      final pendingSnap = await _firestore
-          .collection(FirestoreCollections.users)
-          .doc(userId)
-          .collection(FirestoreSubCollections.requests)
-          .where('status', isEqualTo: AppConstants.statusPending)
-          .get();
-      _pendingDays = {};
-      for (final doc in pendingSnap.docs) {
-        final request = RequestModel.fromJson(doc.data());
-        final leaveType = request.additionalData?['leaveType'] as String?;
-        if (request.isLeaveRequest && leaveType != null) {
-          _pendingDays[leaveType] =
-              (_pendingDays[leaveType] ?? 0) + leaveDaysFor(request);
-        }
-      }
-
-      final currentYear = DateTime.now().year;
-      final leaveDoc = await _firestore
-          .collection(FirestoreCollections.users)
-          .doc(userId)
-          .collection(FirestoreSubCollections.leaves)
-          .doc(FirestoreDocs.annualLeave(currentYear))
-          .get();
-
-      _leaveAllocation = LeaveAllocationModel.tryFromJson(leaveDoc.data());
-      _isLoadingBalances = false;
-      notifyListeners();
-      return leaveDoc.exists
-          ? LeaveBalanceModel.fromFirestore(leaveDoc.data()!)
-          : null;
-    } catch (e) {
-      logDebug('Error fetching leave balances: $e');
-      _isLoadingBalances = false;
-      notifyListeners();
-      return null;
+      Future.microtask(notifyListeners);
+      return;
     }
+
+    double comp(String key) => ((my.compOff?[key] ?? 0) as num).toDouble();
+    _compOffBalance = comp('balance');
+    _compOffEarned = comp('earned');
+    _compOffUsed = comp('used');
+
+    _pendingDays = {};
+    for (final request in my.requests) {
+      if (request.status != AppConstants.statusPending) continue;
+      final leaveType = request.additionalData?['leaveType'] as String?;
+      if (request.isLeaveRequest && leaveType != null) {
+        _pendingDays[leaveType] =
+            (_pendingDays[leaveType] ?? 0) + leaveDaysFor(request);
+      }
+    }
+
+    final annual = my.annualLeave;
+    _leaveAllocation = LeaveAllocationModel.tryFromJson(annual);
+    _leaveBalances = annual == null
+        ? null
+        : LeaveBalanceModel.fromFirestore(annual);
+    _isLoadingBalances = false;
+
+    // Runs while the provider tree is updating, so notify afterwards
+    Future.microtask(notifyListeners);
   }
 
   // Apply leave request with leave type

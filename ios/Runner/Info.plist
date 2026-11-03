@@ -75,12 +75,7 @@
 	<!-- Firebase Cloud Messaging -->
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<false/>
-	
-	<!-- Network usage -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
+	<!-- No App Transport Security exception: every host the app calls (Firebase,
+	     Supabase, FCM) is HTTPS -->
 </dict>
 </plist>

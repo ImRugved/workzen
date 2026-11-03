@@ -7,6 +7,7 @@ import '../models/holiday_model.dart';
 import '../models/office_hours_model.dart';
 import '../models/request_model.dart';
 import '../models/user_model.dart';
+import 'my_data_provider.dart';
 import '../services/attendance_day_calculator.dart';
 import '../utils/logger.dart';
 
@@ -79,6 +80,61 @@ class CalendarProvider with ChangeNotifier {
     Future.microtask(notifyListeners);
   }
 
+  // The user's live attendance and requests (MyDataProvider)
+  MyDataProvider? _my;
+  // The month was asked for before the live data arrived
+  bool _waitingForLive = false;
+
+  // Approved requests that can be drawn: leave / WFH cover a from-to range; a
+  // comp off request names its day off
+  List<RequestModel> _calendarRequests(Iterable<RequestModel> requests) =>
+      requests
+          .where((r) => r.status == AppConstants.statusApproved)
+          .where(
+            (r) =>
+                (r.fromDate != null && r.toDate != null) ||
+                (r.isCompOffRequest && r.compOffDate != null),
+          )
+          .toList();
+
+  /// Called whenever the user's attendance or requests change in Firestore (a
+  /// punch, a new request, an admin's decision). The shown month follows them
+  /// at once, with no read and no refresh.
+  void setMyData(MyDataProvider my) {
+    _my = my;
+    final user = _user;
+    if (user == null) return;
+
+    if (my.attendanceLoaded) _today = my.todayAttendance;
+
+    var changed = false;
+    if (my.requestsLoaded) {
+      _requests = _calendarRequests(my.requests);
+      changed = true;
+    }
+    if (isCurrentMonth && my.attendanceLoaded) {
+      _attendance.clear();
+      for (final record in my.attendance) {
+        if (record.date.year == _month.year &&
+            record.date.month == _month.month) {
+          _attendance[record.date.day] = record;
+        }
+      }
+      changed = true;
+    }
+
+    if (_waitingForLive && my.attendanceLoaded && my.requestsLoaded) {
+      _waitingForLive = false;
+      _isLoading = false;
+    }
+
+    if (changed) {
+      _buildStatuses(user);
+      // This runs while the provider tree is updating, so notify afterwards
+      Future.microtask(notifyListeners);
+    }
+  }
+
   /// Loads a month. A month already viewed is served from memory (no reads);
   /// pass [force] to fetch again, e.g. after punching or on pull-to-refresh.
   Future<void> loadMonth(
@@ -98,7 +154,11 @@ class CalendarProvider with ChangeNotifier {
       _attendance
         ..clear()
         ..addAll(cached.attendance);
-      _requests = cached.requests;
+      // Requests follow the live listener even for a month served from memory
+      final live = _my;
+      _requests = live != null && live.requestsLoaded
+          ? _calendarRequests(live.requests)
+          : cached.requests;
       _buildStatuses(user);
       if (isCurrentMonth) _today = _attendance[DateTime.now().day];
       notifyListeners();
@@ -108,53 +168,72 @@ class CalendarProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
+    // The live listeners were started at login and are about to deliver this
+    // month: wait for them (setMyData) instead of reading it a second time
+    final pending = _my;
+    if (isCurrentMonth &&
+        pending != null &&
+        pending.uid == user.id &&
+        !(pending.attendanceLoaded && pending.requestsLoaded)) {
+      _waitingForLive = true;
+      return;
+    }
+
     try {
       final start = _month;
       final end = DateTime(_month.year, _month.month + 1);
 
-      final attendanceFuture = _firestore
-          .collection(FirestoreCollections.attendance)
-          .where('userId', isEqualTo: user.id)
-          .where('date', isGreaterThanOrEqualTo: start)
-          .where('date', isLessThan: end)
-          .get();
-      final requestsFuture = _firestore
-          .collection(FirestoreCollections.users)
-          .doc(user.id)
-          .collection(FirestoreSubCollections.requests)
-          .where('status', isEqualTo: AppConstants.statusApproved)
-          .get();
+      final live = _my;
+      // This month and the requests come from the live listeners (no reads);
+      // only an earlier or later month is read, and only its attendance
+      final liveAttendance =
+          isCurrentMonth && live != null && live.attendanceLoaded;
+      final liveRequests = live != null && live.requestsLoaded;
 
-      // Future.wait watches both reads, so one failing never leaves the other
-      // unobserved
-      final results = await Future.wait<QuerySnapshot<Map<String, dynamic>>>([
-        attendanceFuture,
-        requestsFuture,
-      ]);
-      final attendanceSnap = results[0];
-      final requestsSnap = results[1];
-
-      _attendance.clear();
-      for (final doc in attendanceSnap.docs) {
-        final record = AttendanceModel.fromJson(doc.data());
-        _attendance[record.date.day] = record;
+      List<AttendanceModel> records;
+      if (liveAttendance) {
+        records = live.attendance;
+      } else {
+        final snapshot = await _firestore
+            .collection(FirestoreCollections.attendance)
+            .where(FirestoreFields.userId, isEqualTo: user.id)
+            .where('date', isGreaterThanOrEqualTo: start)
+            .where('date', isLessThan: end)
+            .get();
+        records = snapshot.docs
+            .map((doc) => AttendanceModel.fromJson(doc.data()))
+            .toList();
       }
 
-      _requests = requestsSnap.docs
-          .map((doc) => RequestModel.fromJson(doc.data()))
-          // Leave / WFH cover a from-to range; a comp off request names its
-          // day off
-          .where(
-            (r) =>
-                (r.fromDate != null && r.toDate != null) ||
-                (r.isCompOffRequest && r.compOffDate != null),
-          )
-          .toList();
+      _attendance.clear();
+      for (final record in records) {
+        if (record.date.year == _month.year &&
+            record.date.month == _month.month) {
+          _attendance[record.date.day] = record;
+        }
+      }
 
-      _monthCache[_cacheKey(_month)] = _MonthData(
-        Map.of(_attendance),
-        _requests,
-      );
+      if (liveRequests) {
+        _requests = _calendarRequests(live.requests);
+      } else {
+        final snapshot = await _firestore
+            .collection(FirestoreCollections.users)
+            .doc(user.id)
+            .collection(FirestoreSubCollections.requests)
+            .where('status', isEqualTo: AppConstants.statusApproved)
+            .get();
+        _requests = _calendarRequests(
+          snapshot.docs.map((doc) => RequestModel.fromJson(doc.data())),
+        );
+      }
+
+      // The live current month is never cached: it follows the listener
+      if (!liveAttendance) {
+        _monthCache[_cacheKey(_month)] = _MonthData(
+          Map.of(_attendance),
+          _requests,
+        );
+      }
 
       _buildStatuses(user);
 

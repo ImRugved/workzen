@@ -69,7 +69,12 @@ class _AdminSettingScreenState extends State<AdminSettingScreen> {
     super.dispose();
   }
 
+  // Today's attendance listener, kept so rebuilds reuse it. Dropped on refresh,
+  // which also picks up a new day if the screen stayed open overnight.
+  Stream<List<AttendanceModel>>? _todayAttendance;
+
   void _loadData() {
+    _todayAttendance = null;
     final dashProvider = Provider.of<DashboardProvider>(context, listen: false);
     final empProvider = Provider.of<EmployeeManagementProvider>(
       context,
@@ -385,7 +390,12 @@ class _AdminSettingScreenState extends State<AdminSettingScreen> {
     AttendanceProvider attProvider,
   ) {
     return StreamBuilder<List<AttendanceModel>>(
-      stream: attProvider.getAllAttendanceStream(),
+      // One listener for today's records, created once: creating it inside the
+      // builder would open a new listener (and re-read) on every rebuild
+      stream: _todayAttendance ??= attProvider.getAttendanceStream(
+        from: DateTime.now(),
+        to: DateTime.now(),
+      ),
       builder: (context, snapshot) {
         final allRecords = snapshot.data ?? [];
         final now = DateTime.now();

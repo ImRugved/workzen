@@ -4,58 +4,40 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/supabase_config.dart';
 
+/// Supabase is used only to store profile pictures (bucket
+/// [SupabaseConfig.profilePicturesBucket]). Everything else lives in Firebase.
 class SupabaseService {
   static final SupabaseClient _client = Supabase.instance.client;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Image upload to Supabase storage
+  /// Uploads [imageBytes] as the user's profile picture, saves its public URL
+  /// on the user's document and returns it.
   static Future<String> uploadProfileImage(
     String userId,
     Uint8List imageBytes,
   ) async {
     final fileName = 'profile_$userId.jpg';
+    final bucket = _client.storage.from(SupabaseConfig.profilePicturesBucket);
 
-    await _client.storage
-        .from(SupabaseConfig.profilePicturesBucket)
-        .uploadBinary(
-          fileName,
-          imageBytes,
-          fileOptions: const FileOptions(
-            upsert: true, // Allow overwriting existing files
-          ),
-        );
+    await bucket.uploadBinary(
+      fileName,
+      imageBytes,
+      fileOptions: const FileOptions(
+        upsert: true, // the same file name is replaced by the new picture
+        contentType: 'image/jpeg',
+      ),
+    );
 
-    final imageUrl = _client.storage
-        .from(SupabaseConfig.profilePicturesBucket)
-        .getPublicUrl(fileName);
+    // The file name never changes, so the plain URL would stay the same after
+    // a new upload and both the app's image cache and Supabase's CDN would keep
+    // showing the old picture. A changing query value makes it a new URL.
+    final imageUrl =
+        '${bucket.getPublicUrl(fileName)}?v=${DateTime.now().millisecondsSinceEpoch}';
 
     // Store the image URL in Firebase Firestore users table
     await _updateUserProfileImageUrl(userId, imageUrl);
 
     return imageUrl;
-  }
-
-  // Upload document to Supabase storage
-  static Future<String> uploadDocument(
-    String userId,
-    String fileName,
-    Uint8List fileBytes,
-  ) async {
-    final uniqueFileName =
-        '${userId}_${DateTime.now().millisecondsSinceEpoch}_$fileName';
-
-    await _client.storage
-        .from(SupabaseConfig.documentsBucket)
-        .uploadBinary(uniqueFileName, fileBytes);
-
-    return _client.storage
-        .from(SupabaseConfig.documentsBucket)
-        .getPublicUrl(uniqueFileName);
-  }
-
-  // Delete file from Supabase storage
-  static Future<void> deleteFile(String bucketName, String fileName) async {
-    await _client.storage.from(bucketName).remove([fileName]);
   }
 
   // Private method to update user profile image URL in Firebase Firestore

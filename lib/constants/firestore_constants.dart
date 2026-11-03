@@ -220,9 +220,13 @@ class FirestoreSubCollections {
   static const String birthdayItems = 'items';
 }
 
-/// Field names used in code on users/{uid} and users/{uid}/security/settings.
+/// Field names used in code on users/{uid}, users/{uid}/security/settings and
+/// attendance/{id}.
 class FirestoreFields {
   FirestoreFields._();
+
+  /// attendance/{id}: the employee the record belongs to.
+  static const String userId = 'userId';
 
   /// false until the user's first login registers their device, then true.
   static const String isFirstLogin = 'isFirstLogin';

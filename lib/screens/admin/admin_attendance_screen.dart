@@ -73,7 +73,11 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       context,
       listen: false,
     );
-    _filter.setStream(attendanceProvider.getAllAttendanceStream());
+    // Only the chosen dates are listened to, so the reads follow the filter
+    // instead of the whole history
+    _filter.setStream(
+      attendanceProvider.getAttendanceStream(from: _filter.from, to: _filter.to),
+    );
   }
 
   // Time worked after the office end time ("1h 0m"), or "-" when there is none
@@ -102,6 +106,8 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       period: selection.period,
       customRange: selection.customRange,
     );
+    // The listener covers the chosen dates only, so it follows the new ones
+    _initializeStream();
   }
 
   // Export options: PDF or Excel, for what the filter shows
@@ -622,14 +628,13 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
         listen: false,
       );
 
-      // Get all employees who don't have attendance records for today
-      final employeesWithoutAttendance = _filter.employees.where((employee) {
-        // Check if employee already has an attendance record for today
-        return !attendanceProvider.hasAttendanceForDate(
-          employee.id,
-          selectedDate,
-        );
-      }).toList();
+      // Employees with no record on that day (one read of that day's records)
+      final withRecord = await attendanceProvider.userIdsWithRecordOn(
+        selectedDate,
+      );
+      final employeesWithoutAttendance = _filter.employees
+          .where((employee) => !withRecord.contains(employee.id))
+          .toList();
 
       if (employeesWithoutAttendance.isNotEmpty) {
         // Mark all these employees as absent

@@ -108,7 +108,10 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/logo.png"
+  # Square versions of assets/images/logo.png (the logo is wider than tall, so
+  # it is centred on a square with padding instead of being stretched)
+  image_path: "assets/images/logo_icon.png"
+  remove_alpha_ios: true # iOS icons cannot be transparent
   min_sdk_android: 21 # Android min sdk min:16, default 21
   adaptive_icon_background: "#FFFFFF" # Android adaptive icon background color
-  adaptive_icon_foreground: "assets/images/logo.png" # Android adaptive icon foreground image
+  adaptive_icon_foreground: "assets/images/logo_foreground.png" # Android adaptive icon foreground image (transparent, inside the safe zone)

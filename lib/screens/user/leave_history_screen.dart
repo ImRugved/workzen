@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import '../../models/request_model.dart';
-import '../../providers/auth_provider.dart';
+import '../../providers/my_data_provider.dart';
 import '../../providers/request_filter_provider.dart';
-import '../../providers/request_provider.dart';
 import '../../widgets/request_card.dart';
 import '../../app_constants.dart';
 import '../../constants/apploading_indicator.dart';
@@ -66,23 +65,16 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
 
   void _initializeStream() {
     if (mounted) {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      if (authProvider.userModel != null) {
-        final requestProvider = Provider.of<RequestProvider>(
-          context,
-          listen: false,
-        );
-        // Leave and comp off requests together
-        _filter.setStream(
-          requestProvider
-              .getUserRequestsStream(authProvider.userModel!.id)
-              .map(
-                (requests) => requests
-                    .where((r) => r.isLeaveRequest || r.isCompOffRequest)
-                    .toList(),
-              ),
-        );
-      }
+      // The user's live requests, shared with every other screen
+      final myData = Provider.of<MyDataProvider>(context, listen: false);
+      // Leave and comp off requests together
+      _filter.setStream(
+        myData.requestsStream.map(
+          (requests) => requests
+              .where((r) => r.isLeaveRequest || r.isCompOffRequest)
+              .toList(),
+        ),
+      );
     }
   }
 

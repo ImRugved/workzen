@@ -36,13 +36,9 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
         context,
         listen: false,
       );
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
+      // The leave balances are live (MyDataProvider), so nothing is loaded here
       requestProvider.initializeApplyLeave();
-
-      if (authProvider.userModel != null) {
-        requestProvider.getUserLeaveBalances(authProvider.userModel!.id);
-      }
     });
   }
 

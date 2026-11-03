@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/calendar_provider.dart';
+import '../../providers/my_data_provider.dart';
 import '../../providers/organization_provider.dart';
 import '../../models/attendance_model.dart';
 import '../../models/office_hours_model.dart';
@@ -88,13 +88,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       Provider.of<OrganizationProvider>(context, listen: false).start();
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final attendanceProvider = Provider.of<AttendanceProvider>(
-        context,
-        listen: false,
-      );
       final user = authProvider.userModel;
       if (user != null) {
-        attendanceProvider.loadTodayData(user.id);
+        // Today's punch and leave are live; this only makes sure the listeners
+        // are running
+        Provider.of<MyDataProvider>(context, listen: false).start(user.id);
         _checkOfficeLocation();
       }
     });
@@ -294,11 +292,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             title:
                 'Successfully punched in${_punchInSuffix(hours, DateTime.now(), halfDayLeave: result['halfDayLeave'] as String?)}',
           );
-          await attendanceProvider.loadTodayData(authProvider.userModel!.id);
-          // Dashboard calendar must show the new punch
-          if (mounted) {
-            Provider.of<CalendarProvider>(context, listen: false).refresh();
-          }
+          // Nothing to reload: the live attendance (MyDataProvider) already has
+          // the punch, and this screen, the home screen and the calendar all
+          // read from it
         } else {
           final error = result['error'] ?? '';
           if (error == 'on_leave') {
@@ -358,11 +354,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
         if (result['success'] == true) {
           ConstantSnackbar.showSuccess(title: 'Successfully punched out');
-          await attendanceProvider.loadTodayData(authProvider.userModel!.id);
-          // Dashboard calendar must show the new punch
-          if (mounted) {
-            Provider.of<CalendarProvider>(context, listen: false).refresh();
-          }
+          // Nothing to reload: the live attendance already has the punch out
         } else {
           final error = result['error'] ?? '';
           if (error == 'not_punched_in') {
@@ -412,12 +404,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 context,
                 listen: false,
               );
-              final attendanceProvider = Provider.of<AttendanceProvider>(
-                context,
-                listen: false,
-              );
               if (authProvider.userModel != null) {
-                attendanceProvider.loadTodayData(authProvider.userModel!.id);
+                // Data is live: restart a dropped listener, re-check the spot
+                Provider.of<MyDataProvider>(
+                  context,
+                  listen: false,
+                ).start(authProvider.userModel!.id);
                 _checkOfficeLocation();
               }
             },
@@ -428,7 +420,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       body: Consumer<AttendanceProvider>(
         builder: (context, attendanceProvider, _) {
           // Keep the page (and the button spinner) visible while punching
-          if (attendanceProvider.isLoading && !attendanceProvider.isPunching) {
+          if (!attendanceProvider.isTodayLoaded ||
+              (attendanceProvider.isLoading && !attendanceProvider.isPunching)) {
             return const Center(child: AppLoadingIndicator(size: 40));
           }
 
