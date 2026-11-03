@@ -188,13 +188,59 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       return null;
     }
 
+    // "Approximate" location (Android 12+, iOS 14+) is blurred by kilometres
+    final accuracyStatus = await Geolocator.getLocationAccuracy();
+    if (accuracyStatus == LocationAccuracyStatus.reduced) {
+      ConstantSnackbar.showError(
+        title: 'Turn on "Precise location" for this app, then try again.',
+      );
+      await Geolocator.openAppSettings();
+      return null;
+    }
+
     try {
-      // One fast fix; GPS drift is handled by the accuracy-aware range check
-      final position = await Geolocator.getCurrentPosition(
+      // About 3 s of readings, keeping the most accurate one: a single fix
+      // indoors can be several metres worse than the next one
+      Position? position;
+      final timer = Stopwatch()..start();
+      await for (final reading
+          in Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.best,
+            ),
+          ).timeout(
+            const Duration(seconds: 10),
+            onTimeout: (sink) => sink.close(),
+          )) {
+        if (position == null || reading.accuracy < position.accuracy) {
+          position = reading;
+        }
+        if (timer.elapsed >= const Duration(seconds: 3) ||
+            reading.accuracy <= 5) {
+          break;
+        }
+      }
+      position ??= await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
+          accuracy: LocationAccuracy.best,
         ),
       );
+
+      // Fake GPS apps and old cached fixes are not accepted
+      if (position.isMocked) {
+        ConstantSnackbar.showError(
+          title: 'Fake location detected. Turn off mock location apps.',
+        );
+        return null;
+      }
+      if (DateTime.now().difference(position.timestamp).abs() >
+          const Duration(minutes: 1)) {
+        ConstantSnackbar.showError(
+          title: 'Location is out of date. Please try again.',
+        );
+        return null;
+      }
+
       final storage = GetStorage();
       await storage.write('latitude', position.latitude);
       await storage.write('longitude', position.longitude);
@@ -810,9 +856,23 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (user == null) return;
     final provider = context.read<AttendanceProvider>();
 
+    // Breaks are checked against the office location, like a punch
+    final position = await _getLocationWithPermission();
+    if (position == null) return;
+
     final result = starting
-        ? await provider.startBreak(user)
-        : await provider.endBreak(user);
+        ? await provider.startBreak(
+            user,
+            latitude: position.latitude,
+            longitude: position.longitude,
+            accuracy: position.accuracy,
+          )
+        : await provider.endBreak(
+            user,
+            latitude: position.latitude,
+            longitude: position.longitude,
+            accuracy: position.accuracy,
+          );
 
     if (result['success'] == true) {
       ConstantSnackbar.showSuccess(

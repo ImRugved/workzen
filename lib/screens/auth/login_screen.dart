@@ -88,6 +88,16 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (success && mounted) {
+        // Say so when this phone could not be registered (release builds show
+        // no logs, so this is the only place the reason is visible)
+        final deviceError = authProvider.deviceRegistrationError;
+        if (deviceError != null) {
+          ConstantSnackbar.show(
+            title: deviceError,
+            backgroundColor: ConstColors.inProgressOrange,
+          );
+        }
+
         // Check security settings
         final securityProvider = Provider.of<SecurityProvider>(
           context,

@@ -24,6 +24,7 @@
 // organization_details                 org-wide settings, readable by every signed-in user
 //   ├─ leave_config                    default PL / SL / CL allocation
 //   ├─ office_hours                    start / end time and late / half-day rules
+//   ├─ office_location                 where the office is; punches are checked against it
 //   ├─ holidays/items/{holidayId}      holiday calendar
 //   └─ birthdays/items/{uid}           month and day of each employee's birthday (no year),
 //                                      written by the employee when they save their date of birth
@@ -60,12 +61,14 @@
 //   "dateOfBirth": Timestamp,                    // date only, set by the employee on the profile
 //   "gender": "Male" | "Female" | "Other",       // set by the employee; words the birthday greeting
 //   "aadharNumber": "...", "panCardNumber": "...",              // admin-only details
-//   "officeLatitude": 18.5679456, "officeLongitude": 73.7686132 // punch geofence centre
+//   // the office is not stored per user: see organization_details/office_location
 // }
 //
 // users/{uid}/requests/{requestId}              (RequestModel)
 // {
 //   "id": "uuid", "userId": "uid", "userName": "Rugved",
+//   // A request an admin adds for leave already taken (Update Employee Leaves) is saved
+//   // approved at once with "adminRemark": "Added by HR" and additionalData.addedByHr: true
 //   "type": "leave" | "wfh" | "break" | "comp_off",
 //   "reason": "...", "status": "pending" | "approved" | "rejected",
 //   "appliedOn": Timestamp,
@@ -154,6 +157,14 @@
 // departments/{departmentId}                    (DepartmentModel)
 // { "id": "...", "name": "HR", "roles": ["Manager", "Recruiter"], "createdAt": Timestamp }
 //
+// organization_details/office_location          (OfficeLocationModel, OrganizationProvider)
+// {
+//   "name": "Head Office", "address": "optional text",
+//   "latitude": 12.9715987, "longitude": 77.5945627,
+//   "radiusMeters": 20,               // punch in / out and breaks must be within this distance
+//   "updatedAt": Timestamp
+// }
+//
 // organization_details/leave_config             (OrganizationProvider)
 // {
 //   "privilegeLeaves": 12, "sickLeaves": 10, "casualLeaves": 8,
@@ -232,6 +243,7 @@ class FirestoreDocs {
   // organization_details/...
   static const String leaveConfig = 'leave_config';
   static const String officeHours = 'office_hours';
+  static const String officeLocation = 'office_location';
   static const String holidays = 'holidays';
   static const String birthdays = 'birthdays';
 

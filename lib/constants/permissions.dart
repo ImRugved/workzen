@@ -24,7 +24,7 @@ class Permissions {
     leaveRequests: 'Approve leave requests',
     viewAttendance: 'View employee attendance',
     leaveConfig: 'Leave counts (default leave settings)',
-    officeHours: 'Office hours and late rules',
+    officeHours: 'Office hours, location and late rules',
     holidays: 'Holiday calendar',
     departments: 'Departments and roles',
   };

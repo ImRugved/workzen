@@ -7,6 +7,7 @@ import '../screens/admin/dashboard/admin_dashboard_screen.dart';
 import '../screens/admin/admin_attendance_screen.dart';
 import '../screens/admin/leave_requests_screen.dart';
 import '../screens/admin/holiday_management_screen.dart';
+import '../screens/admin/manage_employee_leave_screen.dart';
 import '../screens/admin/employee_onboarding_screen.dart';
 import '../screens/admin/employee_management_screen.dart';
 import '../screens/user/dashboard/user_dashboard_screen.dart';
@@ -75,6 +76,13 @@ class Routes {
     GetPage(
       name: '/holiday_management_screen',
       page: () => const HolidayManagementScreen(),
+      transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+
+    GetPage(
+      name: '/manage_employee_leave_screen',
+      page: () => const ManageEmployeeLeaveScreen(),
       transition: Transition.rightToLeft,
       transitionDuration: const Duration(milliseconds: 300),
     ),
@@ -155,6 +163,8 @@ class Routes {
   static const String adminAttendanceScreen = '/admin_attendance_screen';
   static const String leaveRequestsScreen = '/leave_requests_screen';
   static const String holidayManagementScreen = '/holiday_management_screen';
+  static const String manageEmployeeLeaveScreen =
+      '/manage_employee_leave_screen';
   static const String employeeOnboardingScreen = '/employee_onboarding_screen';
   static const String employeeManagementScreen = '/employee_management_screen';
   static const String userDashboard = '/user_dashboard';

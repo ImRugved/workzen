@@ -22,8 +22,6 @@ class UserModel {
   // The actual job role picked from the department's roles (role itself is the
   // access role: admin / employee)
   final String? jobRole;
-  final double? officeLatitude;
-  final double? officeLongitude;
   final bool isFirstLogin; // false until the first login registers the device
   final List<String> subAdminPermissions; // what a sub admin may access
 
@@ -57,8 +55,6 @@ class UserModel {
     this.emergencyContactNumber,
     this.isSubAdmin = false,
     this.jobRole,
-    this.officeLatitude,
-    this.officeLongitude,
     this.isFirstLogin = false,
     this.subAdminPermissions = const [],
     this.address,
@@ -127,8 +123,6 @@ class UserModel {
                   !AppConstants.assignableRoles.contains(json['role'])
               ? json['role'].toString()
               : null),
-      officeLatitude: (json['officeLatitude'] as num?)?.toDouble(),
-      officeLongitude: (json['officeLongitude'] as num?)?.toDouble(),
       isFirstLogin: json['isFirstLogin'] ?? false,
       subAdminPermissions: json['subAdminPermissions'] is List
           ? List<String>.from(json['subAdminPermissions'] as List)
@@ -171,8 +165,6 @@ class UserModel {
       'emergencyContactNumber': emergencyContactNumber,
       'isSubAdmin': isSubAdmin,
       'jobRole': jobRole,
-      'officeLatitude': officeLatitude,
-      'officeLongitude': officeLongitude,
       'isFirstLogin': isFirstLogin,
       'subAdminPermissions': subAdminPermissions,
       'address': address,

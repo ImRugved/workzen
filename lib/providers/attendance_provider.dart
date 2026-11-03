@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,6 +9,7 @@ import 'package:workzen/utils/logger.dart';
 import '../app_constants.dart';
 import '../models/attendance_model.dart';
 import '../models/leave_model.dart';
+import '../models/office_location_model.dart';
 import '../models/request_model.dart';
 import '../models/user_model.dart';
 import '../constants/firestore_constants.dart';
@@ -84,8 +84,14 @@ class AttendanceProvider with ChangeNotifier {
     UserModel user, {
     double? accuracy,
   }) {
-    final officeLat = user.officeLatitude ?? 18.5679456;
-    final officeLng = user.officeLongitude ?? 73.7686132;
+    final office = _officeLocation;
+
+    // No office set yet by the admin: the "at office" dot is not shown
+    if (office == null) {
+      _isAtOffice = null;
+      notifyListeners();
+      return;
+    }
 
     if (userLat == null || userLng == null) {
       _isAtOffice = false;
@@ -93,12 +99,26 @@ class AttendanceProvider with ChangeNotifier {
       return;
     }
 
-    final distance = _calculateDistance(userLat, userLng, officeLat, officeLng);
+    final distance = _calculateDistance(
+      userLat,
+      userLng,
+      office.latitude,
+      office.longitude,
+    );
     logDebug('Distance from office: ${distance.toStringAsFixed(2)} meters');
     _isAtOffice =
-        _isInsideOffice(distance, accuracy) &&
+        _isInsideOffice(distance, accuracy, office.radiusMeters) &&
         (accuracy == null || accuracy <= _maxAcceptableAccuracy);
     notifyListeners();
+  }
+
+  // The office the admin set (organization_details/office_location). It is
+  // handed over by the organization provider, which keeps it live.
+  OfficeLocationModel? _officeLocation;
+  OfficeLocationModel? get officeLocation => _officeLocation;
+
+  void setOfficeLocation(OfficeLocationModel? location) {
+    _officeLocation = location;
   }
 
   // Get real-time stream of user attendance
@@ -295,41 +315,54 @@ class AttendanceProvider with ChangeNotifier {
 
   // Geofence rules. GPS on phones drifts by several metres, so the reported
   // accuracy is credited (up to a cap) before comparing with the radius, and
-  // readings that are too imprecise are rejected instead of guessed.
-  static const double _officeRadius = 20.0; // metres
+  // readings that are too imprecise are rejected instead of guessed. The
+  // radius is the one the admin set with the office location.
   static const double _maxAccuracyCredit = 15.0; // metres
   static const double _maxAcceptableAccuracy = 50.0; // metres
 
-  bool _isInsideOffice(double distance, double? accuracy) {
+  bool _isInsideOffice(double distance, double? accuracy, double radius) {
     final credit = math.min(accuracy ?? 0, _maxAccuracyCredit);
-    return distance - credit <= _officeRadius;
+    return distance - credit <= radius;
   }
 
-  // Returns an error message if the reading is not valid for punching at the
-  // office, or null when it is. [action] is "in" or "out".
-  String? _officeRangeError(
-    double userLat,
-    double userLng,
-    double officeLat,
-    double officeLng,
+  // Returns an error message when the phone's position is not valid for an
+  // action at the office (punch in, punch out, start or end a break), or null
+  // when it is. [action] is the wording used in the message, for example
+  // "punch in" or "start your break".
+  String? _locationError(
+    double? latitude,
+    double? longitude,
     double? accuracy,
     String action,
   ) {
-    final distance = _calculateDistance(userLat, userLng, officeLat, officeLng);
+    final office = _officeLocation;
+    if (office == null) {
+      return 'The office location is not set yet. Please ask your admin to set it.';
+    }
+    if (latitude == null || longitude == null) {
+      return 'Unable to get your location. Please enable location services.';
+    }
+
+    final distance = _calculateDistance(
+      latitude,
+      longitude,
+      office.latitude,
+      office.longitude,
+    );
     logDebug(
       'Distance from office: ${distance.toStringAsFixed(2)} meters, GPS accuracy: ${accuracy?.toStringAsFixed(1) ?? 'unknown'} meters',
     );
 
     if (accuracy != null && accuracy > _maxAcceptableAccuracy) {
-      logDebug('Punch $action rejected: GPS accuracy too low');
+      logDebug('Action "$action" rejected: GPS accuracy too low');
       return 'GPS signal is weak (accuracy ±${accuracy.round()} m). Please move to an open area and try again.';
     }
 
-    if (!_isInsideOffice(distance, accuracy)) {
-      logDebug('Punch $action rejected: outside office range');
-      return 'You are ${distance.round()} m from the office (limit ${_officeRadius.round()} m'
+    if (!_isInsideOffice(distance, accuracy, office.radiusMeters)) {
+      logDebug('Action "$action" rejected: outside office range');
+      return 'You are ${distance.round()} m from the office (limit ${office.radiusMeters.round()} m'
           '${accuracy != null ? ', GPS accuracy ±${accuracy.round()} m' : ''}). '
-          'Please move closer and punch $action again.';
+          'Please move closer and try to $action again.';
     }
 
     return null;
@@ -416,25 +449,12 @@ class AttendanceProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Validate office location (fallback to default office coordinates)
-      final officeLat = user.officeLatitude ?? 18.5679456;
-      final officeLng = user.officeLongitude ?? 73.7686132;
-      if (latitude == null || longitude == null) {
-        _isLoading = false;
-        notifyListeners();
-        return {
-          'success': false,
-          'error':
-              'Unable to get your location. Please enable location services.',
-        };
-      }
-      final rangeError = _officeRangeError(
+      // The phone must be at the office the admin set
+      final rangeError = _locationError(
         latitude,
         longitude,
-        officeLat,
-        officeLng,
         accuracy,
-        'in',
+        'punch in',
       );
       if (rangeError != null) {
         _isLoading = false;
@@ -469,8 +489,11 @@ class AttendanceProvider with ChangeNotifier {
       // punch times
       final halfDayLeave = await checkHalfDayLeaveForToday(user.id);
 
-      // Build location map (latitude and longitude are guaranteed non-null here)
-      final locationMap = {'lat': latitude, 'lng': longitude};
+      // Build location map (_locationError already made sure both are set)
+      final locationMap = <String, double>{
+        'lat': latitude!,
+        'lng': longitude!,
+      };
 
       if (todayAttendance != null) {
         // Already has an attendance record for today
@@ -553,23 +576,12 @@ class AttendanceProvider with ChangeNotifier {
     double? accuracy,
   }) async {
     try {
-      // Validate office location (fallback to default office coordinates)
-      final officeLat = user.officeLatitude ?? 18.5679456;
-      final officeLng = user.officeLongitude ?? 73.7686132;
-      if (latitude == null || longitude == null) {
-        return {
-          'success': false,
-          'error':
-              'Unable to get your location. Please enable location services.',
-        };
-      }
-      final rangeError = _officeRangeError(
+      // The phone must be at the office the admin set
+      final rangeError = _locationError(
         latitude,
         longitude,
-        officeLat,
-        officeLng,
         accuracy,
-        'out',
+        'punch out',
       );
       if (rangeError != null) {
         return {'success': false, 'error': rangeError};
@@ -605,8 +617,11 @@ class AttendanceProvider with ChangeNotifier {
         return {'success': false, 'error': 'on_break'};
       }
 
-      // Build location map (latitude and longitude are guaranteed non-null here)
-      final locationMap = {'lat': latitude, 'lng': longitude};
+      // Build location map (_locationError already made sure both are set)
+      final locationMap = <String, double>{
+        'lat': latitude!,
+        'lng': longitude!,
+      };
 
       // Update attendance with punch out time and set status to present
       final now = DateTime.now();
@@ -642,10 +657,25 @@ class AttendanceProvider with ChangeNotifier {
   }
 
   // Starts a break (tea, lunch...) in today's record. Needs a punch in, no
-  // punch out yet and no break already running. No location check: a break
-  // can be taken away from the desk.
-  Future<Map<String, dynamic>> startBreak(UserModel user) async {
+  // punch out yet and no break already running. The phone must be at the
+  // office, like a punch.
+  Future<Map<String, dynamic>> startBreak(
+    UserModel user, {
+    double? latitude,
+    double? longitude,
+    double? accuracy,
+  }) async {
     try {
+      final rangeError = _locationError(
+        latitude,
+        longitude,
+        accuracy,
+        'start your break',
+      );
+      if (rangeError != null) {
+        return {'success': false, 'error': rangeError};
+      }
+
       final attendance = await getTodayAttendance(user.id, notify: false);
       if (attendance == null || attendance.punchInTime == null) {
         return {'success': false, 'error': 'not_punched_in'};
@@ -680,9 +710,24 @@ class AttendanceProvider with ChangeNotifier {
     }
   }
 
-  // Ends the running break
-  Future<Map<String, dynamic>> endBreak(UserModel user) async {
+  // Ends the running break. The phone must be at the office.
+  Future<Map<String, dynamic>> endBreak(
+    UserModel user, {
+    double? latitude,
+    double? longitude,
+    double? accuracy,
+  }) async {
     try {
+      final rangeError = _locationError(
+        latitude,
+        longitude,
+        accuracy,
+        'end your break',
+      );
+      if (rangeError != null) {
+        return {'success': false, 'error': rangeError};
+      }
+
       final attendance = await getTodayAttendance(user.id, notify: false);
       if (attendance == null || !attendance.isOnBreak) {
         return {'success': false, 'error': 'not_on_break'};

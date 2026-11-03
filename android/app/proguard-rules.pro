@@ -49,6 +49,10 @@
 -dontwarn com.google.android.play.core.**
 -keep class com.google.android.play.core.** { *; }
 
+# Device binding: the plugins that read the phone's ID and model
+-keep class dev.fluttercommunity.android_id.** { *; }
+-keep class dev.fluttercommunity.plus.device_info.** { *; }
+
 # Keep model classes (adjust package name as needed)
 -keep class com.example.workzen.models.** { *; }
 

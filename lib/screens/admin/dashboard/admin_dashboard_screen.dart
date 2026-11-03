@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/value_provider.dart';
 import '../../../widgets/floating_nav_bar.dart';
 import '../admin_home.dart';
-import 'admin_page.dart';
+import 'admin_setting_screen.dart';
 import '../../profile_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -20,7 +20,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   final List<Widget> _screens = [
     const AdminHome(),
-    const AdminDemoPage(),
+    const AdminSettingScreen(),
     const ProfileScreen(),
   ];
 

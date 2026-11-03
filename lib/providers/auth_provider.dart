@@ -114,7 +114,7 @@ class AuthProvider with ChangeNotifier {
               : 'User'}",
         );
         logDebug(
-          "UserModel - id: ${_userModel?.id}, email: ${_userModel?.email}, employeeId: ${_userModel?.employeeId}, department: ${_userModel?.department}, role: ${_userModel?.role}, isAdmin: ${_userModel?.isAdmin}, isSubAdmin: ${_userModel?.isSubAdmin}, officeLatitude: ${_userModel?.officeLatitude}, officeLongitude: ${_userModel?.officeLongitude}",
+          "UserModel - id: ${_userModel?.id}, email: ${_userModel?.email}, employeeId: ${_userModel?.employeeId}, department: ${_userModel?.department}, role: ${_userModel?.role}, isAdmin: ${_userModel?.isAdmin}, isSubAdmin: ${_userModel?.isSubAdmin}",
         );
         logDebug(
           "UserModel profileImageUrl after parsing: ${_userModel?.profileImageUrl}",
@@ -143,26 +143,41 @@ class AuthProvider with ChangeNotifier {
   // after the admin resets the device, or when isFirstLogin is set but the
   // device details are missing. Attendance punches are later checked against
   // the registered deviceId.
+  // Why the last device registration did not happen, or null when it did (or
+  // was not needed). Shown after login because release builds print no logs.
+  String? _deviceRegistrationError;
+  String? get deviceRegistrationError => _deviceRegistrationError;
+
   Future<void> _registerDeviceIfNeeded() async {
+    _deviceRegistrationError = null;
     final user = _user;
     final model = _userModel;
-    if (user == null || model == null) return;
+    if (user == null || model == null) {
+      logDebug(
+        'Device registration skipped: user ${user?.uid}, model loaded: ${model != null}',
+      );
+      return;
+    }
 
     try {
       final service = DeviceService();
       // isFirstLogin alone is not proof: the device details must be saved too
-      if (model.isFirstLogin && await service.hasRegisteredDevice(user.uid)) {
-        return;
-      }
+      final hasDevice = await service.hasRegisteredDevice(user.uid);
+      logDebug(
+        'Device registration check for ${user.uid}: isFirstLogin ${model.isFirstLogin}, device saved: $hasDevice',
+      );
+      if (model.isFirstLogin && hasDevice) return;
 
       final error = await service.registerDevice(user.uid);
       if (error != null) {
         logDebug('Device not registered at login: $error');
+        _deviceRegistrationError = error;
         return;
       }
       await _fetchUserData();
     } catch (e) {
       logDebug('Error registering device: $e');
+      _deviceRegistrationError = 'Device registration failed: $e';
     }
   }
 
@@ -290,6 +305,10 @@ class AuthProvider with ChangeNotifier {
       // logDebug('FCM token saved for new user: ${_user!.uid}');
 
       _userModel = newUser;
+
+      // Bind this phone to the new account now, as a login would
+      await _registerDeviceIfNeeded();
+
       _isLoading = false;
       notifyListeners();
       return {'success': true, 'message': 'Account created successfully!'};

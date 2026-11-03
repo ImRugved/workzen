@@ -76,6 +76,23 @@ class Validators {
     return null;
   }
 
+  /// Required decimal number between [min] and [max], for example a latitude.
+  static String? Function(String?) decimalInRange(
+    String fieldName,
+    double min,
+    double max,
+  ) {
+    return (value) {
+      if (value == null || value.trim().isEmpty) {
+        return 'Enter the $fieldName';
+      }
+      final number = double.tryParse(value.trim());
+      if (number == null) return 'Invalid number';
+      if (number < min || number > max) return 'Must be between $min and $max';
+      return null;
+    };
+  }
+
   /// Optional whole number between [min] and [max]; blank is fine.
   static String? Function(String?) intInRange(int min, int max) {
     return (value) {

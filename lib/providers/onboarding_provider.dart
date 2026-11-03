@@ -748,12 +748,12 @@ class OnboardingProvider extends ChangeNotifier {
           // Typed read: tolerates half-day (fractional) values
           final balance = LeaveBalanceModel.fromFirestore(data);
           totalUsers++;
-          totalAllocatedLeaves += balance.totalAllocated;
-          totalUsedLeaves += balance.totalUsed;
-          totalBalanceLeaves += balance.totalBalance;
-          totalPLAllocated += balance.plTotal;
-          totalSLAllocated += balance.slTotal;
-          totalCLAllocated += balance.clTotal;
+          totalAllocatedLeaves += balance.totalAllocated.toInt();
+          totalUsedLeaves += balance.totalUsed.toInt();
+          totalBalanceLeaves += balance.totalBalance.toInt();
+          totalPLAllocated += balance.plTotal.toInt();
+          totalSLAllocated += balance.slTotal.toInt();
+          totalCLAllocated += balance.clTotal.toInt();
         }
       }
 

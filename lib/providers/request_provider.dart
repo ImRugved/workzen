@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'package:workzen/utils/logger.dart';
 import '../app_constants.dart';
@@ -11,6 +12,7 @@ import '../constants/firestore_constants.dart';
 import '../constants/permissions.dart';
 import '../models/leave_allocation_model.dart';
 import '../models/leave_balance_model.dart';
+import '../models/past_request_entry.dart';
 import '../models/request_model.dart';
 import '../models/user_model.dart';
 import '../services/attendance_summary_service.dart';
@@ -824,6 +826,274 @@ class RequestProvider with ChangeNotifier {
   }
 
   // Helper method for date formatting
+  // --- Records HR adds for leave an employee already took ---
+
+  /// Saves the [entries] on [userId] as approved requests (no approval step)
+  /// and applies what an approval would: the leave balance, or the comp off
+  /// credit. The monthly summaries are rebuilt. Nothing else happens: no
+  /// notification is sent, and the records then show wherever requests do
+  /// (the employee's history and calendar, the admin leave requests, the
+  /// attendance reports). Nothing is saved when a day already has a request.
+  Future<PastRequestsResult> addPastRequests({
+    required String userId,
+    required String userName,
+    required List<PastRequestEntry> entries,
+  }) async {
+    if (entries.isEmpty) {
+      return const PastRequestsResult.failure('Add at least one record');
+    }
+
+    try {
+      final requestsRef = _firestore
+          .collection(FirestoreCollections.users)
+          .doc(userId)
+          .collection(FirestoreSubCollections.requests);
+
+      // Days that already have a request would be counted twice
+      final existingSnapshot = await requestsRef.get();
+      final existing = existingSnapshot.docs
+          .map((doc) => RequestModel.fromJson(doc.data()))
+          .where((r) => r.status != AppConstants.statusRejected)
+          .toList();
+      final conflict = _findPastConflict(entries, existing);
+      if (conflict != null) return PastRequestsResult.failure(conflict);
+
+      // A leave of a year with no allocation can not move a balance; it is
+      // still saved, and HR is told
+      final notes = <String>[];
+      final leaveYears = {
+        for (final e in entries)
+          if (e.kind == PastRequestKind.pl ||
+              e.kind == PastRequestKind.sl ||
+              e.kind == PastRequestKind.cl)
+            e.from.year,
+      };
+      for (final year in leaveYears) {
+        final allocation = await _firestore
+            .collection(FirestoreCollections.users)
+            .doc(userId)
+            .collection(FirestoreSubCollections.leaves)
+            .doc(FirestoreDocs.annualLeave(year))
+            .get();
+        if (!allocation.exists) {
+          notes.add(
+            'No $year leave allocation, so the used days of $year were not '
+            'recorded',
+          );
+        }
+      }
+
+      final now = DateTime.now();
+      final requests = [
+        for (final entry in entries)
+          _requestFromEntry(entry, userId, userName, now),
+      ];
+
+      final batch = _firestore.batch();
+      for (final request in requests) {
+        batch.set(requestsRef.doc(request.id), request.toJson());
+      }
+      await batch.commit();
+
+      // Leave already taken is recorded as used days without changing what the
+      // employee has left today (see _recordPastLeave)
+      for (final request in requests) {
+        if (request.isCompOffRequest) {
+          // Earned and used at once, so the credit balance does not change
+          await _creditCompOff(request);
+        } else if (request.isLeaveRequest) {
+          await _recordPastLeave(request);
+        }
+      }
+
+      // The calendar and history of the employee follow the new records
+      for (final request in requests) {
+        final from = request.isCompOffRequest
+            ? request.compOffDate
+            : request.fromDate;
+        final to = request.isCompOffRequest
+            ? request.compOffDate
+            : request.toDate;
+        if (from == null || to == null) continue;
+        unawaited(() async {
+          try {
+            await AttendanceSummaryService().rebuildMonthsBetween(
+              userId,
+              from,
+              to,
+            );
+          } catch (e) {
+            logDebug('Could not update attendance summary: $e');
+          }
+        }());
+      }
+
+      return PastRequestsResult.success(notes);
+    } catch (e) {
+      logDebug('Error adding past requests: $e');
+      return const PastRequestsResult.failure(
+        'Could not save the records. Please try again.',
+      );
+    }
+  }
+
+  DateTime _dayOf(DateTime date) => DateTime(date.year, date.month, date.day);
+
+  // The approved request an entry becomes
+  RequestModel _requestFromEntry(
+    PastRequestEntry entry,
+    String userId,
+    String userName,
+    DateTime now,
+  ) {
+    const remark = 'Added by HR';
+    final reason = entry.reason.isEmpty ? remark : entry.reason;
+    final from = _dayOf(entry.from);
+    final to = _dayOf(entry.isHalfDay ? entry.from : entry.to);
+
+    if (entry.kind == PastRequestKind.compOff) {
+      return RequestModel.compOff(
+        id: const Uuid().v4(),
+        userId: userId,
+        userName: userName,
+        date: from,
+        shift: entry.isHalfDay ? 'Half Day' : 'Full Day',
+        reason: reason,
+        status: AppConstants.statusApproved,
+        adminRemark: remark,
+        appliedOn: now,
+        additionalData: {
+          'days': entry.isHalfDay ? 0.5 : 1,
+          'compOffDate': _dayOf(entry.compOffDate ?? entry.from)
+              .toIso8601String(),
+          'addedByHr': true,
+        },
+      );
+    }
+
+    if (entry.kind == PastRequestKind.wfh) {
+      return RequestModel.wfh(
+        id: const Uuid().v4(),
+        userId: userId,
+        userName: userName,
+        fromDate: from,
+        toDate: to,
+        reason: reason,
+        status: AppConstants.statusApproved,
+        adminRemark: remark,
+        appliedOn: now,
+      );
+    }
+
+    return RequestModel.leave(
+      id: const Uuid().v4(),
+      userId: userId,
+      userName: userName,
+      fromDate: from,
+      toDate: to,
+      shift: entry.isHalfDay
+          ? (entry.half ?? PastRequestEntry.firstHalf)
+          : 'Full Day',
+      reason: reason,
+      status: AppConstants.statusApproved,
+      adminRemark: remark,
+      appliedOn: now,
+      additionalData: {'leaveType': entry.kind.leaveCode, 'addedByHr': true},
+    );
+  }
+
+  // True when two day spans share a day, except a first half and a second half
+  // on the same single day, which can both be taken
+  bool _spansClash(
+    DateTime aFrom,
+    DateTime aTo,
+    String? aHalf,
+    DateTime bFrom,
+    DateTime bTo,
+    String? bHalf,
+  ) {
+    if (aTo.isBefore(bFrom) || aFrom.isAfter(bTo)) return false;
+    final bothSingleHalves =
+        aHalf != null &&
+        bHalf != null &&
+        aHalf != bHalf &&
+        aFrom == aTo &&
+        bFrom == bTo;
+    return !bothSingleHalves;
+  }
+
+  // A message about the first record that clashes with an existing request or
+  // with another new one, or null when none does
+  String? _findPastConflict(
+    List<PastRequestEntry> entries,
+    List<RequestModel> existing,
+  ) {
+    final fmt = DateFormat('dd MMM yyyy');
+
+    String? halfOf(String? shift) =>
+        (shift == PastRequestEntry.firstHalf ||
+            shift == PastRequestEntry.secondHalf)
+        ? shift
+        : null;
+
+    for (var i = 0; i < entries.length; i++) {
+      final a = entries[i];
+
+      if (a.kind == PastRequestKind.compOff) {
+        final day = _dayOf(a.from);
+        final clash = existing.any(
+          (r) => r.isCompOffRequest && r.date != null && _dayOf(r.date!) == day,
+        );
+        if (clash) {
+          return 'A comp off for ${fmt.format(day)} already exists';
+        }
+        final duplicate = entries
+            .skip(i + 1)
+            .any((b) => b.kind == PastRequestKind.compOff && _dayOf(b.from) == day);
+        if (duplicate) {
+          return 'Comp off for ${fmt.format(day)} is added twice';
+        }
+        continue;
+      }
+
+      final aFrom = _dayOf(a.from);
+      final aTo = _dayOf(a.isHalfDay ? a.from : a.to);
+      final aHalf = a.isHalfDay ? a.half : null;
+
+      for (final r in existing) {
+        if (!(r.isLeaveRequest || r.isWFHRequest)) continue;
+        if (r.fromDate == null || r.toDate == null) continue;
+        if (_spansClash(
+          aFrom,
+          aTo,
+          aHalf,
+          _dayOf(r.fromDate!),
+          _dayOf(r.toDate!),
+          halfOf(r.shift),
+        )) {
+          return '${a.kind.sectionTitle} on ${a.dateText} overlaps an '
+              'existing request';
+        }
+      }
+
+      for (final b in entries.skip(i + 1)) {
+        if (b.kind == PastRequestKind.compOff) continue;
+        if (_spansClash(
+          aFrom,
+          aTo,
+          aHalf,
+          _dayOf(b.from),
+          _dayOf(b.isHalfDay ? b.from : b.to),
+          b.isHalfDay ? b.half : null,
+        )) {
+          return '${a.kind.sectionTitle} on ${a.dateText} overlaps '
+              '${b.kind.sectionTitle} on ${b.dateText}';
+        }
+      }
+    }
+    return null;
+  }
+
   String _formatDate(DateTime date) {
     return "${date.day}/${date.month}/${date.year}";
   }
@@ -849,6 +1119,51 @@ class RequestProvider with ChangeNotifier {
         return 'casualLeaves';
       default:
         return leaveType;
+    }
+  }
+
+  /// Records leave the employee already took, without touching what they have
+  /// left. The balance today already is what remains, so the days are added to
+  /// both "allocated" and "used" and the balance stays as it is: 5 left today
+  /// and 10 days taken before gives 15 allocated, 10 used, 5 left. For comp off
+  /// leave the same is done on the comp off credit.
+  Future<void> _recordPastLeave(RequestModel request) async {
+    try {
+      final leaveType = request.leaveType?.toLowerCase();
+      if (leaveType == null) return;
+      final days = request.requestedDays;
+
+      if (leaveType == AppConstants.leaveTypeCO) {
+        await _compOffRef(request.userId).set({
+          'earned': FieldValue.increment(days),
+          'used': FieldValue.increment(days),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        return;
+      }
+
+      final field = _getLeaveTypeFieldName(leaveType);
+      final leaveRef = _firestore
+          .collection(FirestoreCollections.users)
+          .doc(request.userId)
+          .collection(FirestoreSubCollections.leaves)
+          .doc(FirestoreDocs.annualLeave(request.fromDate!.year));
+
+      // The balance of the year the leave falls in; a year with no allocation
+      // has nothing to record on (the caller already told HR)
+      final snapshot = await leaveRef.get();
+      if (!snapshot.exists) return;
+
+      await leaveRef.update({
+        '$field.allocated': FieldValue.increment(days),
+        '$field.used': FieldValue.increment(days),
+        'totalAllocated': FieldValue.increment(days),
+        'totalUsed': FieldValue.increment(days),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      logDebug('Past leave recorded: $field +$days used (balance unchanged)');
+    } catch (e) {
+      logDebug('Error recording past leave: $e');
     }
   }
 
@@ -927,12 +1242,13 @@ class RequestProvider with ChangeNotifier {
         days = 1; // Count as 0.5 in the update
       }
 
-      final currentYear = DateTime.now().year;
+      // The balance of the year the leave falls in
+      final leaveYear = request.fromDate!.year;
       final leaveRef = _firestore
           .collection(FirestoreCollections.users)
           .doc(request.userId)
           .collection(FirestoreSubCollections.leaves)
-          .doc(FirestoreDocs.annualLeave(currentYear));
+          .doc(FirestoreDocs.annualLeave(leaveYear));
 
       await _firestore.runTransaction((transaction) async {
         final leaveDoc = await transaction.get(leaveRef);
@@ -975,8 +1291,9 @@ class RequestProvider with ChangeNotifier {
         transaction.update(leaveRef, {
           '$leaveTypeField.used': newUsed,
           '$leaveTypeField.balance': newBalance,
-          'totalUsed': FieldValue.increment(daysToDeduct.toInt()),
-          'totalBalance': FieldValue.increment(-daysToDeduct.toInt()),
+          // Not truncated, so a half day (0.5) is counted
+          'totalUsed': FieldValue.increment(daysToDeduct),
+          'totalBalance': FieldValue.increment(-daysToDeduct),
           'updatedAt': FieldValue.serverTimestamp(),
         });
 

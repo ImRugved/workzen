@@ -2,19 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/firestore_constants.dart';
 import '../models/leave_balance_model.dart';
-import '../models/leave_statistics_model.dart';
 import 'employee_management_provider.dart';
 import 'onboarding_provider.dart';
 
-/// Admin dashboard data: leave statistics and per-employee leave balances.
+/// Admin dashboard data: the per-employee leave balances.
 /// Organization settings (leave counts, office hours, holidays) live in
 /// [OrganizationProvider], not here.
 class DashboardProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Leave statistics state
-  LeaveStatisticsModel _leaveStats = const LeaveStatisticsModel();
-  bool _isLoadingLeaveStats = true;
+  // How many employees' leave documents are read at the same time
+  static const int _parallelReads = 10;
 
   // Employee leave balances state
   Map<String, LeaveBalanceModel> _employeeLeaves = {};
@@ -29,8 +27,6 @@ class DashboardProvider with ChangeNotifier {
   String? _expandedEmployeeId;
 
   // Getters
-  LeaveStatisticsModel get leaveStats => _leaveStats;
-  bool get isLoadingLeaveStats => _isLoadingLeaveStats;
   Map<String, LeaveBalanceModel> get employeeLeaves => _employeeLeaves;
   bool get isLoadingEmployeeLeaves => _isLoadingEmployeeLeaves;
   String? get expandedEmployeeId => _expandedEmployeeId;
@@ -46,29 +42,13 @@ class DashboardProvider with ChangeNotifier {
     EmployeeManagementProvider empProvider,
     OnboardingProvider onboardingProvider,
   ) async {
-    empProvider.fetchAllEmployees();
-    empProvider.fetchDepartments();
-
+    // Who is onboarded comes from the employee list, so wait for it; the
+    // leave documents are read only after that
     await Future.wait([
-      _loadLeaveStatistics(onboardingProvider),
-      _loadEmployeeLeaves(empProvider, onboardingProvider),
+      empProvider.fetchAllEmployees(),
+      empProvider.fetchDepartments(),
     ]);
-  }
-
-  // Load leave statistics
-  Future<void> _loadLeaveStatistics(
-    OnboardingProvider onboardingProvider,
-  ) async {
-    _isLoadingLeaveStats = true;
-    notifyListeners();
-
-    try {
-      final stats = await onboardingProvider.getLeaveStatistics();
-      _leaveStats = stats;
-    } catch (_) {}
-
-    _isLoadingLeaveStats = false;
-    notifyListeners();
+    await _loadEmployeeLeaves(empProvider, onboardingProvider);
   }
 
   // Load individual employee leave balances
@@ -80,20 +60,42 @@ class DashboardProvider with ChangeNotifier {
     notifyListeners();
 
     final Map<String, LeaveBalanceModel> leaves = {};
-    final employees = empProvider.employees
+    // Every onboarded employee, whatever search or filter the employee
+    // management screen has on
+    final employees = empProvider.allEmployees
         .where((e) => e.isOnboarded)
         .toList();
     var missing = 0;
 
-    for (final emp in employees) {
-      try {
-        final data = await onboardingProvider.getUserLeaveAllocation(emp.id);
+    // One read per employee, ten at a time. Reading them one after another
+    // made the section wait for every round trip in turn.
+    for (var i = 0; i < employees.length; i += _parallelReads) {
+      final end = i + _parallelReads > employees.length
+          ? employees.length
+          : i + _parallelReads;
+      final batch = employees.sublist(i, end);
+
+      final results = await Future.wait(
+        batch.map((emp) async {
+          try {
+            return (ok: true, data: await onboardingProvider
+                .getUserLeaveAllocation(emp.id));
+          } catch (_) {
+            return (ok: false, data: null as Map<String, dynamic>?);
+          }
+        }),
+      );
+
+      for (var j = 0; j < batch.length; j++) {
+        final result = results[j];
+        if (!result.ok) continue;
+        final data = result.data;
         if (data != null) {
-          leaves[emp.id] = LeaveBalanceModel.fromFirestore(data);
+          leaves[batch[j].id] = LeaveBalanceModel.fromFirestore(data);
         } else {
           missing++;
         }
-      } catch (_) {}
+      }
     }
 
     _missingLeaveCount = missing;
@@ -138,7 +140,8 @@ class DashboardProvider with ChangeNotifier {
       }
 
       final leaveData = data[fieldKey] as Map<String, dynamic>;
-      final used = (leaveData['used'] ?? 0) as int;
+      // Half days make these decimals
+      final used = (leaveData['used'] ?? 0) as num;
       final newBalance = newTotal - used;
 
       await docRef.update({
@@ -155,28 +158,25 @@ class DashboardProvider with ChangeNotifier {
       });
 
       // Reload data
-      await Future.wait([
-        _loadLeaveStatistics(onboardingProvider),
-        _loadEmployeeLeaves(empProvider, onboardingProvider),
-      ]);
+      await _loadEmployeeLeaves(empProvider, onboardingProvider);
     } catch (e) {
       debugPrint('Error updating leave: $e');
     }
   }
 
-  int _recalcTotal(
+  num _recalcTotal(
     Map<String, dynamic> data,
     String changedField,
     String subField,
-    int newValue,
+    num newValue,
   ) {
-    int total = 0;
+    num total = 0;
     for (final key in ['privilegeLeaves', 'sickLeaves', 'casualLeaves']) {
       if (key == changedField) {
         total += newValue;
       } else {
         final ld = data[key] as Map<String, dynamic>?;
-        total += ((ld?[subField] ?? 0) as num).toInt();
+        total += (ld?[subField] ?? 0) as num;
       }
     }
     return total;

@@ -11,6 +11,9 @@ import 'package:workzen/utils/logger.dart';
 class DeviceService {
   final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
 
+  // Why the phone's details could not be read the last time, for messages
+  String? _lastReadError;
+
   /// Returns deviceId, platform, manufacturer, model and osVersion.
   /// deviceId is null when it cannot be read (unsupported platform).
   Future<Map<String, dynamic>> getDeviceInfo() async {
@@ -39,6 +42,7 @@ class DeviceService {
       }
     } catch (e) {
       logDebug('Error reading device info: $e');
+      _lastReadError = '$e';
     }
 
     return {FirestoreFields.deviceId: null};
@@ -73,8 +77,9 @@ class DeviceService {
   /// short reason it could not be done.
   Future<String?> registerDevice(String uid) async {
     final info = await getDeviceInfo();
+    logDebug('Registering device for $uid: $info');
     if (info[FirestoreFields.deviceId] == null) {
-      return 'Unable to read this phone\'s ID. Please try again.';
+      return 'Unable to read this phone\'s ID. ${_lastReadError ?? 'Please try again.'}';
     }
 
     try {
@@ -95,7 +100,8 @@ class DeviceService {
       return null;
     } catch (e) {
       logDebug('Error registering device: $e');
-      return 'Could not register your device. Please try again.';
+      // The reason is included: release builds print no logs
+      return 'Could not register your device: $e';
     }
   }
 }

@@ -80,6 +80,15 @@ service cloud.firestore {
         allow update: if hasPerm('leave_requests') &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['status', 'adminRemark']);
+
+        // Update Employee Leaves: a sub admin with "approve leave requests" may
+        // add a request for leave an employee already took, saved approved with
+        // the remark "Added by HR" (an admin can do anything through the
+        // catch-all rule at the bottom)
+        allow create: if hasPerm('leave_requests') &&
+          request.resource.data.userId == userId &&
+          request.resource.data.status == 'approved' &&
+          request.resource.data.adminRemark == 'Added by HR';
       }
 
       // Leaves subcollection - leave balances (read-only for users)
@@ -134,6 +143,12 @@ service cloud.firestore {
     }
 
     match /organization_details/office_hours {
+      allow read: if signedIn();
+      allow write: if hasPerm('office_hours');
+    }
+
+    // Where the office is (punch in / out and breaks are checked against it)
+    match /organization_details/office_location {
       allow read: if signedIn();
       allow write: if hasPerm('office_hours');
     }

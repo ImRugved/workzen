@@ -16,6 +16,7 @@ import '../../../models/attendance_model.dart';
 import '../../../models/office_hours_model.dart';
 import '../../../widgets/department_role_manager.dart';
 import '../../../widgets/holiday_calendar_card.dart';
+import '../../../widgets/office_location_form.dart';
 import '../../../widgets/donut_stat_card.dart';
 import '../../../widgets/employee_name_sheet.dart';
 import '../../../constants/const_textstyle.dart';
@@ -26,14 +27,18 @@ import '../../../constants/constant_date_time_picker.dart';
 import '../../../constants/constant_snackbar.dart';
 import 'package:shimmer/shimmer.dart';
 
-class AdminDemoPage extends StatefulWidget {
-  const AdminDemoPage({super.key});
+/// The Settings tab of the admin dashboard: today's attendance, departments and
+/// roles, leave configuration, office hours, the holiday calendar and the way in
+/// to Manage Employee Leaves. Each section shows only for an admin or sub admin
+/// with its permission.
+class AdminSettingScreen extends StatefulWidget {
+  const AdminSettingScreen({super.key});
 
   @override
-  State<AdminDemoPage> createState() => _AdminDemoPageState();
+  State<AdminSettingScreen> createState() => _AdminSettingScreenState();
 }
 
-class _AdminDemoPageState extends State<AdminDemoPage> {
+class _AdminSettingScreenState extends State<AdminSettingScreen> {
   final TextEditingController _plController = TextEditingController();
   final TextEditingController _slController = TextEditingController();
   final TextEditingController _clController = TextEditingController();
@@ -189,6 +194,17 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
                         SizedBox(height: 24.h),
                       ],
 
+                      // Office Location
+                      if (auth.can(Permissions.officeHours)) ...[
+                        _buildSectionHeader(
+                          'Office Location',
+                          Icons.location_on_outlined,
+                        ),
+                        SizedBox(height: 10.h),
+                        _buildOfficeLocationSection(org),
+                        SizedBox(height: 24.h),
+                      ],
+
                       // Holiday Calendar
                       if (auth.can(Permissions.holidays)) ...[
                         _buildSectionHeader(
@@ -202,13 +218,29 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
 
                       // 4. Employee Leave Balances
                       if (auth.can(Permissions.manageEmployees) ||
-                          auth.can(Permissions.onboarding)) ...[
+                          auth.can(Permissions.onboarding) ||
+                          auth.can(Permissions.leaveRequests)) ...[
                         _buildSectionHeader(
-                          'Employee Leave Balances',
+                          'Employee Leaves',
                           Icons.people_outline,
                         ),
                         SizedBox(height: 10.h),
-                        _buildEmployeeLeaveSection(empProvider, dashProvider),
+                        // One button: the leave balances and the past leave
+                        // records are on that screen, in two tabs
+                        SizedBox(
+                          width: double.infinity,
+                          child: ConstantButton(
+                            text: 'Manage Employee Leaves',
+                            icon: Icon(
+                              Icons.event_note_outlined,
+                              size: 20.r,
+                              color: ConstColors.textColor,
+                            ),
+                            onPressed: () =>
+                                Get.toNamed('/manage_employee_leave_screen'),
+                            backgroundColor: ConstColors.primary,
+                          ),
+                        ),
                         SizedBox(height: 24.h),
                       ],
                     ],
@@ -678,404 +710,6 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
           ),
         );
       }).toList(),
-    );
-  }
-
-  // --- 3. Employee Leave Balances ---
-  Widget _buildEmployeeLeaveSection(
-    EmployeeManagementProvider empProvider,
-    DashboardProvider dashProvider,
-  ) {
-    final onboardedEmployees = empProvider.employees
-        .where((e) => e.isOnboarded)
-        .toList();
-
-    if (dashProvider.isLoadingEmployeeLeaves) {
-      return _buildEmployeeLeaveShimmer();
-    }
-
-    if (onboardedEmployees.isEmpty) {
-      return _buildEmptyCard('No onboarded employees');
-    }
-
-    return Column(
-      children: onboardedEmployees.map((emp) {
-        final leave = dashProvider.employeeLeaves[emp.id];
-        final isExpanded = dashProvider.expandedEmployeeId == emp.id;
-
-        return NeuCard(
-          margin: EdgeInsets.symmetric(vertical: 8.h),
-          radius: NeuStyle.radiusSmall,
-          borderColor: isExpanded
-              ? ConstColors.primary.withValues(alpha: 0.6)
-              : null,
-          onTap: () => dashProvider.toggleExpandedEmployee(emp.id),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-            child: Column(
-              children: [
-                // Header row
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 18.r,
-                      backgroundColor: ConstColors.primary.withValues(
-                        alpha: 0.1,
-                      ),
-                      child: Text(
-                        emp.name.isNotEmpty ? emp.name[0].toUpperCase() : 'E',
-                        style: getTextTheme().titleSmall?.copyWith(
-                          color: ConstColors.primaryDeep,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 10.w),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            emp.name,
-                            style: getTextTheme().bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            '${emp.department ?? 'N/A'} • ${emp.jobRole ?? 'N/A'}',
-                            style: getTextTheme().labelSmall?.copyWith(
-                              color: ConstColors.textColorLight,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (leave != null) ...[
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8.w,
-                          vertical: 4.h,
-                        ),
-                        decoration: BoxDecoration(
-                          color: ConstColors.successGreen.withValues(
-                            alpha: 0.1,
-                          ),
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Text(
-                          '${leave.totalBalance} left',
-                          style: getTextTheme().labelSmall?.copyWith(
-                            color: ConstColors.successGreen,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ] else ...[
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8.w,
-                          vertical: 4.h,
-                        ),
-                        decoration: BoxDecoration(
-                          color: ConstColors.warningAmber.withValues(
-                            alpha: 0.1,
-                          ),
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Text(
-                          'No data',
-                          style: getTextTheme().labelSmall?.copyWith(
-                            color: ConstColors.warningAmber,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                    SizedBox(width: 4.w),
-                    Icon(
-                      isExpanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
-                      color: ConstColors.textColorLight,
-                      size: 20.r,
-                    ),
-                  ],
-                ),
-                // Expanded details
-                if (isExpanded && leave != null) ...[
-                  SizedBox(height: 12.h),
-                  const Divider(height: 1),
-                  SizedBox(height: 12.h),
-                  _buildLeaveBalanceRow(
-                    'Privilege Leave (PL)',
-                    leave.plTotal,
-                    leave.plUsed,
-                    leave.plBalance,
-                    ConstColors.infoBlue,
-                    emp.id,
-                    'pl',
-                    dashProvider,
-                  ),
-                  SizedBox(height: 10.h),
-                  _buildLeaveBalanceRow(
-                    'Sick Leave (SL)',
-                    leave.slTotal,
-                    leave.slUsed,
-                    leave.slBalance,
-                    ConstColors.successGreen,
-                    emp.id,
-                    'sl',
-                    dashProvider,
-                  ),
-                  SizedBox(height: 10.h),
-                  _buildLeaveBalanceRow(
-                    'Casual Leave (CL)',
-                    leave.clTotal,
-                    leave.clUsed,
-                    leave.clBalance,
-                    ConstColors.inProgressOrange,
-                    emp.id,
-                    'cl',
-                    dashProvider,
-                  ),
-                  SizedBox(height: 12.h),
-                  // Summary bar
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      vertical: 8.h,
-                      horizontal: 12.w,
-                    ),
-                    decoration: BoxDecoration(
-                      color: ConstColors.primary.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(8.r),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildSummaryItem(
-                          'Allocated',
-                          leave.totalAllocated,
-                          ConstColors.primaryDeep,
-                        ),
-                        _buildSummaryItem(
-                          'Used',
-                          leave.totalUsed,
-                          ConstColors.errorRed,
-                        ),
-                        _buildSummaryItem(
-                          'Balance',
-                          leave.totalBalance,
-                          ConstColors.successGreen,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                if (isExpanded && leave == null) ...[
-                  SizedBox(height: 12.h),
-                  Text(
-                    'Leave balance not allocated yet',
-                    style: getTextTheme().bodySmall?.copyWith(
-                      color: ConstColors.textColorLight,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildLeaveBalanceRow(
-    String label,
-    int total,
-    int used,
-    int balance,
-    Color color,
-    String employeeId,
-    String leaveType,
-    DashboardProvider dashProvider,
-  ) {
-    final progress = total > 0 ? used / total : 0.0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 8.w,
-                  height: 8.h,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                SizedBox(width: 6.w),
-                Text(
-                  label,
-                  style: getTextTheme().bodySmall?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Text(
-                  '$used / $total',
-                  style: getTextTheme().bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-                SizedBox(width: 4.w),
-                InkWell(
-                  onTap: () => _showEditLeaveDialog(
-                    employeeId,
-                    leaveType,
-                    total,
-                    dashProvider,
-                  ),
-                  borderRadius: BorderRadius.circular(4.r),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 2.r,
-                      vertical: 2.r,
-                    ),
-                    child: Icon(
-                      Icons.edit_outlined,
-                      size: 14.r,
-                      color: ConstColors.textColorLight,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        SizedBox(height: 4.h),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4.r),
-          child: LinearProgressIndicator(
-            value: progress.clamp(0.0, 1.0),
-            backgroundColor: color.withValues(alpha: 0.12),
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-            minHeight: 6.h,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSummaryItem(String label, int value, Color color) {
-    return Column(
-      children: [
-        Text(
-          '$value',
-          style: getTextTheme().titleSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        Text(
-          label,
-          style: getTextTheme().labelSmall?.copyWith(
-            color: ConstColors.textColorLight,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // --- Edit Leave Dialog ---
-  void _showEditLeaveDialog(
-    String employeeId,
-    String leaveType,
-    int currentTotal,
-    DashboardProvider dashProvider,
-  ) {
-    final controller = TextEditingController(text: currentTotal.toString());
-    final leaveLabel = leaveType == 'pl'
-        ? 'Privilege Leave'
-        : leaveType == 'sl'
-        ? 'Sick Leave'
-        : 'Casual Leave';
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Edit $leaveLabel'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Set total allocated days:',
-              style: getTextTheme().bodyMedium?.copyWith(
-                color: ConstColors.textColorLight,
-              ),
-            ),
-            SizedBox(height: 12.h),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Total Days',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12.w,
-                  vertical: 10.h,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ConstantButton(
-            text: 'Save',
-            backgroundColor: ConstColors.primary,
-            isFullWidth: false,
-            height: 40.h,
-            onPressed: () async {
-              final newTotal = int.tryParse(controller.text);
-              if (newTotal == null || newTotal < 0) return;
-              Navigator.pop(ctx);
-
-              final empProvider = Provider.of<EmployeeManagementProvider>(
-                context,
-                listen: false,
-              );
-              final onboardingProvider = Provider.of<OnboardingProvider>(
-                context,
-                listen: false,
-              );
-
-              await dashProvider.updateLeaveAllocation(
-                employeeId,
-                leaveType,
-                newTotal,
-                empProvider,
-                onboardingProvider,
-              );
-            },
-          ),
-        ],
-      ),
     );
   }
 
@@ -1767,6 +1401,77 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
     }
   }
 
+  // --- Office Location ---
+  Widget _buildOfficeLocationSection(OrganizationProvider org) {
+    if (!org.officeLocationLoaded) {
+      return _buildLeaveConfigShimmer();
+    }
+
+    final location = org.officeLocation;
+    return NeuCard(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (location == null)
+              Text(
+                'Not set yet. Until it is set, nobody can punch in, punch out '
+                'or take a break.',
+                style: getTextTheme().bodySmall?.copyWith(
+                  color: ConstColors.inProgressOrange,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+            else ...[
+              Text(
+                location.name,
+                style: getTextTheme().titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: ConstColors.textColor,
+                ),
+              ),
+              if (location.address != null) ...[
+                SizedBox(height: 2.h),
+                Text(
+                  location.address!,
+                  style: getTextTheme().bodySmall?.copyWith(
+                    color: ConstColors.textColorLight,
+                  ),
+                ),
+              ],
+              SizedBox(height: 8.h),
+              Text(
+                '${location.latitude.toStringAsFixed(6)}, '
+                '${location.longitude.toStringAsFixed(6)}  •  '
+                '${location.radiusMeters.round()} m radius',
+                style: getTextTheme().bodySmall?.copyWith(
+                  color: ConstColors.textColor,
+                ),
+              ),
+            ],
+            SizedBox(height: 12.h),
+            SizedBox(
+              width: double.infinity,
+              child: ConstantButton(
+                text: location == null
+                    ? 'Set Office Location'
+                    : 'Change Office Location',
+                icon: Icon(
+                  Icons.edit_location_alt_outlined,
+                  size: 20.r,
+                  color: ConstColors.textColor,
+                ),
+                onPressed: () => OfficeLocationForm.show(context, location),
+                backgroundColor: ConstColors.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // --- Holiday Calendar ---
   Widget _buildHolidaySection(OrganizationProvider org) {
     if (!org.holidaysLoaded) {
@@ -1824,45 +1529,6 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
     );
   }
 
-  Widget _buildEmployeeLeaveShimmer() {
-    return Shimmer.fromColors(
-      baseColor: ConstColors.borderColor,
-      highlightColor: ConstColors.cardBackground,
-      child: Column(
-        children: List.generate(
-          3,
-          (_) => NeuCard(
-            margin: EdgeInsets.symmetric(vertical: 8.h),
-            radius: NeuStyle.radiusSmall,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 18.r,
-                    backgroundColor: ConstColors.cardBackground,
-                  ),
-                  SizedBox(width: 10.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildShimmerBox(width: 120.w, height: 12.h),
-                        SizedBox(height: 6.h),
-                        _buildShimmerBox(width: 180.w, height: 10.h),
-                      ],
-                    ),
-                  ),
-                  _buildShimmerBox(width: 50.w, height: 20.h, radius: 8),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildLeaveConfigShimmer() {
     return Shimmer.fromColors(
       baseColor: ConstColors.borderColor,
@@ -1894,25 +1560,6 @@ class _AdminDemoPageState extends State<AdminDemoPage> {
               SizedBox(height: 4.h),
               _buildShimmerBox(height: 44.h),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // --- Empty State ---
-  Widget _buildEmptyCard(String message) {
-    return NeuCard(
-      radius: NeuStyle.radiusSmall,
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
-        child: Center(
-          child: Text(
-            message,
-            style: getTextTheme().bodyMedium?.copyWith(
-              color: ConstColors.textColorLight,
-              fontStyle: FontStyle.italic,
-            ),
           ),
         ),
       ),

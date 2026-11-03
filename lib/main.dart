@@ -50,7 +50,6 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => RequestProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
-        ChangeNotifierProvider(create: (_) => AttendanceProvider()),
         // Organization data: one live listener per session, started on login
         // and stopped on logout, shared by every screen
         ChangeNotifierProxyProvider<AuthProvider, OrganizationProvider>(
@@ -63,6 +62,12 @@ Future<void> main() async {
             }
             return org;
           },
+        ),
+        // Punches and breaks are checked against the office the admin set
+        ChangeNotifierProxyProvider<OrganizationProvider, AttendanceProvider>(
+          create: (_) => AttendanceProvider(),
+          update: (_, org, attendance) =>
+              attendance!..setOfficeLocation(org.officeLocation),
         ),
         ChangeNotifierProxyProvider<OrganizationProvider, OnboardingProvider>(
           create: (_) => OnboardingProvider(),

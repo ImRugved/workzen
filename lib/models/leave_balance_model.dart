@@ -1,16 +1,22 @@
+/// "12" for a whole number, "11.5" for a half day: how leave days are shown.
+String leaveCount(num value) =>
+    value % 1 == 0 ? value.toInt().toString() : value.toString();
+
+/// A year of leave of one employee (users/{uid}/leaves/annual_{year}) with the
+/// days kept as numbers, because a half day moves them by 0.5.
 class LeaveBalanceModel {
-  final int plTotal;
-  final int plUsed;
-  final int plBalance;
-  final int slTotal;
-  final int slUsed;
-  final int slBalance;
-  final int clTotal;
-  final int clUsed;
-  final int clBalance;
-  final int totalAllocated;
-  final int totalUsed;
-  final int totalBalance;
+  final num plTotal;
+  final num plUsed;
+  final num plBalance;
+  final num slTotal;
+  final num slUsed;
+  final num slBalance;
+  final num clTotal;
+  final num clUsed;
+  final num clBalance;
+  final num totalAllocated;
+  final num totalUsed;
+  final num totalBalance;
 
   LeaveBalanceModel({
     required this.plTotal,
@@ -27,40 +33,48 @@ class LeaveBalanceModel {
     required this.totalBalance,
   });
 
+  static num _num(dynamic v) => v is num ? v : 0;
+
   factory LeaveBalanceModel.fromFirestore(Map<String, dynamic> data) {
-    // Extract privilege leaves
-    final plData = data['privilegeLeaves'] as Map<String, dynamic>?;
-    final plTotal = (plData?['allocated'] ?? 0) as num;
-    final plUsed = (plData?['used'] ?? 0) as num;
-    final plBalance = (plData?['balance'] ?? 0) as num;
+    Map<String, dynamic>? typeOf(String key) {
+      final v = data[key];
+      return v is Map ? Map<String, dynamic>.from(v) : null;
+    }
 
-    // Extract sick leaves
-    final slData = data['sickLeaves'] as Map<String, dynamic>?;
-    final slTotal = (slData?['allocated'] ?? 0) as num;
-    final slUsed = (slData?['used'] ?? 0) as num;
-    final slBalance = (slData?['balance'] ?? 0) as num;
+    final pl = typeOf('privilegeLeaves');
+    final sl = typeOf('sickLeaves');
+    final cl = typeOf('casualLeaves');
 
-    // Extract casual leaves
-    final clData = data['casualLeaves'] as Map<String, dynamic>?;
-    final clTotal = (clData?['allocated'] ?? 0) as num;
-    final clUsed = (clData?['used'] ?? 0) as num;
-    final clBalance = (clData?['balance'] ?? 0) as num;
+    final plTotal = _num(pl?['allocated']);
+    final plUsed = _num(pl?['used']);
+    final plBalance = _num(pl?['balance']);
+    final slTotal = _num(sl?['allocated']);
+    final slUsed = _num(sl?['used']);
+    final slBalance = _num(sl?['balance']);
+    final clTotal = _num(cl?['allocated']);
+    final clUsed = _num(cl?['used']);
+    final clBalance = _num(cl?['balance']);
 
     return LeaveBalanceModel(
-      plTotal: plTotal.toInt(),
-      plUsed: plUsed.toInt(),
-      plBalance: plBalance.toInt(),
-      slTotal: slTotal.toInt(),
-      slUsed: slUsed.toInt(),
-      slBalance: slBalance.toInt(),
-      clTotal: clTotal.toInt(),
-      clUsed: clUsed.toInt(),
-      clBalance: clBalance.toInt(),
-      totalAllocated:
-          (data['totalAllocated'] ?? (plTotal + slTotal + clTotal)) as int,
-      totalUsed: (data['totalUsed'] ?? (plUsed + slUsed + clUsed)) as int,
-      totalBalance:
-          (data['totalBalance'] ?? (plBalance + slBalance + clBalance)) as int,
+      plTotal: plTotal,
+      plUsed: plUsed,
+      plBalance: plBalance,
+      slTotal: slTotal,
+      slUsed: slUsed,
+      slBalance: slBalance,
+      clTotal: clTotal,
+      clUsed: clUsed,
+      clBalance: clBalance,
+      // The stored totals when there, else the sum of the three types
+      totalAllocated: data['totalAllocated'] is num
+          ? data['totalAllocated'] as num
+          : plTotal + slTotal + clTotal,
+      totalUsed: data['totalUsed'] is num
+          ? data['totalUsed'] as num
+          : plUsed + slUsed + clUsed,
+      totalBalance: data['totalBalance'] is num
+          ? data['totalBalance'] as num
+          : plBalance + slBalance + clBalance,
     );
   }
 

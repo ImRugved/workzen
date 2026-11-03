@@ -8,6 +8,7 @@ import '../models/birthday_model.dart';
 import '../models/holiday_model.dart';
 import '../models/leave_config_model.dart';
 import '../models/office_hours_model.dart';
+import '../models/office_location_model.dart';
 import '../utils/logger.dart';
 
 /// The single owner of the organization_details data (leave counts, office
@@ -23,32 +24,41 @@ class OrganizationProvider with ChangeNotifier {
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _leaveSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _hoursSub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _locationSub;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _holidaysSub;
 
   LeaveConfigModel? _leaveConfig;
   OfficeHoursModel? _officeHours;
+  OfficeLocationModel? _officeLocation;
   List<HolidayModel> _holidays = [];
 
   // True once the first snapshot has arrived (even if the document is empty)
   bool _leaveConfigLoaded = false;
   bool _officeHoursLoaded = false;
+  bool _officeLocationLoaded = false;
   bool _holidaysLoaded = false;
 
   bool _isSavingLeaveConfig = false;
   bool _isSavingOfficeHours = false;
+  bool _isSavingOfficeLocation = false;
   bool _isSavingHoliday = false;
 
   LeaveConfigModel? get leaveConfig => _leaveConfig;
   OfficeHoursModel? get officeHours => _officeHours;
+
+  /// Where the office is, or null until the admin has set it.
+  OfficeLocationModel? get officeLocation => _officeLocation;
   List<HolidayModel> get holidays => _holidays;
 
   bool get isLeaveConfigured => _leaveConfig != null;
   bool get leaveConfigLoaded => _leaveConfigLoaded;
   bool get officeHoursLoaded => _officeHoursLoaded;
+  bool get officeLocationLoaded => _officeLocationLoaded;
   bool get holidaysLoaded => _holidaysLoaded;
 
   bool get isSavingLeaveConfig => _isSavingLeaveConfig;
   bool get isSavingOfficeHours => _isSavingOfficeHours;
+  bool get isSavingOfficeLocation => _isSavingOfficeLocation;
   bool get isSavingHoliday => _isSavingHoliday;
 
   CollectionReference<Map<String, dynamic>> get _org =>
@@ -58,6 +68,8 @@ class OrganizationProvider with ChangeNotifier {
       _org.doc(FirestoreDocs.leaveConfig);
   DocumentReference<Map<String, dynamic>> get _hoursDoc =>
       _org.doc(FirestoreDocs.officeHours);
+  DocumentReference<Map<String, dynamic>> get _locationDoc =>
+      _org.doc(FirestoreDocs.officeLocation);
   CollectionReference<Map<String, dynamic>> get _holidayItems => _org
       .doc(FirestoreDocs.holidays)
       .collection(FirestoreSubCollections.holidayItems);
@@ -137,6 +149,21 @@ class OrganizationProvider with ChangeNotifier {
       },
     );
 
+    _locationSub ??= _locationDoc.snapshots().listen(
+      (doc) {
+        _retries = 0;
+        _officeLocation = OfficeLocationModel.tryFromJson(doc.data());
+        _officeLocationLoaded = true;
+        notifyListeners();
+      },
+      onError: (Object e) {
+        logDebug('Office location listener stopped: $e');
+        _locationSub?.cancel();
+        _locationSub = null;
+        _scheduleRetry();
+      },
+    );
+
     // Only this year onward, so reads stay bounded as the years pass
     final yearStart = Timestamp.fromDate(DateTime(DateTime.now().year));
     _holidaysSub ??= _holidayItems
@@ -170,9 +197,11 @@ class OrganizationProvider with ChangeNotifier {
     final wasRunning =
         _leaveSub != null ||
         _hoursSub != null ||
+        _locationSub != null ||
         _holidaysSub != null ||
         _leaveConfigLoaded ||
         _officeHoursLoaded ||
+        _officeLocationLoaded ||
         _holidaysLoaded;
     if (!wasRunning) return;
 
@@ -181,16 +210,20 @@ class OrganizationProvider with ChangeNotifier {
     _retries = 0;
     _leaveSub?.cancel();
     _hoursSub?.cancel();
+    _locationSub?.cancel();
     _holidaysSub?.cancel();
     _leaveSub = null;
     _hoursSub = null;
+    _locationSub = null;
     _holidaysSub = null;
 
     _leaveConfig = null;
     _officeHours = null;
+    _officeLocation = null;
     _holidays = [];
     _leaveConfigLoaded = false;
     _officeHoursLoaded = false;
+    _officeLocationLoaded = false;
     _holidaysLoaded = false;
 
     // Called while the provider tree is updating, so notify afterwards
@@ -245,6 +278,25 @@ class OrganizationProvider with ChangeNotifier {
       return false;
     } finally {
       _isSavingOfficeHours = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> saveOfficeLocation(OfficeLocationModel location) async {
+    start();
+    _isSavingOfficeLocation = true;
+    notifyListeners();
+    try {
+      await _locationDoc.set({
+        ...location.toJson(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      logDebug('Error saving office location: $e');
+      return false;
+    } finally {
+      _isSavingOfficeLocation = false;
       notifyListeners();
     }
   }
