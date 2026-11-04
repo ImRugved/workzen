@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:workzen/constants/firestore_constants.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
@@ -15,6 +17,25 @@ class FCMService {
   static const List<String> _scopes = [
     'https://www.googleapis.com/auth/firebase.messaging',
   ];
+
+  /// Gets the FCM token. On iOS the APNS token must exist first, so wait for it
+  /// (up to ~3s). Returns null on the iOS simulator / when APNS is unavailable.
+  static Future<String?> getFcmToken() async {
+    final messaging = FirebaseMessaging.instance;
+    if (defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS) {
+      String? apns = await messaging.getAPNSToken();
+      for (var i = 0; i < 3 && apns == null; i++) {
+        await Future.delayed(const Duration(seconds: 1));
+        apns = await messaging.getAPNSToken();
+      }
+      if (apns == null) {
+        logDebug('APNS token not available (simulator or push not set up)');
+        return null;
+      }
+    }
+    return messaging.getToken();
+  }
 
   // Send notification to a specific user by userId
   Future<bool> sendNotificationToUser({
@@ -127,6 +148,15 @@ class FCMService {
         'message': {
           'token': token,
           'notification': {'title': title, 'body': body},
+          // iOS: without these the push arrives silently (no sound) and may be
+          // delayed; Android: deliver straight away
+          'apns': {
+            'headers': {'apns-priority': '10'},
+            'payload': {
+              'aps': {'sound': 'default'},
+            },
+          },
+          'android': {'priority': 'high'},
           'data':
               data?.map((key, value) => MapEntry(key, value.toString())) ?? {},
         },

@@ -5,6 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:workzen/constants/firestore_constants.dart';
 import 'package:workzen/providers/auth_provider.dart' as auth;
+import 'package:workzen/services/fcm_service.dart';
 import 'package:workzen/utils/logger.dart';
 
 class PushNotificationsService {
@@ -14,6 +15,8 @@ class PushNotificationsService {
       FlutterLocalNotificationsPlugin();
   final auth.AuthProvider authProvider = auth.AuthProvider();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  static bool _messageListenersAttached = false;
+  static bool _tokenListenerAttached = false;
 
   // Initialize notification permissions and settings after login
   Future<void> initAfterLogin() async {
@@ -35,7 +38,7 @@ class PushNotificationsService {
       // Get FCM token with error handling
       String? token;
       try {
-        token = await _firebaseMessaging.getToken();
+        token = await FCMService.getFcmToken();
         logDebug("FCM token obtained: $token");
 
         if (token != null) {
@@ -55,17 +58,20 @@ class PushNotificationsService {
         // Don't rethrow - allow app to continue without FCM
       }
 
-      // Set up token refresh listener with error handling
+      // Set up token refresh listener with error handling (once, see above)
       try {
-        _firebaseMessaging.onTokenRefresh.listen(
-          (newToken) {
-            logDebug("FCM token refreshed: $newToken");
-            _updateFCMToken(newToken);
-          },
-          onError: (error) {
-            logDebug("Error in token refresh listener: $error");
-          },
-        );
+        if (!_tokenListenerAttached) {
+          _tokenListenerAttached = true;
+          _firebaseMessaging.onTokenRefresh.listen(
+            (newToken) {
+              logDebug("FCM token refreshed: $newToken");
+              _updateFCMToken(newToken);
+            },
+            onError: (error) {
+              logDebug("Error in token refresh listener: $error");
+            },
+          );
+        }
       } catch (listenerError) {
         logDebug("Error setting up token refresh listener: $listenerError");
       }
@@ -99,9 +105,13 @@ class PushNotificationsService {
         onDidReceiveBackgroundNotificationResponse: onNotificationTap,
       );
 
-      // Configure Firebase Messaging handlers
-      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-      FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
+      // Configure Firebase Messaging handlers (once: initAfterLogin runs on
+      // every login, and a second listener would show each message twice)
+      if (!_messageListenersAttached) {
+        _messageListenersAttached = true;
+        FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+        FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
+      }
 
       logDebug('Notification service initialized successfully after login');
     } catch (e) {
@@ -242,7 +252,9 @@ class PushNotificationsService {
     }
   }
 
-  // Handle notification tap
+  // Handle notification tap. The entry-point pragma keeps it in release builds
+  // (TestFlight): it is also called from the background isolate.
+  @pragma('vm:entry-point')
   static void onNotificationTap(NotificationResponse notificationResponse) {
     logDebug('Notification tapped: ${notificationResponse.payload}');
 

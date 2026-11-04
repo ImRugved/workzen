@@ -72,6 +72,11 @@
 		<string>background-fetch</string>
 	</array>
 	
+	<!-- Only standard HTTPS encryption is used, so TestFlight skips the export
+	     compliance question on every upload -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
 	<!-- Firebase Cloud Messaging -->
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<false/>

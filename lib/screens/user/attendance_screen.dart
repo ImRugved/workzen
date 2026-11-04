@@ -218,9 +218,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           break;
         }
       }
+      logDebug('Location stream finished, position: $position');
+      // timeLimit stops this waiting forever when no fix is available (e.g. the
+      // simulator with Location set to None)
       position ??= await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.best,
+          timeLimit: Duration(seconds: 10),
         ),
       );
 

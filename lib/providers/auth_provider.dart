@@ -12,6 +12,7 @@ import '../models/birthday_model.dart';
 import '../models/personal_info_model.dart';
 import '../models/user_model.dart';
 import '../services/device_service.dart';
+import '../services/fcm_service.dart';
 import 'user_provider.dart';
 
 class AuthProvider with ChangeNotifier {
@@ -372,7 +373,7 @@ class AuthProvider with ChangeNotifier {
     if (_user != null) {
       try {
         // Try to get fresh FCM token from Firebase Messaging
-        String? fcmToken = await FirebaseMessaging.instance.getToken();
+        String? fcmToken = await FCMService.getFcmToken();
 
         if (fcmToken != null && fcmToken.isNotEmpty) {
           logDebug('Fresh FCM token obtained: $fcmToken');
@@ -409,7 +410,7 @@ class AuthProvider with ChangeNotifier {
         logDebug('Getting fresh FCM token for user login: ${_user!.uid}');
 
         // Force get a fresh FCM token from Firebase Messaging
-        String? fcmToken = await FirebaseMessaging.instance.getToken();
+        String? fcmToken = await FCMService.getFcmToken();
 
         if (fcmToken != null && fcmToken.isNotEmpty) {
           logDebug('Fresh FCM token obtained for login: $fcmToken');
@@ -422,7 +423,7 @@ class AuthProvider with ChangeNotifier {
           // If we can't get a token, try to delete the old token
           await FirebaseMessaging.instance.deleteToken();
           // Try again after deletion
-          fcmToken = await FirebaseMessaging.instance.getToken();
+          fcmToken = await FCMService.getFcmToken();
           if (fcmToken != null && fcmToken.isNotEmpty) {
             logDebug('Fresh FCM token obtained after deletion: $fcmToken');
             await _storage.write('fcmtoken', fcmToken);
