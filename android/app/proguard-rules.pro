@@ -54,7 +54,7 @@
 -keep class dev.fluttercommunity.plus.device_info.** { *; }
 
 # Keep model classes (adjust package name as needed)
--keep class com.example.workzen.models.** { *; }
+-keep class com.seenit.workzen.models.** { *; }
 
 # Remove logging in release builds
 -assumenosideeffects class android.util.Log {

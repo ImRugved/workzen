@@ -45,6 +45,15 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken']) &&
         request.resource.data.fcmToken == '';
 
+      // Whoever sends someone a push notification adds 1 to that person's
+      // unread count (the number on their app icon): only that field, only +1.
+      // The owner sets it back to 0 through the own-document rule above.
+      allow update: if request.auth != null &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['unreadNotifications']) &&
+        request.resource.data.unreadNotifications ==
+          resource.data.get('unreadNotifications', 0) + 1;
+
       // Sub admin with "add employee" may create plain employees (never admins)
       allow create: if hasPerm('add_employee') &&
         request.resource.data.isAdmin != true &&

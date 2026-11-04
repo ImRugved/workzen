@@ -46,34 +46,36 @@ class DefaultFirebaseOptions {
     messagingSenderId: '35853685399',
     projectId: 'workzen2025',
     authDomain: 'workzen2025.firebaseapp.com',
+    databaseURL: 'https://workzen2025-default-rtdb.firebaseio.com',
     storageBucket: 'workzen2025.firebasestorage.app',
     measurementId: 'G-4JKEN0SR06',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCPWzMjMkrz9MMD4fgbYDa7aEWrjcLuz1s',
-    appId: '1:35853685399:android:f3b9b85fc78a46b0870fd2',
+    appId: '1:35853685399:android:87a4ca5062e13ee7870fd2',
     messagingSenderId: '35853685399',
     projectId: 'workzen2025',
+    databaseURL: 'https://workzen2025-default-rtdb.firebaseio.com',
     storageBucket: 'workzen2025.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCq0rKKJAbPrSu5LF5EdW0tZvZE8Qww6As',
-    appId: '1:35853685399:ios:2f5304857df5cb79870fd2',
+    appId: '1:35853685399:ios:f157412db51f83c3870fd2',
     messagingSenderId: '35853685399',
     projectId: 'workzen2025',
+    databaseURL: 'https://workzen2025-default-rtdb.firebaseio.com',
     storageBucket: 'workzen2025.firebasestorage.app',
-    iosBundleId: 'com.example.workzen',
+    iosClientId: '35853685399-22h82roi3s1rcvss73beur2d5kg8e4k2.apps.googleusercontent.com',
+    iosBundleId: 'com.seenit.workzen',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyCq0rKKJAbPrSu5LF5EdW0tZvZE8Qww6As',
-    appId: '1:35853685399:ios:2f5304857df5cb79870fd2',
+    appId: '1:35853685399:ios:f157412db51f83c3870fd2',
     messagingSenderId: '35853685399',
     projectId: 'workzen2025',
     storageBucket: 'workzen2025.firebasestorage.app',
-    iosBundleId: 'com.example.workzen',
+    iosBundleId: 'com.seenit.workzen',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

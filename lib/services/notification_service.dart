@@ -4,7 +4,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:workzen/constants/firestore_constants.dart';
-import 'package:workzen/providers/auth_provider.dart' as auth;
 import 'package:workzen/services/fcm_service.dart';
 import 'package:workzen/utils/logger.dart';
 
@@ -13,7 +12,6 @@ class PushNotificationsService {
   static final _firebaseMessaging = FirebaseMessaging.instance;
   static final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
-  final auth.AuthProvider authProvider = auth.AuthProvider();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   static bool _messageListenersAttached = false;
   static bool _tokenListenerAttached = false;
@@ -105,6 +103,21 @@ class PushNotificationsService {
         onDidReceiveBackgroundNotificationResponse: onNotificationTap,
       );
 
+      // The channel the pushes are sent on (see FCMService): created here so a
+      // push that arrives while the app is closed pops up with sound
+      await flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.createNotificationChannel(
+            const AndroidNotificationChannel(
+              FCMService.notificationChannelId,
+              'WorkZen Notifications',
+              description: 'Notifications for WorkZen app',
+              importance: Importance.max,
+            ),
+          );
+
       // Configure Firebase Messaging handlers (once: initAfterLogin runs on
       // every login, and a second listener would show each message twice)
       if (!_messageListenersAttached) {
@@ -188,7 +201,7 @@ class PushNotificationsService {
 
       final AndroidNotificationDetails androidPlatformChannelSpecifics =
           AndroidNotificationDetails(
-            'workzen_channel',
+            FCMService.notificationChannelId,
             'WorkZen Notifications',
             channelDescription: 'Notifications for WorkZen app',
             importance: Importance.max,

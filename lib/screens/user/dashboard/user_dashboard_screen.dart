@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/value_provider.dart';
 import '../../../widgets/floating_nav_bar.dart';
 import '../user_home.dart';
-import 'demo_page.dart';
+import 'user_info_screen.dart';
 import '../../profile_screen.dart';
 
 class UserDashboardScreen extends StatefulWidget {
@@ -20,7 +20,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
   final List<Widget> _screens = [
     const UserHome(),
-    const UserDemoPage(),
+    const UserInfoScreen(),
     const ProfileScreen(),
   ];
 

@@ -7,11 +7,13 @@ import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:workzen/utils/logger.dart';
-import '../providers/user_provider.dart';
 
 class FCMService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final UserProvider _userProvider = UserProvider();
+
+  /// Android notification channel the app's pushes use (created in
+  /// PushNotificationsService.initAfterLogin).
+  static const String notificationChannelId = 'workzen_channel';
 
   // Constants
   static const List<String> _scopes = [
@@ -47,8 +49,15 @@ class FCMService {
     try {
       logDebug('Attempting to send notification to user: $userId');
 
-      // Get user's FCM token
-      String? token = await _userProvider.getUserFcmToken(userId);
+      // One read gives the push token and how many pushes the user has not yet
+      // seen (the number already on their app icon)
+      final userRef = _firestore
+          .collection(FirestoreCollections.users)
+          .doc(userId);
+      final userData = (await userRef.get()).data();
+      final String? token = userData?[FirestoreFields.fcmToken]?.toString();
+      final unreadValue = userData?[FirestoreFields.unreadNotifications];
+      final int unread = unreadValue is num ? unreadValue.toInt() : 0;
 
       if (token == null || token.isEmpty) {
         logDebug('FCM token not found for user: $userId');
@@ -59,16 +68,25 @@ class FCMService {
         'Found FCM token for user $userId: ${token.substring(0, 20)}...',
       );
 
-      // Send notification
+      // Send notification; the icon badge shows the count including this one
       bool success = await _sendWithServiceAccount(
         token: token,
         title: title,
         body: body,
         data: data,
+        badge: unread + 1,
       );
 
       if (success) {
         logDebug('Notification sent successfully to user: $userId');
+        // Remember it: the user's phone sets this back to 0 when the app opens
+        try {
+          await userRef.update({
+            FirestoreFields.unreadNotifications: FieldValue.increment(1),
+          });
+        } catch (e) {
+          logDebug('Could not update the unread count of $userId: $e');
+        }
       } else {
         logDebug('Failed to send notification to user: $userId');
       }
@@ -121,6 +139,7 @@ class FCMService {
     required String title,
     required String body,
     Map<String, dynamic>? data,
+    int? badge,
   }) async {
     try {
       logDebug(
@@ -149,16 +168,28 @@ class FCMService {
           'token': token,
           'notification': {'title': title, 'body': body},
           // iOS: without these the push arrives silently (no sound) and may be
-          // delayed; Android: deliver straight away
+          // delayed; "badge" is the number on the app icon, shown even when the
+          // app is closed. Android: deliver straight away, on the app's own
+          // channel (created at login, so it pops up with sound), and
+          // notification_count is the number some launchers show on the icon.
           'apns': {
             'headers': {'apns-priority': '10'},
             'payload': {
-              'aps': {'sound': 'default'},
+              'aps': {'sound': 'default', if (badge != null) 'badge': badge},
             },
           },
-          'android': {'priority': 'high'},
-          'data':
-              data?.map((key, value) => MapEntry(key, value.toString())) ?? {},
+          'android': {
+            'priority': 'high',
+            'notification': {
+              'channel_id': notificationChannelId,
+              if (badge != null) 'notification_count': badge,
+            },
+          },
+          'data': {
+            ...?data?.map((key, value) => MapEntry(key, value.toString())),
+            // The background handler shows this on the app icon
+            if (badge != null) 'unread': badge.toString(),
+          },
         },
       };
 

@@ -11,11 +11,12 @@ import '../constants/firestore_constants.dart';
 import '../models/birthday_model.dart';
 import '../models/personal_info_model.dart';
 import '../models/user_model.dart';
+import '../services/badge_service.dart';
 import '../services/device_service.dart';
 import '../services/fcm_service.dart';
 import 'user_provider.dart';
 
-class AuthProvider with ChangeNotifier {
+class AuthProvider with ChangeNotifier, WidgetsBindingObserver {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GetStorage _storage = GetStorage();
@@ -73,12 +74,51 @@ class AuthProvider with ChangeNotifier {
           if (data == null) return;
           _userModel = UserModel.fromJson(data);
           notifyListeners();
+          // A push that arrives while the app is open has been seen
+          if (WidgetsBinding.instance.lifecycleState ==
+              AppLifecycleState.resumed) {
+            _clearUnreadNotifications();
+          }
         }, onError: (Object e) => logDebug('User document listener error: $e'));
+
+    // Opening the app again (from the background) clears the count too
+    if (!_observingLifecycle) {
+      WidgetsBinding.instance.addObserver(this);
+      _observingLifecycle = true;
+    }
   }
 
   void _stopListeningToUserDoc() {
     _userDocSub?.cancel();
     _userDocSub = null;
+    if (_observingLifecycle) {
+      WidgetsBinding.instance.removeObserver(this);
+      _observingLifecycle = false;
+    }
+  }
+
+  bool _observingLifecycle = false;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      BadgeService.clear();
+      _clearUnreadNotifications();
+    }
+  }
+
+  // Sets the user's unread push count (the number on the app icon) back to 0.
+  // The phone's own icon badge is cleared natively in AppDelegate.swift.
+  Future<void> _clearUnreadNotifications() async {
+    final uid = _user?.uid;
+    if ((_userModel?.unreadNotifications ?? 0) <= 0 || uid == null) return;
+    try {
+      await _firestore.collection(FirestoreCollections.users).doc(uid).update({
+        FirestoreFields.unreadNotifications: 0,
+      });
+    } catch (e) {
+      logDebug('Could not clear the unread notification count: $e');
+    }
   }
 
   @override

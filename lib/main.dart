@@ -13,6 +13,7 @@ import 'package:get_storage/get_storage.dart';
 import 'providers/auth_provider.dart';
 import 'providers/request_provider.dart';
 import 'providers/my_data_provider.dart';
+import 'services/badge_service.dart';
 import 'providers/attendance_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/onboarding_provider.dart';
@@ -124,6 +125,10 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Options passed explicitly: iOS has no GoogleService-Info.plist in the project
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   print("Handling a background message: ${message.messageId}");
+  // The sender puts the user's unread count in the message: show it on the icon
+  // whenever this code gets to run (the phone shows the push itself either way)
+  final unread = int.tryParse('${message.data['unread'] ?? ''}');
+  if (unread != null) await BadgeService.set(unread);
 }
 
 class MyApp extends StatelessWidget {

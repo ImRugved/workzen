@@ -1,4 +1,4 @@
-package com.example.workzen
+package com.seenit.workzen
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

@@ -17,14 +17,14 @@ import '../../../constants/app_theme.dart';
 /// "Info" tab: the organization's yearly leave and office timings, a place for
 /// the company rules, and the employee directory table with search and
 /// department / role filters.
-class UserDemoPage extends StatefulWidget {
-  const UserDemoPage({super.key});
+class UserInfoScreen extends StatefulWidget {
+  const UserInfoScreen({super.key});
 
   @override
-  State<UserDemoPage> createState() => _UserDemoPageState();
+  State<UserInfoScreen> createState() => _UserInfoScreenState();
 }
 
-class _UserDemoPageState extends State<UserDemoPage> {
+class _UserInfoScreenState extends State<UserInfoScreen> {
   // Loading flag and directory filters (scoped state, no setState)
   final ToggleProvider _isLoading = ToggleProvider(true);
   final EmployeeDirectoryProvider _directory = EmployeeDirectoryProvider();

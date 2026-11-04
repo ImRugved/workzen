@@ -551,6 +551,11 @@ class RequestProvider with ChangeNotifier {
       );
 
       for (final adminId in approverIds) {
+        // Never tell the person who applied (an admin or a sub admin applying
+        // for their own leave); the other admins and sub admins who can decide
+        // it are told
+        if (adminId == request.userId) continue;
+
         logDebug('Preparing to notify approver: $adminId');
 
         try {

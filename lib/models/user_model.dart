@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../app_constants.dart';
+import '../constants/firestore_constants.dart';
 
 class UserModel {
   final String id;
@@ -24,6 +25,10 @@ class UserModel {
   final String? jobRole;
   final bool isFirstLogin; // false until the first login registers the device
   final List<String> subAdminPermissions; // what a sub admin may access
+  // Pushes received since the app was last opened (the icon badge number). Set
+  // by whoever sends a push and cleared by this user's phone, so it is only
+  // read here and never written back with the rest of the profile.
+  final int unreadNotifications;
 
   // Personal and contact details (the employee fills these in their profile)
   final String? address;
@@ -57,6 +62,7 @@ class UserModel {
     this.jobRole,
     this.isFirstLogin = false,
     this.subAdminPermissions = const [],
+    this.unreadNotifications = 0,
     this.address,
     this.mobileNumber,
     this.alternateNumber,
@@ -127,6 +133,9 @@ class UserModel {
       subAdminPermissions: json['subAdminPermissions'] is List
           ? List<String>.from(json['subAdminPermissions'] as List)
           : const [],
+      unreadNotifications: json[FirestoreFields.unreadNotifications] is num
+          ? (json[FirestoreFields.unreadNotifications] as num).toInt()
+          : 0,
       address: json['address']?.toString(),
       mobileNumber: json['mobileNumber']?.toString(),
       alternateNumber: json['alternateNumber']?.toString(),

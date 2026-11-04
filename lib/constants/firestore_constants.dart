@@ -38,6 +38,8 @@
 //   "id": "uid", "userId": "uid",
 //   "name": "Rugved", "email": "a@b.com", "mobileNumber": "9876543210",
 //   "fcmToken": "device push token or ''",
+//   "unreadNotifications": 0,                    // badge number on the app icon: +1 per push sent to
+//                                                // this user, back to 0 when they open the app
 //   "isAdmin": false,
 //   "isSubAdmin": false,
 //   "subAdminPermissions": ["add_employee", "office_hours"],   // see Permissions; only an admin writes it
@@ -227,6 +229,14 @@ class FirestoreFields {
 
   /// attendance/{id}: the employee the record belongs to.
   static const String userId = 'userId';
+
+  /// users/{uid}: push token of the user's phone.
+  static const String fcmToken = 'fcmToken';
+
+  /// users/{uid}: how many notifications arrived since the user last opened the
+  /// app. It is the number on the app icon. Whoever sends a notification adds 1;
+  /// the user's own phone sets it back to 0 when the app is opened.
+  static const String unreadNotifications = 'unreadNotifications';
 
   /// false until the user's first login registers their device, then true.
   static const String isFirstLogin = 'isFirstLogin';
