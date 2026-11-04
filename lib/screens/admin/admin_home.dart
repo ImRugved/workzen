@@ -24,6 +24,8 @@ import '../../constants/const_textstyle.dart';
 import '../../constants/constant_colors.dart';
 import '../../constants/app_theme.dart';
 import '../../constants/constant_button.dart';
+import '../../providers/update_check_provider.dart';
+import '../../widgets/update_banner.dart';
 import '../../utils/logger.dart';
 
 class AdminHome extends StatefulWidget {
@@ -50,6 +52,8 @@ class _AdminHomeState extends State<AdminHome> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeData();
       _initializeNotifications();
+      // Quiet check for a new update; the banner shows only if there is one
+      context.read<UpdateCheckProvider>().autoCheck();
       _requestLocationAndStore();
     });
   }
@@ -234,6 +238,9 @@ class _AdminHomeState extends State<AdminHome> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // A software update to install or finish (restart)
+                      const UpdateBanner(),
+
                       // Welcome card: white raised card, same as the user's
                       NeuCard(
                         padding: EdgeInsets.symmetric(

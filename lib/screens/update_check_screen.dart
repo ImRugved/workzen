@@ -6,9 +6,11 @@ import '../constants/constant_button.dart';
 import '../constants/constant_colors.dart';
 import '../constants/app_theme.dart';
 import '../providers/update_check_provider.dart';
+import '../widgets/update_banner.dart';
 
-/// The update state lives in [UpdateCheckProvider]; this State only owns the
-/// provider and the ScaffoldMessenger used to clear the banner on exit.
+/// The update state lives in the app-wide [UpdateCheckProvider] (shared with
+/// the update banner on the dashboards); this State only keeps the
+/// ScaffoldMessenger used to clear the banner on exit.
 class UpdateCheckScreen extends StatefulWidget {
   const UpdateCheckScreen({super.key});
 
@@ -17,7 +19,7 @@ class UpdateCheckScreen extends StatefulWidget {
 }
 
 class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
-  final UpdateCheckProvider _updates = UpdateCheckProvider();
+  UpdateCheckProvider get _updates => context.read<UpdateCheckProvider>();
   ScaffoldMessengerState? _scaffoldMessenger;
 
   @override
@@ -37,7 +39,6 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
   void dispose() {
     // Use stored reference instead of accessing context
     _scaffoldMessenger?.hideCurrentMaterialBanner();
-    _updates.dispose();
     super.dispose();
   }
 
@@ -56,11 +57,21 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
         _showUpdateAvailableBanner();
       case UpdateOutcome.upToDate:
         _showNoUpdateAvailableBanner();
+      case UpdateOutcome.restartRequired:
+        // Downloaded before (for example automatically at launch)
+        _showInstallationSuccessBanner();
+      case UpdateOutcome.unavailable:
+        _showErrorBanner(result.message ?? 'Updates are not available');
       case UpdateOutcome.error:
         _showErrorBanner(result.message ?? 'Update check failed');
       case UpdateOutcome.installed:
         break;
     }
+  }
+
+  Future<void> _restart() async {
+    ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+    await UpdateBanner.restart(context, _updates);
   }
 
   Future<void> _downloadAndInstallUpdate() async {
@@ -139,7 +150,7 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
         MaterialBanner(
           backgroundColor: ConstColors.successGreen.withValues(alpha: 0.15),
           content: Text(
-            'Update installed! Restart app to apply changes.',
+            'Update installed! Restart the app to apply the changes.',
             style: getTextTheme().bodyMedium?.copyWith(
               color: ConstColors.textColor,
             ),
@@ -152,8 +163,9 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
             TextButton(
               onPressed: () =>
                   ScaffoldMessenger.of(context).hideCurrentMaterialBanner(),
-              child: const Text('OK'),
+              child: const Text('LATER'),
             ),
+            TextButton(onPressed: _restart, child: const Text('RESTART')),
           ],
         ),
       );
@@ -185,17 +197,16 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider.value(
-      value: _updates,
-      child: Consumer<UpdateCheckProvider>(
-        builder: (context, updates, _) => _buildScreen(context, updates),
-      ),
+    return Consumer<UpdateCheckProvider>(
+      builder: (context, updates, _) => _buildScreen(context, updates),
     );
   }
 
   Widget _buildScreen(BuildContext context, UpdateCheckProvider updates) {
     final theme = Theme.of(context);
     final isUpdateAvailable = updates.isUpdateAvailable;
+    // Downloaded and waiting for the app to be restarted
+    final restartRequired = updates.isRestartRequired;
 
     return Scaffold(
       appBar: AppBar(
@@ -226,7 +237,7 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
                             vertical: 12.h,
                           ),
                           decoration: BoxDecoration(
-                            color: isUpdateAvailable
+                            color: isUpdateAvailable || restartRequired
                                 ? ConstColors.primary.withValues(alpha: 0.35)
                                 : ConstColors.successGreen.withValues(
                                     alpha: 0.2,
@@ -236,9 +247,11 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
                           child: Icon(
                             isUpdateAvailable
                                 ? Icons.system_update_alt
+                                : restartRequired
+                                ? Icons.restart_alt
                                 : Icons.check_circle_outline,
                             size: 28.r,
-                            color: isUpdateAvailable
+                            color: isUpdateAvailable || restartRequired
                                 ? ConstColors.primaryDeep
                                 : ConstColors.successGreen,
                           ),
@@ -251,10 +264,12 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
                               Text(
                                 isUpdateAvailable
                                     ? 'Update Available'
+                                    : restartRequired
+                                    ? 'Update Installed'
                                     : 'App is Up to Date',
                                 style: theme.textTheme.titleLarge?.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  color: isUpdateAvailable
+                                  color: isUpdateAvailable || restartRequired
                                       ? ConstColors.primaryDeep
                                       : ConstColors.successGreen,
                                 ),
@@ -263,6 +278,8 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
                               Text(
                                 isUpdateAvailable
                                     ? 'A new version is ready to install'
+                                    : restartRequired
+                                    ? 'Restart the app to start using it'
                                     : 'You have the latest version installed',
                                 style: theme.textTheme.bodyMedium,
                               ),
@@ -333,12 +350,16 @@ class _UpdateCheckScreenState extends State<UpdateCheckScreen> {
             SizedBox(
               width: double.infinity,
               child: ConstantButton(
-                text: isUpdateAvailable
+                text: restartRequired
+                    ? 'RESTART APP'
+                    : isUpdateAvailable
                     ? 'INSTALL UPDATE'
                     : 'CHECK FOR UPDATES',
                 isLoading: updates.isChecking,
                 onPressed: updates.isChecking || updates.isDownloading
                     ? null
+                    : restartRequired
+                    ? _restart
                     : isUpdateAvailable
                     ? _downloadAndInstallUpdate
                     : _checkForUpdates,

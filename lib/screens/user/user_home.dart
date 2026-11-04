@@ -12,6 +12,8 @@ import '../../widgets/leave_balance_card.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../providers/my_data_provider.dart';
+import '../../providers/update_check_provider.dart';
+import '../../widgets/update_banner.dart';
 import '../../providers/user_home_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_drawer.dart';
@@ -50,6 +52,8 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeStream();
       _initializeNotifications();
+      // Quiet check for a new update; the banner shows only if there is one
+      context.read<UpdateCheckProvider>().autoCheck();
       _requestProvider = context.read<RequestProvider>()
         ..addListener(_startAnimationWhenLoaded);
       _startAnimationWhenLoaded();
@@ -194,6 +198,9 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // A software update to install or finish (restart)
+                      const UpdateBanner(),
+
                       // Welcome section
                       NeuCard(
                         padding: EdgeInsets.symmetric(

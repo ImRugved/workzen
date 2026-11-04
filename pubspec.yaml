@@ -58,6 +58,8 @@ dependencies:
   googleapis: ^17.0.0
   flutter_launcher_icons: ^0.14.3
   shorebird_code_push: ^2.0.3
+  # Restarts the app after a code push update (Android; iOS cannot self-restart)
+  restart_app: ^1.10.2
   package_info_plus: ^10.2.2
   # Image handling dependencies
   image_picker: ^1.0.7
@@ -105,6 +107,7 @@ flutter:
   assets:
     - assets/service.json
     - assets/images/
+    - shorebird.yaml
 
 # Flutter Launcher Icons configuration
 flutter_launcher_icons:

@@ -13,6 +13,7 @@ import 'package:get_storage/get_storage.dart';
 import 'providers/auth_provider.dart';
 import 'providers/request_provider.dart';
 import 'providers/my_data_provider.dart';
+import 'providers/update_check_provider.dart';
 import 'services/badge_service.dart';
 import 'providers/attendance_provider.dart';
 import 'providers/user_provider.dart';
@@ -70,6 +71,9 @@ Future<void> main() async {
           update: (_, my, requests) => requests!..setMyData(my),
         ),
         ChangeNotifierProvider(create: (_) => UserProvider()),
+        // Software updates (Shorebird): one state shared by the update screen
+        // and the banner on both dashboards
+        ChangeNotifierProvider(create: (_) => UpdateCheckProvider()),
         // Organization data: one live listener per session, started on login
         // and stopped on logout, shared by every screen
         ChangeNotifierProxyProvider<AuthProvider, OrganizationProvider>(
