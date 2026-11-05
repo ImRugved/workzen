@@ -93,6 +93,19 @@ class Validators {
     };
   }
 
+  /// Required number greater than 0, with no upper limit.
+  static String? Function(String?) positiveNumber(String fieldName) {
+    return (value) {
+      if (value == null || value.trim().isEmpty) {
+        return 'Enter the $fieldName';
+      }
+      final number = double.tryParse(value.trim());
+      if (number == null) return 'Invalid number';
+      if (number <= 0) return 'Must be greater than 0';
+      return null;
+    };
+  }
+
   /// Optional whole number between [min] and [max]; blank is fine.
   static String? Function(String?) intInRange(int min, int max) {
     return (value) {

@@ -457,7 +457,7 @@ class _OfficeLocationFormState extends State<OfficeLocationForm> {
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: _decoration('Allowed radius (metres)'),
-                    validator: Validators.decimalInRange('radius', 10, 1000),
+                    validator: Validators.positiveNumber('radius'),
                   ),
                   SizedBox(height: 12.h),
                   ChangeNotifierProvider.value(

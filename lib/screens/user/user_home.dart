@@ -17,7 +17,7 @@ import '../../widgets/update_banner.dart';
 import '../../providers/user_home_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_drawer.dart';
-import '../../widgets/birthday_banner.dart';
+import '../../widgets/notification_bell.dart';
 import '../../widgets/quick_action_tile.dart';
 import '../../widgets/request_card.dart';
 import '../../widgets/attendance_calendar_card.dart';
@@ -178,13 +178,8 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
             color: ConstColors.textColor,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh, size: 24.r),
-            onPressed: _initializeStream,
-            tooltip: 'Refresh',
-          ),
-        ],
+        // New announcements, employee of the month and birthdays
+        actions: const [NotificationBell()],
       ),
       drawer: const AppDrawer(),
       body: authProvider.userModel == null
@@ -250,9 +245,6 @@ class _UserHomeState extends State<UserHome> with TickerProviderStateMixin {
                         ),
                       ),
                       SizedBox(height: 16.h),
-
-                      // Shown only when someone has a birthday today
-                      const BirthdayBanner(),
 
                       // Today's punch times and the month attendance calendar
                       const AttendanceCalendarCard(),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/value_provider.dart';
 import '../../../widgets/floating_nav_bar.dart';
 import '../admin_home.dart';
+import 'admin_info_screen.dart';
 import 'admin_setting_screen.dart';
 import '../../profile_screen.dart';
 
@@ -21,6 +22,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final List<Widget> _screens = [
     const AdminHome(),
     const AdminSettingScreen(),
+    const AdminInfoScreen(),
     const ProfileScreen(),
   ];
 
@@ -104,6 +106,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   icon: Icons.settings_outlined,
                   activeIcon: Icons.settings,
                   label: 'Settings',
+                ),
+                NavBarItem(
+                  icon: Icons.info_outline,
+                  activeIcon: Icons.info,
+                  label: 'Info',
                 ),
                 NavBarItem(
                   icon: Icons.person_outline,

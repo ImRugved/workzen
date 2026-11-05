@@ -98,6 +98,68 @@ class FCMService {
     }
   }
 
+  /// Sends a notification to every user (admins, sub admins and employees),
+  /// except [excludeUserId] (the person who caused it). Each phone's icon badge
+  /// goes up by one, like any other push. One read of the users collection
+  /// gives all the tokens; the access token is fetched once and the pushes go
+  /// out ten at a time. Returns how many were sent.
+  Future<int> sendNotificationToAll({
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+    String? excludeUserId,
+  }) async {
+    try {
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.users)
+          .get();
+      final accessToken = await getAccessToken();
+      if (accessToken == null) return 0;
+
+      final targets = snapshot.docs.where((doc) {
+        if (doc.id == excludeUserId) return false;
+        final token = doc.data()[FirestoreFields.fcmToken]?.toString() ?? '';
+        return token.isNotEmpty;
+      }).toList();
+
+      var sent = 0;
+      const parallel = 10;
+      for (var i = 0; i < targets.length; i += parallel) {
+        final end = i + parallel > targets.length ? targets.length : i + parallel;
+        await Future.wait(
+          targets.sublist(i, end).map((doc) async {
+            final values = doc.data();
+            final unreadValue = values[FirestoreFields.unreadNotifications];
+            final unread = unreadValue is num ? unreadValue.toInt() : 0;
+
+            final ok = await _sendWithServiceAccount(
+              token: values[FirestoreFields.fcmToken].toString(),
+              title: title,
+              body: body,
+              data: data,
+              badge: unread + 1,
+              accessToken: accessToken,
+            );
+            if (!ok) return;
+            sent++;
+            try {
+              await doc.reference.update({
+                FirestoreFields.unreadNotifications: FieldValue.increment(1),
+              });
+            } catch (e) {
+              logDebug('Could not update the unread count of ${doc.id}: $e');
+            }
+          }),
+        );
+      }
+      logDebug('Notification sent to $sent of ${targets.length} users');
+      return sent;
+    } catch (e) {
+      logDebug('Error in sendNotificationToAll: $e');
+      return 0;
+    }
+  }
+
   // Send notification with FCM token
   Future<bool> sendNotification({
     required String token,
@@ -140,14 +202,15 @@ class FCMService {
     required String body,
     Map<String, dynamic>? data,
     int? badge,
+    String? accessToken,
   }) async {
     try {
       logDebug(
         'Sending notification with service account to token: ${token.substring(0, 20)}...',
       );
 
-      // Get access token
-      final String? accessToken = await getAccessToken();
+      // Get access token (a caller sending many reuses one)
+      accessToken ??= await getAccessToken();
       if (accessToken == null) {
         logDebug('Failed to get access token');
         return false;

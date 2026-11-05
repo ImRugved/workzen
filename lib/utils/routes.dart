@@ -5,6 +5,9 @@ import '../screens/auth/login_screen.dart';
 import '../screens/auth/signup_screen.dart';
 import '../screens/admin/dashboard/admin_dashboard_screen.dart';
 import '../screens/admin/admin_attendance_screen.dart';
+import '../screens/admin/announcements_screen.dart';
+import '../screens/admin/employee_of_month_screen.dart';
+import '../screens/admin/company_rules_screen.dart';
 import '../screens/admin/leave_requests_screen.dart';
 import '../screens/admin/holiday_management_screen.dart';
 import '../screens/admin/manage_employee_leave_screen.dart';
@@ -14,8 +17,13 @@ import '../screens/user/dashboard/user_dashboard_screen.dart';
 import '../screens/user/apply_leave_screen.dart';
 import '../screens/user/attendance_history_screen.dart';
 import '../screens/user/attendance_screen.dart';
+import '../screens/user/employee_directory_screen.dart';
 import '../screens/user/leave_history_screen.dart';
 import '../screens/profile_screen.dart';
+import '../screens/notifications_screen.dart';
+import '../screens/newsletter_screen.dart';
+import '../screens/admin/newsletter_editor_screen.dart';
+import '../screens/company_rules_view_screen.dart';
 import '../screens/security_settings_screen.dart';
 
 class Routes {
@@ -25,6 +33,71 @@ class Routes {
       name: '/splash_screen',
       page: () => const SplashScreen(),
       transition: Transition.fadeIn,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+
+    // All announcements (opened from the admin Info tab)
+    GetPage(
+      name: '/announcements_screen',
+      page: () => const AnnouncementsScreen(),
+      transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+
+    // Newsletter: company news, read by everyone (opened from the Info tab)
+    GetPage(
+      name: '/newsletter_screen',
+      page: () => const NewsletterScreen(),
+      transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+
+    // Write a newsletter post (admin and sub admins with the permission)
+    GetPage(
+      name: '/newsletter_editor_screen',
+      page: () => const NewsletterEditorScreen(),
+      transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+
+    // Notifications: birthdays, employee of the month, announcements (opened
+    // from the bell on the admin and employee home screens)
+    GetPage(
+      name: '/notifications_screen',
+      page: () => const NotificationsScreen(),
+      transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+
+    // Company rules in view mode (opened from the Profile screen)
+    GetPage(
+      name: '/company_rules_view_screen',
+      page: () => const CompanyRulesViewScreen(),
+      transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+
+    // Company rules editor (opened from the admin Info tab)
+    GetPage(
+      name: '/company_rules_screen',
+      page: () => const CompanyRulesScreen(),
+      transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+
+    // Employee of the month, every month (opened from the admin Info tab)
+    GetPage(
+      name: '/employee_of_month_screen',
+      page: () => const EmployeeOfMonthScreen(),
+      transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+
+    // Employee directory (opened from the Info tab)
+    GetPage(
+      name: '/employee_directory_screen',
+      page: () => const EmployeeDirectoryScreen(),
+      transition: Transition.rightToLeft,
       transitionDuration: const Duration(milliseconds: 300),
     ),
 
@@ -157,6 +230,14 @@ class Routes {
   // Route names as constants for easy access
   static const String splashScreen = '/splash_screen';
   static const String updateCheckScreen = '/update_check_screen';
+  static const String employeeDirectoryScreen = '/employee_directory_screen';
+  static const String announcementsScreen = '/announcements_screen';
+  static const String employeeOfMonthScreen = '/employee_of_month_screen';
+  static const String companyRulesScreen = '/company_rules_screen';
+  static const String notificationsScreen = '/notifications_screen';
+  static const String newsletterScreen = '/newsletter_screen';
+  static const String newsletterEditorScreen = '/newsletter_editor_screen';
+  static const String companyRulesViewScreen = '/company_rules_view_screen';
   static const String loginScreen = '/login_screen';
   static const String signupScreen = '/signup_screen';
   static const String adminDashboard = '/admin_dashboard';

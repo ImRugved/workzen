@@ -10,7 +10,7 @@ import '../../providers/request_provider.dart';
 import '../../providers/employee_management_provider.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_drawer.dart';
-import '../../widgets/birthday_banner.dart';
+import '../../widgets/notification_bell.dart';
 import '../../widgets/donut_stat_card.dart';
 import '../../widgets/quick_action_tile.dart';
 import '../../widgets/request_type_style.dart';
@@ -152,13 +152,8 @@ class _AdminHomeState extends State<AdminHome> {
             color: ConstColors.textColor,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh, size: 24.r),
-            onPressed: _initializeData,
-            tooltip: 'Refresh',
-          ),
-        ],
+        // New announcements, employee of the month and birthdays
+        actions: const [NotificationBell()],
       ),
       drawer: const AppDrawer(),
       body: authProvider.userModel == null
@@ -233,7 +228,13 @@ class _AdminHomeState extends State<AdminHome> {
                     .where((r) => r.status == AppConstants.statusRejected)
                     .length;
 
-                return SingleChildScrollView(
+                // Pull down to refresh (this replaces the app bar button): the
+                // requests list is re-listened and the employees are loaded again
+                return RefreshIndicator(
+                  onRefresh: () async => _initializeData(),
+                  child: SingleChildScrollView(
+                  // Always scrollable, so the pull works on a short page too
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: AppSpacing.screen,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -288,9 +289,6 @@ class _AdminHomeState extends State<AdminHome> {
                         ),
                       ),
                       SizedBox(height: 16.h),
-
-                      // Shown only when someone has a birthday today
-                      const BirthdayBanner(),
 
                       // The admin's own punch times and month attendance calendar
                       const AttendanceCalendarCard(),
@@ -382,6 +380,7 @@ class _AdminHomeState extends State<AdminHome> {
                       const HolidayCalendarCard(),
                       SizedBox(height: 16.h),
                     ],
+                  ),
                   ),
                 );
               },

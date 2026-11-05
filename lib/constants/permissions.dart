@@ -13,6 +13,7 @@ class Permissions {
   static const String officeHours = 'office_hours';
   static const String holidays = 'holidays';
   static const String departments = 'departments';
+  static const String companyInfo = 'company_info';
 
   static const String field = 'subAdminPermissions';
 
@@ -27,6 +28,7 @@ class Permissions {
     officeHours: 'Office hours, location and late rules',
     holidays: 'Holiday calendar',
     departments: 'Departments and roles',
+    companyInfo: 'Announcements, employee of the month, company rules',
   };
 
   static List<String> get all => labels.keys.toList();

@@ -118,6 +118,10 @@ class AttendanceProvider with ChangeNotifier {
       office.latitude,
       office.longitude,
     );
+    logDebug(
+      'Office location: ${office.latitude}, ${office.longitude} '
+      '(${office.name}, radius ${office.radiusMeters.round()} m)',
+    );
     logDebug('Distance from office: ${distance.toStringAsFixed(2)} meters');
     _isAtOffice =
         _isInsideOffice(distance, accuracy, office.radiusMeters) &&
@@ -373,6 +377,10 @@ class AttendanceProvider with ChangeNotifier {
       longitude,
       office.latitude,
       office.longitude,
+    );
+    logDebug(
+      'Office location: ${office.latitude}, ${office.longitude} '
+      '(${office.name}, radius ${office.radiusMeters.round()} m)',
     );
     logDebug(
       'Distance from office: ${distance.toStringAsFixed(2)} meters, GPS accuracy: ${accuracy?.toStringAsFixed(1) ?? 'unknown'} meters',

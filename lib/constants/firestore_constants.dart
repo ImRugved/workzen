@@ -18,7 +18,8 @@
 //   ├─ leaves/annual_{year}            yearly leave allocation and balances
 //   ├─ leaves/comp_off                 comp off credit (earned / used / balance), not reset yearly
 //   ├─ security/settings               app-unlock PIN, biometric flag, registered device
-//   └─ attendance_summary/{yyyy-MM}    one document per month: day lists, counts, per-day detail
+//   ├─ attendance_summary/{yyyy-MM}    one document per month: day lists, counts, per-day detail
+//   └─ achievements/{id}               recognitions the employee earned (employee of the month ...)
 // attendance/{attendanceId}            one punch record per user per day, with its breaks
 // departments/{departmentId}           departments and their roles
 // organization_details                 org-wide settings, readable by every signed-in user
@@ -26,6 +27,10 @@
 //   ├─ office_hours                    start / end time and late / half-day rules
 //   ├─ office_location                 where the office is; punches are checked against it
 //   ├─ holidays/items/{holidayId}      holiday calendar
+//   ├─ announcements/items/{id}        messages (with an optional picture) from the admin to everyone
+//   ├─ newsletter/items/{id}           company news: visits, milestones, achievements, updates
+//   ├─ employee_of_month/items/{yyyy-MM}   the employee chosen for a month, one per month
+//   ├─ company_rules                   the company rules, as a list
 //   └─ birthdays/items/{uid}           month and day of each employee's birthday (no year),
 //                                      written by the employee when they save their date of birth
 // notifications                       reserved, not used yet
@@ -187,6 +192,49 @@
 // { "id": "uuid", "name": "Independence Day", "date": Timestamp (midnight),
 //   "description": "optional", "createdAt": Timestamp }
 //
+// organization_details/announcements/items/{id}     (AnnouncementModel, CompanyInfoProvider)
+// { "id": "uuid", "title": "Office closed on Friday", "message": "text",
+//   "imageUrl": "https://... (Supabase announcements bucket)" | null,
+//   "postedBy": "Admin name", "createdAt": Timestamp,
+//   "endsAt": Timestamp | null,                // after this it is expired (shown as inactive)
+//   "isActive": true,                           // the admin can switch it off by hand; nothing is
+//                                               // deleted. Employees see it only while isActive
+//                                               // and now < endsAt. Newest 20 are read.
+//   "createdById": "uid" }                      // who posted it: their own post is not news to them
+//
+// users/{uid}/achievements/{id}                     (AchievementModel)
+// { "id": "employee_of_month_2026-10", "type": "employee_of_month",
+//   "month": "2026-10", "title": "Employee of the Month", "note": "why" | null,
+//   "awardedAt": Timestamp }                    // written with organization_details/employee_of_month,
+//                                               // so the employee's own screens can show it
+//
+// organization_details/employee_of_month/items/{yyyy-MM}   (EmployeeOfMonthModel)
+// { "month": "2026-10",                        // also the document id: one employee per month
+//   "userId": "uid", "name": "Rugved", "department": "Engineering" | null,
+//   "jobRole": "Mobile Dev" | null, "profileImageUrl": "https://..." | null,
+//   "note": "Why they were chosen" | null, "updatedAt": Timestamp,
+//   "isActive": true,                           // the admin can switch it off by hand; nothing is
+//                                               // deleted. Shown to everyone only while isActive and
+//                                               // it is that month; afterwards it is history.
+//                                               // Newest 12 months are read.
+//   "createdById": "uid" }                      // who chose them: not news to that person
+//
+// organization_details/newsletter/items/{id}        (NewsletterModel, CompanyInfoProvider)
+// { "id": "uuid", "title": "Client visit from Acme",
+//   "body": "[{\"insert\":\"...\"}]",           // the formatted text (Quill Delta) as a JSON string
+//   "imageUrl": "https://... (Supabase announcements bucket)" | null,
+//   "eventDate": Timestamp | null,              // when the visit / milestone happened
+//   "postedBy": "Admin name", "createdById": "uid", "createdAt": Timestamp,
+//   "isActive": true }                          // the admin can hide it by hand; nothing is deleted.
+//                                               // Newest 30 are read.
+//
+// organization_details/company_rules                (CompanyRulesModel, CompanyInfoProvider)
+// { "content": "[{\"insert\":\"Working hours\",\"attributes\":{\"bold\":true}},{\"insert\":\"\\n\"}]",
+//                                              // the formatted text (Quill Delta) as a JSON string,
+//                                              // pasted from ChatGPT or typed; '' when cleared
+//   "updatedAt": Timestamp }                   // an older version saved "rules": [{title, description}];
+//                                              // it is still read, no longer written
+//
 // organization_details/birthdays/items/{uid}        (BirthdayModel)
 // { "userId": "uid", "name": "Rugved", "gender": "Male" | "Female" | "Other" | null,
 //   "month": 10, "day": 30,
@@ -214,12 +262,22 @@ class FirestoreSubCollections {
   static const String leaves = 'leaves';
   static const String security = 'security';
   static const String attendanceSummary = 'attendance_summary';
+  static const String achievements = 'achievements';
 
   // organization_details/holidays/...
   static const String holidayItems = 'items';
 
   // organization_details/birthdays/...
   static const String birthdayItems = 'items';
+
+  // organization_details/announcements/...
+  static const String announcementItems = 'items';
+
+  // organization_details/employee_of_month/...
+  static const String employeeOfMonthItems = 'items';
+
+  // organization_details/newsletter/...
+  static const String newsletterItems = 'items';
 }
 
 /// Field names used in code on users/{uid}, users/{uid}/security/settings and
@@ -260,6 +318,10 @@ class FirestoreDocs {
   static const String officeLocation = 'office_location';
   static const String holidays = 'holidays';
   static const String birthdays = 'birthdays';
+  static const String announcements = 'announcements';
+  static const String employeeOfMonth = 'employee_of_month';
+  static const String companyRules = 'company_rules';
+  static const String newsletter = 'newsletter';
 
   /// users/{uid}/leaves/annual_{year}
   static String annualLeave(int year) => 'annual_$year';

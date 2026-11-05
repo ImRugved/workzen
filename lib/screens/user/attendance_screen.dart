@@ -111,7 +111,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     double? userLng;
     double? userAccuracy;
 
-    // Try to get fresh GPS location (request permission if needed)
+    // Fresh GPS reading, asked for quietly (no messages: this only drives the
+    // "At Office" text; a punch asks again and explains any problem). A stale
+    // saved position is never used, because it would say where the phone WAS.
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (serviceEnabled) {
@@ -119,31 +121,24 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         if (permission == LocationPermission.denied) {
           permission = await Geolocator.requestPermission();
         }
-        if (permission == LocationPermission.whileInUse ||
-            permission == LocationPermission.always) {
-          Position position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.high,
-            ),
+        final precise =
+            await Geolocator.getLocationAccuracy() ==
+            LocationAccuracyStatus.precise;
+        if (precise &&
+            (permission == LocationPermission.whileInUse ||
+                permission == LocationPermission.always)) {
+          final position = await _bestPosition(
+            sampleFor: const Duration(seconds: 2),
           );
-          userLat = position.latitude;
-          userLng = position.longitude;
-          userAccuracy = position.accuracy;
-
-          final storage = GetStorage();
-          await storage.write('latitude', userLat);
-          await storage.write('longitude', userLng);
+          if (!position.isMocked) {
+            userLat = position.latitude;
+            userLng = position.longitude;
+            userAccuracy = position.accuracy;
+          }
         }
       }
     } catch (e) {
       logDebug('Error getting GPS in attendance screen: $e');
-    }
-
-    // Fallback to GetStorage if GPS failed
-    if (userLat == null || userLng == null) {
-      final storage = GetStorage();
-      userLat = storage.read('latitude');
-      userLng = storage.read('longitude');
     }
 
     attendanceProvider.checkOfficeStatus(
@@ -152,6 +147,41 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       user,
       accuracy: userAccuracy,
     );
+  }
+
+  /// The most accurate GPS reading in about [sampleFor]: a single fix indoors
+  /// can be several metres worse than the next one. Used for punches, breaks
+  /// and the "At Office" indicator, so they all judge the same kind of reading.
+  /// Throws when no fix can be had (a time limit stops it waiting forever, e.g.
+  /// on the simulator with Location set to None).
+  Future<Position> _bestPosition({
+    Duration sampleFor = const Duration(seconds: 3),
+  }) async {
+    Position? position;
+    final timer = Stopwatch()..start();
+    await for (final reading
+        in Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.best,
+          ),
+        ).timeout(
+          const Duration(seconds: 10),
+          onTimeout: (sink) => sink.close(),
+        )) {
+      if (position == null || reading.accuracy < position.accuracy) {
+        position = reading;
+      }
+      if (timer.elapsed >= sampleFor || reading.accuracy <= 5) break;
+    }
+    logDebug('Location stream finished, position: $position');
+
+    return position ??
+        await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.best,
+            timeLimit: Duration(seconds: 10),
+          ),
+        );
   }
 
   /// Ensures location services are enabled and permission is granted.
@@ -197,36 +227,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
 
     try {
-      // About 3 s of readings, keeping the most accurate one: a single fix
-      // indoors can be several metres worse than the next one
-      Position? position;
-      final timer = Stopwatch()..start();
-      await for (final reading
-          in Geolocator.getPositionStream(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.best,
-            ),
-          ).timeout(
-            const Duration(seconds: 10),
-            onTimeout: (sink) => sink.close(),
-          )) {
-        if (position == null || reading.accuracy < position.accuracy) {
-          position = reading;
-        }
-        if (timer.elapsed >= const Duration(seconds: 3) ||
-            reading.accuracy <= 5) {
-          break;
-        }
-      }
-      logDebug('Location stream finished, position: $position');
-      // timeLimit stops this waiting forever when no fix is available (e.g. the
-      // simulator with Location set to None)
-      position ??= await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.best,
-          timeLimit: Duration(seconds: 10),
-        ),
-      );
+      final position = await _bestPosition();
 
       // Fake GPS apps and old cached fixes are not accepted
       if (position.isMocked) {

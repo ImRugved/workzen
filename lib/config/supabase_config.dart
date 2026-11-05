@@ -6,6 +6,7 @@ class SupabaseConfig {
   static const String supabaseAnonKey =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhvZnJncnluYmJ1c25jbGJzbHBsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzMjA4MDQsImV4cCI6MjA3OTg5NjgwNH0.4seLOzHCmg-SyzIuinfOEYwj7MH0a3FweDGyKw_8U9I';
 
-  // The only storage bucket the app uses
+  // Storage buckets the app uses (create both in the Supabase dashboard)
   static const String profilePicturesBucket = 'profile_pictures';
+  static const String announcementsBucket = 'announcements';
 }

@@ -119,6 +119,14 @@ service cloud.firestore {
         allow write: if hasPerm('view_attendance') || hasPerm('leave_requests');
       }
 
+      // Achievements (employee of the month ...): the employee reads their own;
+      // an admin, or a sub admin with "company_info", writes them when choosing
+      // the employee of the month
+      match /achievements/{achievementId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if hasPerm('company_info');
+      }
+
       // Security subcollection - users manage their own PIN, biometric and device
       match /security/{securityDocument} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
@@ -169,6 +177,41 @@ service cloud.firestore {
         allow read: if signedIn();
         allow write: if hasPerm('holidays');
       }
+    }
+
+    // Info page: announcements, employee of the month and company rules.
+    // Everyone signed in reads them; an admin, or a sub admin with the
+    // "company_info" permission, writes them.
+    match /organization_details/announcements {
+      allow read: if signedIn();
+
+      match /items/{announcementId} {
+        allow read: if signedIn();
+        allow write: if hasPerm('company_info');
+      }
+    }
+
+    match /organization_details/newsletter {
+      allow read: if signedIn();
+
+      match /items/{postId} {
+        allow read: if signedIn();
+        allow write: if hasPerm('company_info');
+      }
+    }
+
+    match /organization_details/employee_of_month {
+      allow read: if signedIn();
+
+      match /items/{monthId} {
+        allow read: if signedIn();
+        allow write: if hasPerm('company_info');
+      }
+    }
+
+    match /organization_details/company_rules {
+      allow read: if signedIn();
+      allow write: if hasPerm('company_info');
     }
 
     // Birthdays: month and day only. Everyone signed in reads them; an employee

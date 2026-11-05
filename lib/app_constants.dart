@@ -23,6 +23,8 @@ class AppConstants {
   static const String breakStartNotification = "BREAK_START";
   static const String breakEndNotification = "BREAK_END";
   static const String longBreakNotification = "LONG_BREAK";
+  static const String announcementNotification = "ANNOUNCEMENT";
+  static const String employeeOfMonthNotification = "EMPLOYEE_OF_MONTH";
 
   /// A break longer than this many minutes is reported to the admins as a
   /// long break when it ends.

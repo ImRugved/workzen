@@ -535,6 +535,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Divider(),
 
             ListTile(
+              leading: const Icon(
+                Icons.gavel_outlined,
+                color: ConstColors.primaryDeep,
+              ),
+              title: Text('Company Rules', style: getTextTheme().bodyMedium),
+              trailing: Icon(Icons.arrow_forward_ios, size: 16.r),
+              // The rules in view mode, with the company's name
+              onTap: () => Get.toNamed('/company_rules_view_screen'),
+            ),
+            const Divider(),
+
+            ListTile(
               leading: const Icon(Icons.logout, color: ConstColors.errorRed),
               title: Text('Logout', style: getTextTheme().bodyMedium),
               trailing: Icon(Icons.arrow_forward_ios, size: 16.r),
