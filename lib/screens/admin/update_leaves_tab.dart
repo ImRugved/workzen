@@ -66,6 +66,8 @@ class _UpdateLeavesTabState extends State<UpdateLeavesTab>
         return ConstColors.successGreen;
       case PastRequestKind.cl:
         return ConstColors.inProgressOrange;
+      case PastRequestKind.ul:
+        return ConstColors.errorRed;
       case PastRequestKind.co:
       case PastRequestKind.compOff:
         return ConstColors.calendarCompOff;

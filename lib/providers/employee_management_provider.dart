@@ -465,8 +465,8 @@ class EmployeeManagementProvider with ChangeNotifier {
 
   // Refresh employee list
   Future<void> refreshEmployees() async {
-    await fetchAllEmployees();
-    await fetchDepartments();
+    // Independent of each other, so they load together
+    await Future.wait([fetchAllEmployees(), fetchDepartments()]);
   }
 
   // --- Department and Role Management ---

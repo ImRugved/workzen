@@ -6,6 +6,7 @@ enum PastRequestKind {
   pl('Privilege Leave (PL)', 'Privilege Leave', 'PL'),
   sl('Sick Leave (SL)', 'Sick Leave', 'SL'),
   cl('Casual Leave (CL)', 'Casual Leave', 'CL'),
+  ul('Unpaid Leave (UL)', 'Unpaid Leave', 'UL'),
   co('Comp Off Leave (CO)', 'Comp Off Leave', 'CO'),
   wfh('Work From Home (WFH)', 'Work From Home', 'WFH'),
   compOff('Comp Off (worked on a day off)', 'Comp Off', '+CO');
@@ -21,14 +22,16 @@ enum PastRequestKind {
 
   const PastRequestKind(this.label, this.sectionTitle, this.code);
 
-  /// Leave that is taken from a balance (PL, SL, CL) or from comp off credit
-  /// (CO).
-  bool get isLeave => this == pl || this == sl || this == cl || this == co;
+  /// Leave that is taken from a balance (PL, SL, CL), from comp off credit (CO)
+  /// or that has no balance at all (UL, unpaid: only its days taken are
+  /// counted).
+  bool get isLeave =>
+      this == pl || this == sl || this == cl || this == ul || this == co;
 
   /// Whether a half day can be chosen (everything except work from home).
   bool get supportsHalfDay => this != wfh;
 
-  /// Leave type code stored on the request ("pl", "sl", "cl", "co"), or null
+  /// Leave type code stored on the request ("pl", "sl", "cl", "ul", "co"), or null
   /// when this kind is not a leave.
   String? get leaveCode {
     switch (this) {
@@ -38,6 +41,8 @@ enum PastRequestKind {
         return AppConstants.leaveTypeSL;
       case PastRequestKind.cl:
         return AppConstants.leaveTypeCL;
+      case PastRequestKind.ul:
+        return AppConstants.leaveTypeUL;
       case PastRequestKind.co:
         return AppConstants.leaveTypeCO;
       case PastRequestKind.wfh:

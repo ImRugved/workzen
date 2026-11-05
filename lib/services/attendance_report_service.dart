@@ -161,8 +161,11 @@ class AttendanceReportService {
   ) async {
     final rows = <AttendanceReportRow>[];
     try {
-      for (final month in months) {
-        final summary = await _summaries.ensureMonth(employee, month);
+      // The months are independent of each other, so they load together
+      final summaries = await Future.wait(
+        months.map((month) => _summaries.ensureMonth(employee, month)),
+      );
+      for (final summary in summaries) {
         for (final day in summary.days.values) {
           // Days before joining, and days still to come, have no status
           if (day.status == 'none') continue;

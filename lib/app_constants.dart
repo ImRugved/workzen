@@ -61,6 +61,7 @@ class AppConstants {
     'PL': 'PL (Privilege Leave)',
     'SL': 'SL (Sick Leave)',
     'CL': 'CL (Casual Leave)',
+    'UL': 'UL (Unpaid Leave)',
     'CO': 'CO (Compensatory Off)',
   };
 
@@ -90,6 +91,10 @@ class AppConstants {
   static const String leaveTypeSL = "sl"; // Sick Leave
   static const String leaveTypeCL = "cl"; // Casual Leave
   static const String leaveTypeCO = "co"; // Comp Off (taken from earned credit)
+  // Unpaid Leave: has no allocation or balance. Taking it only adds to the
+  // employee's own unpaid days count (unpaidLeaves.used); their PL, SL, CL and
+  // comp off numbers never change.
+  static const String leaveTypeUL = "ul";
 
   // Entry in the leave type dropdown that opens the "apply comp off" form.
   // It is never saved as a leave type.

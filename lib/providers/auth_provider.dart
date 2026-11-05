@@ -249,10 +249,12 @@ class AuthProvider with ChangeNotifier, WidgetsBindingObserver {
       _user = result.user;
       await _fetchUserData();
       _listenToUserDoc();
-      await _registerDeviceIfNeeded();
-
-      // Always get fresh FCM token after successful login
-      await _getFreshFcmTokenAndUpdate();
+      // Device check and the fresh FCM token do not depend on each other (both
+      // handle their own errors), so they run together
+      await Future.wait([
+        _registerDeviceIfNeeded(),
+        _getFreshFcmTokenAndUpdate(),
+      ]);
 
       _isLoading = false;
       notifyListeners();

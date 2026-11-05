@@ -66,6 +66,9 @@ class DashboardProvider with ChangeNotifier {
         .where((e) => e.isOnboarded)
         .toList();
     var missing = 0;
+    // Employees whose leave document has no unpaid leave count yet (documents
+    // made before unpaid leave existed)
+    final needsUnpaid = <String>[];
 
     // One read per employee, ten at a time. Reading them one after another
     // made the section wait for every round trip in turn.
@@ -92,6 +95,7 @@ class DashboardProvider with ChangeNotifier {
         final data = result.data;
         if (data != null) {
           leaves[batch[j].id] = LeaveBalanceModel.fromFirestore(data);
+          if (!data.containsKey('unpaidLeaves')) needsUnpaid.add(batch[j].id);
         } else {
           missing++;
         }
@@ -102,6 +106,41 @@ class DashboardProvider with ChangeNotifier {
     _employeeLeaves = leaves;
     _isLoadingEmployeeLeaves = false;
     notifyListeners();
+
+    if (needsUnpaid.isNotEmpty) {
+      await _addUnpaidDefault(needsUnpaid);
+    }
+  }
+
+  // Gives each of these employees' leave documents the unpaid leave count 0,
+  // once. The screens already show a missing count as 0; this only makes the
+  // stored data complete. A person without the right to write leave documents
+  // simply skips it (the next admin to open the balances does it).
+  Future<void> _addUnpaidDefault(List<String> employeeIds) async {
+    final year = DateTime.now().year;
+    try {
+      // A batch holds up to 500 writes
+      for (var i = 0; i < employeeIds.length; i += 400) {
+        final end = i + 400 > employeeIds.length ? employeeIds.length : i + 400;
+        final batch = _firestore.batch();
+        for (final id in employeeIds.sublist(i, end)) {
+          batch.update(
+            _firestore
+                .collection(FirestoreCollections.users)
+                .doc(id)
+                .collection(FirestoreSubCollections.leaves)
+                .doc(FirestoreDocs.annualLeave(year)),
+            {
+              'unpaidLeaves': {'used': 0},
+            },
+          );
+        }
+        await batch.commit();
+      }
+      debugPrint('Unpaid leave count 0 added to ${employeeIds.length} documents');
+    } catch (e) {
+      debugPrint('Could not add the unpaid leave default: $e');
+    }
   }
 
   // Update leave allocation for an employee

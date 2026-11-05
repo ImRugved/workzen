@@ -230,6 +230,49 @@ class UserProvider extends ChangeNotifier {
   }
 
   // Check if user is onboarded (has leaves subcollection)
+  /// The users who still have to be onboarded: not admins, and without this
+  /// year's leave document. One read gets every user; a user who was never
+  /// onboarded (no `isOnboarded` flag) needs no further read, and only the
+  /// flagged ones have their leave document checked, ten at a time instead of
+  /// one after another.
+  Future<List<UserModel>> getUsersToOnboard() async {
+    try {
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.users)
+          .get();
+
+      // The candidates, in the order of the query: (user, was flagged onboarded)
+      final candidates = <(UserModel, bool)>[];
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final user = UserModel.fromJson(data);
+        if (user.role == AppConstants.adminRole || user.isAdmin) continue;
+        candidates.add((user, data['isOnboarded'] == true));
+      }
+
+      const parallel = 10;
+      final result = <UserModel>[];
+      for (var i = 0; i < candidates.length; i += parallel) {
+        final end = i + parallel > candidates.length
+            ? candidates.length
+            : i + parallel;
+        final chunk = candidates.sublist(i, end);
+        final needs = await Future.wait(
+          chunk.map(
+            (c) async => c.$2 ? !await isUserOnboarded(c.$1.userId) : true,
+          ),
+        );
+        for (var j = 0; j < chunk.length; j++) {
+          if (needs[j]) result.add(chunk[j].$1);
+        }
+      }
+      return result;
+    } catch (e) {
+      logDebug('Error getting users to onboard: $e');
+      return [];
+    }
+  }
+
   Future<bool> isUserOnboarded(String userId) async {
     try {
       final currentYear = DateTime.now().year;

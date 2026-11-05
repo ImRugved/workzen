@@ -35,7 +35,7 @@ class AttendanceExportService {
 
   // Header of the per employee summary, shared by the PDF and the Excel file.
   // Working Days leaves out holidays and the weekly off (Saturday, Sunday);
-  // Leave is the total of PL, SL and CL, which follow it; Comp Off is leave
+  // Leave is the total of PL, SL, CL and UL (unpaid), which follow it; Comp Off is leave
   // taken from earned comp off.
   static List<String> _summaryHeaders() => [
     'Employee',
@@ -48,6 +48,7 @@ class AttendanceExportService {
     'PL',
     'SL',
     'CL',
+    'UL',
     'Comp Off',
     'Absent',
     'WFH',
@@ -69,6 +70,7 @@ class AttendanceExportService {
     '${t.leaveOf('pl')}',
     '${t.leaveOf('sl')}',
     '${t.leaveOf('cl')}',
+    '${t.leaveOf('ul')}',
     '${t.count('compOff')}',
     '${t.count('absent')}',
     '${t.count('wfh')}',
@@ -90,6 +92,7 @@ class AttendanceExportService {
     '${r.overallLeaveOf('pl')}',
     '${r.overallLeaveOf('sl')}',
     '${r.overallLeaveOf('cl')}',
+    '${r.overallLeaveOf('ul')}',
     '${r.overallCount('compOff')}',
     '${r.overallCount('absent')}',
     '${r.overallCount('wfh')}',
@@ -201,7 +204,7 @@ class AttendanceExportService {
               for (final t in report.totals) _summaryRow(t),
               if (report.totals.length > 1) _totalRow(report),
             ],
-            // 18 columns: a smaller font keeps them on one page width
+            // 19 columns: a smaller font keeps them on one page width
             fontSize: 7,
             leftAligned: const [0],
           ),
@@ -209,7 +212,7 @@ class AttendanceExportService {
           pw.Text(
             'Days counted: ${report.totalDays}. Working Days leave out '
             'holidays and the weekly off (Saturday, Sunday). Leave is the '
-            'total of PL, SL and CL; Comp Off is leave taken from earned comp '
+            'total of PL, SL, CL and UL (unpaid); Comp Off is leave taken from earned comp '
             'off. Hours are worked time after breaks; Extra Hrs is time worked '
             'after the office end time.',
             style: const pw.TextStyle(fontSize: 8),

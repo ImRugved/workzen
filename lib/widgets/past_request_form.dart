@@ -174,7 +174,13 @@ class _PastRequestFormState extends State<PastRequestForm> {
             ConstantDropdown<PastRequestKind>(
               label: 'Type',
               value: draft.kind,
-              items: PastRequestKind.values,
+              // One comp off choice: "Comp Off Leave". The "worked on a day
+              // off" record gave the same result (earned and used at once, the
+              // balance unchanged), so it is no longer offered.
+              items: [
+                for (final kind in PastRequestKind.values)
+                  if (kind != PastRequestKind.compOff) kind,
+              ],
               itemLabel: (kind) => kind.label,
               onChanged: (kind) {
                 if (kind != null) draft.setKind(kind);

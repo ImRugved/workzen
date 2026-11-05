@@ -209,7 +209,7 @@ class RequestModel {
         .toDouble();
   }
 
-  /// Matches a leave type filter value ('All', 'PL', 'SL', 'CL', 'CO'). CO
+  /// Matches a leave type filter value ('All', 'PL', 'SL', 'CL', 'UL', 'CO'). CO
   /// covers both leave taken from comp off and requests to earn comp off.
   bool matchesLeaveTypeFilter(String filter) {
     if (filter == 'All') return true;
@@ -217,7 +217,7 @@ class RequestModel {
     return leaveType?.toLowerCase() == filter.toLowerCase();
   }
 
-  /// Leave type of a leave request ('pl', 'sl', 'cl', 'co'), or null.
+  /// Leave type of a leave request ('pl', 'sl', 'cl', 'ul', 'co'), or null.
   String? get leaveType => additionalData?['leaveType'] as String?;
 
   /// The day the employee wants off in return for the comp off request (date
@@ -268,6 +268,8 @@ class RequestModel {
         return 'Casual Leave';
       case AppConstants.leaveTypeCO:
         return 'Compensatory Off Leave';
+      case AppConstants.leaveTypeUL:
+        return 'Unpaid Leave';
       default:
         return 'Leave';
     }

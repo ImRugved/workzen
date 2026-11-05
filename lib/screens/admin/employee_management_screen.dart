@@ -60,6 +60,10 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   void _showRenewYearlyLeavesDialog() {
     final nextYear = DateTime.now().year + 1;
     final currentYear = DateTime.now().year;
+    final onboarding = Provider.of<OnboardingProvider>(context, listen: false);
+    final plOffered = onboarding.isPrivilegeLeaveOffered;
+    final carryPL = onboarding.carryForwardPL;
+    final carryCompOff = onboarding.carryForwardCompOff;
 
     showDialog(
       context: context,
@@ -95,16 +99,27 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                     ),
                   ),
                   SizedBox(height: 4.h),
-                  Text(
-                    'PL: Unused balance from $currentYear carries forward',
-                    style: getTextTheme().bodySmall,
-                  ),
+                  // PL only when the admin set a PL count and only for the
+                  // employees who have it on
+                  if (plOffered)
+                    Text(
+                      carryPL
+                          ? 'PL: Unused balance from $currentYear carries forward'
+                          : 'PL: Fresh allocation (no carry forward)',
+                      style: getTextTheme().bodySmall,
+                    ),
                   Text(
                     'SL: Fresh allocation (no carry forward)',
                     style: getTextTheme().bodySmall,
                   ),
                   Text(
                     'CL: Fresh allocation (no carry forward)',
+                    style: getTextTheme().bodySmall,
+                  ),
+                  Text(
+                    carryCompOff
+                        ? 'Comp Off: Unused credit carries forward'
+                        : 'Comp Off: Unused credit resets to 0',
                     style: getTextTheme().bodySmall,
                   ),
                 ],

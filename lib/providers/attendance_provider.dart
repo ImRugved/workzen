@@ -408,11 +408,16 @@ class AttendanceProvider with ChangeNotifier {
       final userRef = _firestore
           .collection(FirestoreCollections.users)
           .doc(userId);
-      final userDoc = await userRef.get();
-      final securityDoc = await userRef
-          .collection(FirestoreSubCollections.security)
-          .doc(FirestoreDocs.securitySettings)
-          .get();
+      // The two reads do not depend on each other, so they run together
+      final results = await Future.wait([
+        userRef.get(),
+        userRef
+            .collection(FirestoreSubCollections.security)
+            .doc(FirestoreDocs.securitySettings)
+            .get(),
+      ]);
+      final userDoc = results[0];
+      final securityDoc = results[1];
 
       final deviceInfo = securityDoc.data()?[FirestoreFields.deviceInfo];
       final registeredId = deviceInfo is Map
@@ -584,12 +589,15 @@ class AttendanceProvider with ChangeNotifier {
             .set(todayAttendance.toJson());
       }
 
-      // Notify admins
-      await _notifyAdmins(
+      // Notify admins in the background: the punch is already saved, so the
+      // employee does not wait for the pushes to go out
+      unawaited(
+        _notifyAdmins(
         user,
         AppConstants.punchInNotification,
         "Punch In",
         "${user.name} has punched in at ${DateFormat('hh:mm a').format(now)}",
+        ),
       );
 
       _refreshMonthSummary(user.id, user: user);
@@ -676,12 +684,14 @@ class AttendanceProvider with ChangeNotifier {
           .doc(attendance.id)
           .update(updatedAttendance.toJson());
 
-      // Notify admins
-      await _notifyAdmins(
-        user,
-        AppConstants.punchOutNotification,
-        'Punch Out',
-        '${user.name} has punched out at ${DateFormat('hh:mm a').format(now)}',
+      // Notify admins in the background (the punch is already saved)
+      unawaited(
+        _notifyAdmins(
+          user,
+          AppConstants.punchOutNotification,
+          'Punch Out',
+          '${user.name} has punched out at ${DateFormat('hh:mm a').format(now)}',
+        ),
       );
 
       _refreshMonthSummary(user.id, user: user);
@@ -733,12 +743,15 @@ class AttendanceProvider with ChangeNotifier {
       );
       await _saveBreaks(updated);
 
-      // Same as a punch: the admins and the sub admins who view attendance
-      await _notifyAdmins(
-        user,
-        AppConstants.breakStartNotification,
-        'Break Start',
-        '${user.name} has started a break at ${DateFormat('hh:mm a').format(now)}',
+      // Same as a punch: the admins and the sub admins who view attendance,
+      // told in the background
+      unawaited(
+        _notifyAdmins(
+          user,
+          AppConstants.breakStartNotification,
+          'Break Start',
+          '${user.name} has started a break at ${DateFormat('hh:mm a').format(now)}',
+        ),
       );
       return {'success': true};
     } catch (e) {
@@ -784,17 +797,19 @@ class AttendanceProvider with ChangeNotifier {
       // Always told, as for a punch; a break past the limit says so
       final minutes = now.difference(breaks.last.start).inMinutes;
       final tooLong = minutes > AppConstants.maxBreakMinutes;
-      await _notifyAdmins(
-        user,
-        tooLong
-            ? AppConstants.longBreakNotification
-            : AppConstants.breakEndNotification,
-        tooLong ? 'Long Break' : 'Break End',
-        tooLong
-            ? '${user.name} ended a $minutes min break '
-                  '(limit ${AppConstants.maxBreakMinutes} min)'
-            : '${user.name} has ended the break at '
-                  '${DateFormat('hh:mm a').format(now)} ($minutes min)',
+      unawaited(
+        _notifyAdmins(
+          user,
+          tooLong
+              ? AppConstants.longBreakNotification
+              : AppConstants.breakEndNotification,
+          tooLong ? 'Long Break' : 'Break End',
+          tooLong
+              ? '${user.name} ended a $minutes min break '
+                    '(limit ${AppConstants.maxBreakMinutes} min)'
+              : '${user.name} has ended the break at '
+                    '${DateFormat('hh:mm a').format(now)} ($minutes min)',
+        ),
       );
       return {'success': true};
     } catch (e) {
@@ -824,7 +839,13 @@ class AttendanceProvider with ChangeNotifier {
     final ids = <String>{};
     final users = _firestore.collection(FirestoreCollections.users);
 
-    var admins = await users.where('isAdmin', isEqualTo: true).get();
+    // The two lookups do not depend on each other, so they run together
+    final adminsFuture = users.where('isAdmin', isEqualTo: true).get();
+    final subAdminsFuture = users
+        .where(Permissions.field, arrayContains: Permissions.viewAttendance)
+        .get();
+
+    var admins = await adminsFuture;
     // Older accounts may only have the admin role
     if (admins.docs.isEmpty) {
       admins = await users
@@ -832,14 +853,7 @@ class AttendanceProvider with ChangeNotifier {
           .get();
     }
     ids.addAll(admins.docs.map((d) => d.id));
-
-    final subAdmins = await users
-        .where(
-          Permissions.field,
-          arrayContains: Permissions.viewAttendance,
-        )
-        .get();
-    ids.addAll(subAdmins.docs.map((d) => d.id));
+    ids.addAll((await subAdminsFuture).docs.map((d) => d.id));
 
     return ids.toList();
   }
@@ -853,23 +867,21 @@ class AttendanceProvider with ChangeNotifier {
     String body,
   ) async {
     try {
-      final recipients = await _attendanceViewerIds();
+      final recipients = (await _attendanceViewerIds())
+          .where((id) => id != user.id)
+          .toList();
 
-      for (final recipientId in recipients) {
-        if (recipientId == user.id) continue;
-
-        await _fcmService.sendNotificationToUser(
-          userId: recipientId,
-          title: title,
-          body: body,
-          data: {
-            'userId': user.id,
-            'userName': user.name,
-            'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
-            'type': notificationType,
-          },
-        );
-      }
+      await _fcmService.sendNotificationToUsers(
+        userIds: recipients,
+        title: title,
+        body: body,
+        data: {
+          'userId': user.id,
+          'userName': user.name,
+          'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
+          'type': notificationType,
+        },
+      );
     } catch (e) {
       logDebug('Error notifying admins: $e');
     }

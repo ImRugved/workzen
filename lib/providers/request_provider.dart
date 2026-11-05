@@ -63,8 +63,10 @@ class RequestProvider with ChangeNotifier {
   }
 
   /// Days of [leaveType] the employee can still ask for: the approved balance
-  /// minus what pending requests already hold.
+  /// minus what pending requests already hold. Unpaid leave has no limit.
   double availableLeave(String leaveType) {
+    if (leaveType == AppConstants.leaveTypeUL) return double.infinity;
+
     double balance;
     if (leaveType == AppConstants.leaveTypeCO) {
       balance = _compOffBalance;
@@ -503,10 +505,15 @@ class RequestProvider with ChangeNotifier {
     final ids = <String>{};
     final users = _firestore.collection(FirestoreCollections.users);
 
-    final admins = await users.where('isAdmin', isEqualTo: true).get();
-    ids.addAll(admins.docs.map((d) => d.id));
+    // The two lookups do not depend on each other, so they run together
+    final results = await Future.wait([
+      users.where('isAdmin', isEqualTo: true).get(),
+      users.where('isSubAdmin', isEqualTo: true).get(),
+    ]);
+    final admins = results[0];
+    final subAdmins = results[1];
 
-    final subAdmins = await users.where('isSubAdmin', isEqualTo: true).get();
+    ids.addAll(admins.docs.map((d) => d.id));
     for (final doc in subAdmins.docs) {
       final granted = doc.data()[Permissions.field];
       if (granted is List && granted.contains(Permissions.leaveRequests)) {
@@ -515,6 +522,52 @@ class RequestProvider with ChangeNotifier {
     }
 
     return ids.toList();
+  }
+
+  // Tells the admins and sub admins allowed to approve requests about a new
+  // [request], all at once. Never the person who applied (an admin or a sub
+  // admin applying for their own leave): the others who can decide it are told.
+  Future<void> _notifyApprovers(
+    RequestModel request,
+    String notificationType,
+    String notificationBody,
+  ) async {
+    try {
+      final approverIds = (await _requestApproverIds())
+          .where((id) => id != request.userId)
+          .toList();
+      logDebug(
+        'Found ${approverIds.length} approvers to notify about ${request.type} request',
+      );
+
+      final notificationData = <String, dynamic>{
+        'requestId': request.id,
+        'userId': request.userId,
+        'type': notificationType,
+        'requestType': request.type,
+        'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
+      };
+
+      // Add type-specific data
+      if (request.isLeaveRequest || request.isWFHRequest) {
+        notificationData['fromDate'] = request.fromDate?.millisecondsSinceEpoch
+            .toString();
+        notificationData['toDate'] = request.toDate?.millisecondsSinceEpoch
+            .toString();
+      } else if (request.isBreakRequest || request.isCompOffRequest) {
+        notificationData['date'] = request.date?.millisecondsSinceEpoch
+            .toString();
+      }
+
+      await _fcmService.sendNotificationToUsers(
+        userIds: approverIds,
+        title: "${request.fullTypeName} Request",
+        body: notificationBody,
+        data: notificationData,
+      );
+    } catch (e) {
+      logDebug('Error notifying approvers: $e');
+    }
   }
 
   // Generic method to apply any type of request
@@ -543,65 +596,10 @@ class RequestProvider with ChangeNotifier {
         '${request.type} request saved to Firestore with ID: ${request.id}',
       );
 
-      // Admins and sub admins allowed to approve requests are notified
-      final approverIds = await _requestApproverIds();
-
-      logDebug(
-        'Found ${approverIds.length} approvers to notify about ${request.type} request',
-      );
-
-      for (final adminId in approverIds) {
-        // Never tell the person who applied (an admin or a sub admin applying
-        // for their own leave); the other admins and sub admins who can decide
-        // it are told
-        if (adminId == request.userId) continue;
-
-        logDebug('Preparing to notify approver: $adminId');
-
-        try {
-          Map<String, dynamic> notificationData = {
-            'requestId': request.id,
-            'userId': request.userId,
-            'type': notificationType,
-            'requestType': request.type,
-            'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
-          };
-
-          // Add type-specific data
-          if (request.isLeaveRequest || request.isWFHRequest) {
-            notificationData['fromDate'] = request
-                .fromDate
-                ?.millisecondsSinceEpoch
-                .toString();
-            notificationData['toDate'] = request.toDate?.millisecondsSinceEpoch
-                .toString();
-          } else if (request.isBreakRequest || request.isCompOffRequest) {
-            notificationData['date'] = request.date?.millisecondsSinceEpoch
-                .toString();
-          }
-
-          logDebug('Notification data: ${jsonEncode(notificationData)}');
-
-          bool notificationSent = await _fcmService.sendNotificationToUser(
-            userId: adminId,
-            title: "${request.fullTypeName} Request",
-            body: notificationBody,
-            data: notificationData,
-          );
-
-          if (notificationSent) {
-            logDebug(
-              '${request.type} request notification sent successfully to admin: $adminId',
-            );
-          } else {
-            logDebug(
-              'Failed to send ${request.type} request notification to admin: $adminId',
-            );
-          }
-        } catch (e) {
-          logDebug('Error sending notification to admin: $e');
-        }
-      }
+      // The admins and sub admins who can approve it are told in the
+      // background: the request is already saved, so the employee does not wait
+      // for the pushes to go out
+      unawaited(_notifyApprovers(request, notificationType, notificationBody));
 
       _isLoading = false;
       notifyListeners();
@@ -673,22 +671,24 @@ class RequestProvider with ChangeNotifier {
               "Your ${request.fullTypeName} request for ${request.displayDate} has been $statusText";
         }
 
-        bool notificationSent = await _fcmService.sendNotificationToUser(
-          userId: request.userId,
-          title: "${request.fullTypeName} Status Update",
-          body: notificationBody,
-          data: notificationData,
+        // In the background: the decision is already saved, so the admin does
+        // not wait for the push to go out
+        unawaited(
+          _fcmService
+              .sendNotificationToUser(
+                userId: request.userId,
+                title: "${request.fullTypeName} Status Update",
+                body: notificationBody,
+                data: notificationData,
+              )
+              .then(
+                (sent) => logDebug(
+                  sent
+                      ? 'Request status notification sent to user: ${request.userId}'
+                      : 'Failed to send request status notification to user: ${request.userId}',
+                ),
+              ),
         );
-
-        if (notificationSent) {
-          logDebug(
-            'Request status notification sent successfully to user: ${request.userId}',
-          );
-        } else {
-          logDebug(
-            'Failed to send request status notification to user: ${request.userId}',
-          );
-        }
       } catch (e) {
         logDebug('Error sending notification: $e');
       }
@@ -804,8 +804,35 @@ class RequestProvider with ChangeNotifier {
           .doc(userId)
           .collection(FirestoreSubCollections.requests);
 
+      // The years a balance leave falls in: each needs a leave document to
+      // move
+      final leaveYears = [
+        ...{
+          for (final e in entries)
+            if (e.kind == PastRequestKind.pl ||
+                e.kind == PastRequestKind.sl ||
+                e.kind == PastRequestKind.cl ||
+                e.kind == PastRequestKind.ul)
+              e.from.year,
+        },
+      ];
+
+      // The employee's requests and the leave document of each year do not
+      // depend on each other, so they are read together
+      final existingFuture = requestsRef.get();
+      final allocationFutures = [
+        for (final year in leaveYears)
+          _firestore
+              .collection(FirestoreCollections.users)
+              .doc(userId)
+              .collection(FirestoreSubCollections.leaves)
+              .doc(FirestoreDocs.annualLeave(year))
+              .get(),
+      ];
+      final existingSnapshot = await existingFuture;
+      final allocations = await Future.wait(allocationFutures);
+
       // Days that already have a request would be counted twice
-      final existingSnapshot = await requestsRef.get();
       final existing = existingSnapshot.docs
           .map((doc) => RequestModel.fromJson(doc.data()))
           .where((r) => r.status != AppConstants.statusRejected)
@@ -816,24 +843,11 @@ class RequestProvider with ChangeNotifier {
       // A leave of a year with no allocation can not move a balance; it is
       // still saved, and HR is told
       final notes = <String>[];
-      final leaveYears = {
-        for (final e in entries)
-          if (e.kind == PastRequestKind.pl ||
-              e.kind == PastRequestKind.sl ||
-              e.kind == PastRequestKind.cl)
-            e.from.year,
-      };
-      for (final year in leaveYears) {
-        final allocation = await _firestore
-            .collection(FirestoreCollections.users)
-            .doc(userId)
-            .collection(FirestoreSubCollections.leaves)
-            .doc(FirestoreDocs.annualLeave(year))
-            .get();
-        if (!allocation.exists) {
+      for (var i = 0; i < leaveYears.length; i++) {
+        if (!allocations[i].exists) {
           notes.add(
-            'No $year leave allocation, so the used days of $year were not '
-            'recorded',
+            'No ${leaveYears[i]} leave allocation, so the used days of '
+            '${leaveYears[i]} were not recorded',
           );
         }
       }
@@ -850,18 +864,22 @@ class RequestProvider with ChangeNotifier {
       }
       await batch.commit();
 
-      // Leave already taken is recorded as used days without changing what the
-      // employee has left today (see _recordPastLeave)
-      for (final request in requests) {
-        if (request.isCompOffRequest) {
-          // Earned and used at once, so the credit balance does not change
-          await _creditCompOff(request);
-        } else if (request.isLeaveRequest) {
-          await _recordPastLeave(request);
-        }
-      }
+      // Leave already taken is recorded as used days and lowers the balance;
+      // the yearly allocation stays (see _recordPastLeave)
+      // Each record changes the numbers with atomic increments, so they can be
+      // recorded together instead of one after another
+      await Future.wait([
+        for (final request in requests)
+          if (request.isCompOffRequest)
+            // Earned and used at once, so the credit balance does not change
+            _creditCompOff(request)
+          else if (request.isLeaveRequest)
+            _recordPastLeave(request),
+      ]);
 
-      // The calendar and history of the employee follow the new records
+      // The calendar and history of the employee follow the new records. Each
+      // month is rebuilt once, however many records fall in it.
+      final months = <DateTime>{};
       for (final request in requests) {
         final from = request.isCompOffRequest
             ? request.compOffDate
@@ -870,12 +888,19 @@ class RequestProvider with ChangeNotifier {
             ? request.compOffDate
             : request.toDate;
         if (from == null || to == null) continue;
+        var month = DateTime(from.year, from.month);
+        final last = DateTime(to.year, to.month);
+        while (!month.isAfter(last)) {
+          months.add(month);
+          month = DateTime(month.year, month.month + 1);
+        }
+      }
+      if (months.isNotEmpty) {
         unawaited(() async {
           try {
-            await AttendanceSummaryService().rebuildMonthsBetween(
+            await AttendanceSummaryService().rebuildMonthsForUser(
               userId,
-              from,
-              to,
+              months.toList(),
             );
           } catch (e) {
             logDebug('Could not update attendance summary: $e');
@@ -1077,16 +1102,23 @@ class RequestProvider with ChangeNotifier {
     }
   }
 
-  /// Records leave the employee already took, without touching what they have
-  /// left. The balance today already is what remains, so the days are added to
-  /// both "allocated" and "used" and the balance stays as it is: 5 left today
-  /// and 10 days taken before gives 15 allocated, 10 used, 5 left. For comp off
-  /// leave the same is done on the comp off credit.
+  /// Records leave the employee already took (before the app was in use). The
+  /// yearly allocation set at onboarding does not change: the used days go up
+  /// and the balance goes down. 10 SL allocated, 2 days recorded gives 10
+  /// allocated, 2 used, 8 left. Unpaid leave only adds to the unpaid count. For
+  /// comp off leave the credit is earned and used at once.
   Future<void> _recordPastLeave(RequestModel request) async {
     try {
       final leaveType = request.leaveType?.toLowerCase();
       if (leaveType == null) return;
       final days = request.requestedDays;
+
+      // Unpaid leave has no balance: its days are only counted in the
+      // employee's own unpaid total. PL, SL, CL and comp off are not touched.
+      if (leaveType == AppConstants.leaveTypeUL) {
+        await _addUnpaidDays(request.userId, request.fromDate!.year, days);
+        return;
+      }
 
       if (leaveType == AppConstants.leaveTypeCO) {
         await _compOffRef(request.userId).set({
@@ -1109,17 +1141,41 @@ class RequestProvider with ChangeNotifier {
       final snapshot = await leaveRef.get();
       if (!snapshot.exists) return;
 
+      // Same as an approved leave: the yearly allocation stays as set, the
+      // used days go up and the balance goes down
       await leaveRef.update({
-        '$field.allocated': FieldValue.increment(days),
         '$field.used': FieldValue.increment(days),
-        'totalAllocated': FieldValue.increment(days),
+        '$field.balance': FieldValue.increment(-days),
         'totalUsed': FieldValue.increment(days),
+        'totalBalance': FieldValue.increment(-days),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      logDebug('Past leave recorded: $field +$days used (balance unchanged)');
+      logDebug('Past leave recorded: $field +$days used, -$days balance');
     } catch (e) {
       logDebug('Error recording past leave: $e');
     }
+  }
+
+  /// Adds [days] to the unpaid leave taken (users/{uid}/leaves/annual_{year},
+  /// field unpaidLeaves.used). Only that count moves. A year with no leave
+  /// document has nothing to add to.
+  Future<void> _addUnpaidDays(String userId, int year, double days) async {
+    final ref = _firestore
+        .collection(FirestoreCollections.users)
+        .doc(userId)
+        .collection(FirestoreSubCollections.leaves)
+        .doc(FirestoreDocs.annualLeave(year));
+
+    final snapshot = await ref.get();
+    if (!snapshot.exists) {
+      logDebug('No $year leave document for $userId: unpaid days not counted');
+      return;
+    }
+    await ref.update({
+      'unpaidLeaves.used': FieldValue.increment(days),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    logDebug('Unpaid leave counted: +$days day(s) for $userId in $year');
   }
 
   DocumentReference<Map<String, dynamic>> _compOffRef(String userId) =>
@@ -1177,6 +1233,17 @@ class RequestProvider with ChangeNotifier {
       final leaveType = request.additionalData?['leaveType'] as String?;
       if (leaveType == null) {
         logDebug('Leave type not found in request additional data');
+        return;
+      }
+
+      // Unpaid leave has no balance, so nothing is deducted: its days are only
+      // added to the employee's unpaid total
+      if (leaveType == AppConstants.leaveTypeUL) {
+        await _addUnpaidDays(
+          request.userId,
+          request.fromDate!.year,
+          request.requestedDays,
+        );
         return;
       }
 

@@ -215,17 +215,21 @@ class _LeaveBalancesTabState extends State<LeaveBalancesTab> {
               SizedBox(height: 12.h),
               Divider(height: 1, color: ConstColors.borderColor),
               SizedBox(height: 12.h),
-              _balanceRow(
-                context,
-                'Privilege Leave (PL)',
-                leave.plTotal,
-                leave.plUsed,
-                ConstColors.primary,
-                emp.id,
-                'pl',
-                dashProvider,
-              ),
-              SizedBox(height: 10.h),
+              // PL shows only for an employee who has it: switched on in the
+              // settings and not 0 days
+              if (leave.plTotal > 0) ...[
+                _balanceRow(
+                  context,
+                  'Privilege Leave (PL)',
+                  leave.plTotal,
+                  leave.plUsed,
+                  ConstColors.primary,
+                  emp.id,
+                  'pl',
+                  dashProvider,
+                ),
+                SizedBox(height: 10.h),
+              ],
               _balanceRow(
                 context,
                 'Sick Leave (SL)',
@@ -247,6 +251,9 @@ class _LeaveBalancesTabState extends State<LeaveBalancesTab> {
                 'cl',
                 dashProvider,
               ),
+              SizedBox(height: 10.h),
+              // Unpaid leave: no days allocated, so it shows the days taken
+              _unpaidRow(leave.ulUsed),
               SizedBox(height: 12.h),
               // Summary bar
               Container(
@@ -360,6 +367,43 @@ class _LeaveBalancesTabState extends State<LeaveBalancesTab> {
             backgroundColor: color.withValues(alpha: 0.15),
             valueColor: AlwaysStoppedAnimation<Color>(color),
             minHeight: 6.h,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Unpaid Leave (UL): days taken so far this year. There is no allocation, so
+  // no progress bar and no pencil; it is not part of the summary below.
+  Widget _unpaidRow(num taken) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 8.r,
+              height: 8.r,
+              decoration: const BoxDecoration(
+                color: ConstColors.errorRed,
+                shape: BoxShape.circle,
+              ),
+            ),
+            SizedBox(width: 6.w),
+            Text(
+              'Unpaid Leave (UL)',
+              style: getTextTheme().bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+                color: ConstColors.textColor,
+              ),
+            ),
+          ],
+        ),
+        Text(
+          '${leaveCount(taken)} ${taken == 1 ? 'day' : 'days'} taken',
+          style: getTextTheme().bodySmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: ConstColors.textColor,
           ),
         ),
       ],

@@ -83,7 +83,10 @@
 //   "date": Timestamp,                           // break; for comp_off the day worked
 //   "shift": "Full Day" | "Half Day" | "First Half" | "Second Half",
 //   "adminRemark": "...",
-//   "additionalData": { "leaveType": "pl" | "sl" | "cl" | "co" }   // type leave ("co" = taken from comp off)
+//   "additionalData": { "leaveType": "pl" | "sl" | "cl" | "ul" | "co" }   // type leave ("co" = taken from comp off;
+//                                               // "ul" = unpaid leave: no allocation or balance. Approving or
+//                                               // adding it only adds its days to unpaidLeaves.used in
+//                                               // leaves/annual_{year}; PL, SL, CL and comp off never change)
 //   // type comp_off: "additionalData": { "days": 1 | 0.5, "compOffDate": "2026-10-19T00:00:00.000",
 //   //   "fromTime": "10:00", "toTime": "14:00" }   (fromTime/toTime only for a half day).
 //   //   "date" is the day worked, "compOffDate" the day off asked for in return (after "date").
@@ -100,6 +103,8 @@
 //   "privilegeLeaves": { "allocated": 12, "carryForward": 0, "used": 0, "balance": 12 },
 //   "sickLeaves":      { "allocated": 9,  "used": 0, "balance": 9 },
 //   "casualLeaves":    { "allocated": 7,  "used": 0, "balance": 7 },
+//   "unpaidLeaves":    { "used": 0 },            // unpaid days taken; no allocation or balance, and
+//                                               // not part of the totals below
 //   "totalAllocated": 28, "totalUsed": 0, "totalBalance": 28,
 //   "createdAt": Timestamp, "updatedAt": Timestamp
 // }
@@ -138,7 +143,7 @@
 //     "3": { "status": "late", "label": "Late", "punchIn": Timestamp, "punchOut": Timestamp, "punchStatus": "late",
 //            "breakMinutes": 25,                // total break time of the day, taken off the hours worked
 //            "extraMinutes": 60,                // worked past the office end time (punch out - end time)
-//            "leaveType": "pl" | "sl" | "cl" | "co" | null }   // which leave a leave / comp off / half day is
+//            "leaveType": "pl" | "sl" | "cl" | "ul" | "co" | null }   // which leave a leave / comp off / half day is
 //   "version": 2,                              // layout of "days"; a summary with another version is rebuilt
 //   },
 //   "builtOn": "2026-10-16",                     // day it was last rebuilt, used to know if it is stale

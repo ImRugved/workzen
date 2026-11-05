@@ -18,7 +18,12 @@ class LeaveBalanceModel {
   final num totalUsed;
   final num totalBalance;
 
+  /// Unpaid leave days taken this year. Unpaid leave has no allocation or
+  /// balance, so it is only counted here and is not part of the totals above.
+  final num ulUsed;
+
   LeaveBalanceModel({
+    this.ulUsed = 0,
     required this.plTotal,
     required this.plUsed,
     required this.plBalance,
@@ -44,6 +49,7 @@ class LeaveBalanceModel {
     final pl = typeOf('privilegeLeaves');
     final sl = typeOf('sickLeaves');
     final cl = typeOf('casualLeaves');
+    final ul = typeOf('unpaidLeaves');
 
     final plTotal = _num(pl?['allocated']);
     final plUsed = _num(pl?['used']);
@@ -56,6 +62,7 @@ class LeaveBalanceModel {
     final clBalance = _num(cl?['balance']);
 
     return LeaveBalanceModel(
+      ulUsed: _num(ul?['used']),
       plTotal: plTotal,
       plUsed: plUsed,
       plBalance: plBalance,

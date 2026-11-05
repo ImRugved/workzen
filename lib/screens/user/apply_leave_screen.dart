@@ -43,7 +43,8 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
   }
 
   // Dropdown entries: the leave types the employee has balance for, "Comp Off"
-  // with the earned credit once some was approved, and always "Apply Comp Off".
+  // with the earned credit once some was approved, and always "Unpaid Leave"
+  // and "Apply Comp Off".
   List<Map<String, dynamic>> _getAvailableLeaveTypes(
     LeaveAllocationModel? allocation,
   ) {
@@ -76,6 +77,14 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
         'balance': compOff,
       });
     }
+
+    // Unpaid leave can always be asked for: it has no balance, and taking it
+    // never changes the PL, SL, CL or comp off numbers
+    types.add({
+      'value': AppConstants.leaveTypeUL,
+      'label': 'UL (Unpaid Leave)',
+      'balance': null,
+    });
 
     types.add({
       'value': AppConstants.applyCompOffOption,

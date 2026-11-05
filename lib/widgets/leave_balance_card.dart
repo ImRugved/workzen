@@ -27,13 +27,16 @@ class LeaveBalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final types = <_LeaveType>[
-      _LeaveType(
-        'PL',
-        'Privilege',
-        model.plUsed,
-        model.plTotal,
-        ConstColors.primary,
-      ),
+      // PL shows only for an employee who has it: switched on in the settings
+      // and not 0 days
+      if (model.plTotal > 0)
+        _LeaveType(
+          'PL',
+          'Privilege',
+          model.plUsed,
+          model.plTotal,
+          ConstColors.primary,
+        ),
       _LeaveType(
         'SL',
         'Sick',
@@ -113,8 +116,10 @@ class LeaveBalanceCard extends StatelessWidget {
                   children: [
                     for (final type in types) ...[
                       _typePill(type),
-                      if (type != types.last) SizedBox(height: 6.h),
+                      SizedBox(height: 6.h),
                     ],
+                    // Unpaid leave taken: no balance, so no donut slice
+                    _unpaidPill(model.ulUsed),
                   ],
                 ),
               ),
@@ -159,6 +164,56 @@ class LeaveBalanceCard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  // The same tinted row for unpaid leave, with the days taken instead of a
+  // balance / total (it has no allocation).
+  Widget _unpaidPill(num taken) {
+    const color = ConstColors.errorRed;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 5.h),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14.r),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 15.r,
+            height: 15.r,
+            decoration: const BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          SizedBox(width: 5.w),
+          Text(
+            'UL',
+            style: getTextTheme().labelMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: ConstColors.textColor,
+            ),
+          ),
+          SizedBox(width: 5.w),
+          Text(
+            'Unpaid Leave',
+            overflow: TextOverflow.ellipsis,
+            style: getTextTheme().bodySmall?.copyWith(
+              color: ConstColors.textColor,
+            ),
+          ),
+          SizedBox(width: 15.w),
+          Text(
+            '${_count(taken)} taken',
+            style: getTextTheme().labelLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

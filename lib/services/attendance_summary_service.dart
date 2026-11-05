@@ -105,12 +105,33 @@ class AttendanceSummaryService {
     DateTime from,
     DateTime to,
   ) async {
+    final months = <DateTime>[];
     var month = DateTime(from.year, from.month);
     final last = DateTime(to.year, to.month);
     while (!month.isAfter(last)) {
-      await rebuildMonthById(userId, month);
+      months.add(month);
       month = DateTime(month.year, month.month + 1);
     }
+    await rebuildMonthsForUser(userId, months);
+  }
+
+  /// Rebuilds the given [months] of one user. The user is read once and the
+  /// months are rebuilt together, instead of reading the user again and
+  /// rebuilding one month after another.
+  Future<void> rebuildMonthsForUser(
+    String userId,
+    List<DateTime> months,
+  ) async {
+    if (months.isEmpty) return;
+    final userDoc = await _firestore
+        .collection(FirestoreCollections.users)
+        .doc(userId)
+        .get();
+    final data = userDoc.data();
+    if (data == null) return;
+    final user = UserModel.fromJson(data);
+
+    await Future.wait(months.map((month) => rebuildMonth(user, month)));
   }
 
   /// Reads the raw data for [month], recomputes every day and stores it.

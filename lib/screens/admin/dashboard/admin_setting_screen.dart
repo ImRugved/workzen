@@ -328,8 +328,9 @@ class _AdminSettingScreenState extends State<AdminSettingScreen> {
         title: Text('Assign $year leaves?'),
         content: Text(
           'Every onboarded employee without leave for $year gets the default '
-          'PL / SL / CL (for the types enabled for them).\n\n'
-          'Unused PL: ${onboarding.carryForwardPL ? 'carried forward' : 'reset to 0'}\n'
+          '${onboarding.isPrivilegeLeaveOffered ? 'PL / ' : ''}SL / CL '
+          '(for the types enabled for them).\n\n'
+          '${onboarding.isPrivilegeLeaveOffered ? 'Unused PL: ${onboarding.carryForwardPL ? 'carried forward' : 'reset to 0'}\n' : ''}'
           'Unused comp off: ${onboarding.carryForwardCompOff ? 'carried forward' : 'reset to 0'}\n'
           'SL and CL always reset.',
         ),

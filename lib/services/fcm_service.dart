@@ -45,6 +45,7 @@ class FCMService {
     required String title,
     required String body,
     Map<String, dynamic>? data,
+    String? accessToken,
   }) async {
     try {
       logDebug('Attempting to send notification to user: $userId');
@@ -75,6 +76,7 @@ class FCMService {
         body: body,
         data: data,
         badge: unread + 1,
+        accessToken: accessToken,
       );
 
       if (success) {
@@ -95,6 +97,38 @@ class FCMService {
     } catch (e) {
       logDebug('Error in sendNotificationToUser: $e');
       return false;
+    }
+  }
+
+  /// Sends the same notification to several users at once. The access token is
+  /// fetched once and every user is read and sent to in parallel, instead of
+  /// one after another with a new token each time. Returns how many were sent.
+  Future<int> sendNotificationToUsers({
+    required List<String> userIds,
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+  }) async {
+    if (userIds.isEmpty) return 0;
+    try {
+      final accessToken = await getAccessToken();
+      if (accessToken == null) return 0;
+
+      final results = await Future.wait(
+        userIds.map(
+          (id) => sendNotificationToUser(
+            userId: id,
+            title: title,
+            body: body,
+            data: data,
+            accessToken: accessToken,
+          ),
+        ),
+      );
+      return results.where((sent) => sent).length;
+    } catch (e) {
+      logDebug('Error in sendNotificationToUsers: $e');
+      return 0;
     }
   }
 

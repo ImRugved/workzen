@@ -3,7 +3,7 @@ import '../app_constants.dart';
 import '../constants/constant_colors.dart';
 import '../models/request_model.dart';
 
-/// Badge code, name and colour of a leave (PL / SL / CL / CO) or comp off
+/// Badge code, name and colour of a leave (PL / SL / CL / UL / CO) or comp off
 /// credit request. Shared by the request card and the requests table.
 class RequestTypeStyle {
   final String code;
@@ -36,6 +36,12 @@ class RequestTypeStyle {
           'CO',
           'Comp Off',
           ConstColors.calendarCompOff,
+        );
+      case AppConstants.leaveTypeUL:
+        return const RequestTypeStyle(
+          'UL',
+          'Unpaid Leave',
+          ConstColors.errorRed,
         );
       default:
         return RequestTypeStyle(

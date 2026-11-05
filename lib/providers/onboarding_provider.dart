@@ -1,6 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../app_constants.dart';
 import '../constants/firestore_constants.dart';
 import '../models/leave_balance_model.dart';
 import '../models/leave_config_model.dart';
@@ -42,6 +43,10 @@ class OnboardingProvider extends ChangeNotifier {
 
   bool get carryForwardPL => _carryForwardPL;
   bool get carryForwardCompOff => _carryForwardCompOff;
+
+  /// Privilege leave is part of the leave setup only when the admin set a
+  /// count above 0 (Leave Configuration).
+  bool get isPrivilegeLeaveOffered => _defaultPL > 0;
 
   // False until leave_config has been loaded from Firestore
   bool _isLeaveConfigured = false;
@@ -378,21 +383,9 @@ class OnboardingProvider extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
-      final allUsers = await userProvider.getAllUsers();
-      _allUsers = [];
-
-      for (final user in allUsers) {
-        final isOnboarded = await userProvider.isUserOnboarded(user.userId);
-        // Exclude users who are:
-        // 1. Already onboarded
-        // 2. Have admin role
-        // 3. Have isAdmin flag set to true
-        if (!isOnboarded &&
-            user.role != AppConstants.adminRole &&
-            !user.isAdmin) {
-          _allUsers.add(user);
-        }
-      }
+      // Not admins, and not yet onboarded (no leave for this year): one read
+      // of the users plus a few parallel checks, not one read per user in turn
+      _allUsers = await userProvider.getUsersToOnboard();
 
       _filteredUsers = List.from(_allUsers);
       _isLoading = false;
@@ -518,6 +511,8 @@ class OnboardingProvider extends ChangeNotifier {
 
       final batch = _firestore.batch();
       final currentDate = DateTime.now();
+      // Who is welcomed with a notification once the batch is saved
+      final welcome = <(UserModel, Map<String, int>)>[];
 
       for (final userId in _selectedUserIds) {
         final user = _allUsers.firstWhere((u) => u.userId == userId);
@@ -591,6 +586,9 @@ class OnboardingProvider extends ChangeNotifier {
               leavesToSave['sickLeaves']! +
               leavesToSave['casualLeaves']!,
           'totalUsed': 0,
+          // Unpaid leave days taken: counted on their own, never part of the
+          // totals
+          'unpaidLeaves': {'used': 0},
           'totalBalance':
               leavesToSave['privilegeLeaves']! +
               leavesToSave['sickLeaves']! +
@@ -601,12 +599,21 @@ class OnboardingProvider extends ChangeNotifier {
 
         batch.set(leavesRef, leaveData);
 
-        // Send notification
-        await _sendOnboardingNotification(user, leavesToSave);
+        // Told once everything is saved (below), not one after another here
+        welcome.add((user, leavesToSave));
       }
 
       // Commit the batch
       await batch.commit();
+
+      // The welcome notifications go out together in the background: the
+      // onboarding is saved, so the admin does not wait for them
+      unawaited(
+        Future.wait([
+          for (final (user, leaves) in welcome)
+            _sendOnboardingNotification(user, leaves),
+        ]),
+      );
 
       // Clear selection and reload users
       _selectedUserIds.clear();
@@ -786,20 +793,29 @@ class OnboardingProvider extends ChangeNotifier {
           .where('isOnboarded', isEqualTo: true)
           .get();
 
-      for (final userDoc in usersSnapshot.docs) {
-        // Check if new year doc already exists
-        final newYearDoc = await userDoc.reference
-            .collection(FirestoreSubCollections.leaves)
-            .doc(FirestoreDocs.annualLeave(newYear))
-            .get();
+      // Renews one employee; true when a new year document was made. The
+      // employees do not depend on each other, so ten are renewed at the same
+      // time instead of one after another.
+      Future<bool> renewOne(
+        QueryDocumentSnapshot<Map<String, dynamic>> userDoc,
+      ) async {
+        final leaves = userDoc.reference.collection(
+          FirestoreSubCollections.leaves,
+        );
+        final compOffRef = leaves.doc(FirestoreDocs.compOffBalance);
 
-        if (newYearDoc.exists) continue; // Already renewed
+        // The reads of an employee do not depend on each other, so they run
+        // together: this year's document (already renewed?), the previous
+        // year's, and the comp off credit when it is to be reset
+        final reads = await Future.wait([
+          leaves.doc(FirestoreDocs.annualLeave(newYear)).get(),
+          leaves.doc(FirestoreDocs.annualLeave(previousYear)).get(),
+          if (!_carryForwardCompOff) compOffRef.get(),
+        ]);
+        final newYearDoc = reads[0];
+        final prevYearDoc = reads[1];
 
-        // Get previous year's leave data
-        final prevYearDoc = await userDoc.reference
-            .collection(FirestoreSubCollections.leaves)
-            .doc(FirestoreDocs.annualLeave(previousYear))
-            .get();
+        if (newYearDoc.exists) return false; // Already renewed
 
         // Leave types switched on for this employee at onboarding (sick leave
         // was always on, so a missing flag counts as on)
@@ -820,15 +836,13 @@ class OnboardingProvider extends ChangeNotifier {
 
         // Comp off credit is not tied to a year: kept when carry forward is on,
         // reset to 0 otherwise
+        Future<void> compOffReset = Future.value();
         if (!_carryForwardCompOff) {
-          final compOffRef = userDoc.reference
-              .collection(FirestoreSubCollections.leaves)
-              .doc(FirestoreDocs.compOffBalance);
-          final compOffDoc = await compOffRef.get();
+          final compOffDoc = reads[2];
           final compOffBalance = ((compOffDoc.data()?['balance'] ?? 0) as num)
               .toDouble();
           if (compOffBalance != 0) {
-            await compOffRef.set({
+            compOffReset = compOffRef.set({
               'balance': 0,
               'lastResetYear': newYear,
               'updatedAt': FieldValue.serverTimestamp(),
@@ -857,17 +871,27 @@ class OnboardingProvider extends ChangeNotifier {
           'casualLeaves': {'allocated': freshCL, 'used': 0, 'balance': freshCL},
           'totalAllocated': totalPL + freshSL + freshCL,
           'totalUsed': 0,
+          'unpaidLeaves': {'used': 0},
           'totalBalance': totalPL + freshSL + freshCL,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         };
 
-        await userDoc.reference
-            .collection(FirestoreSubCollections.leaves)
-            .doc(FirestoreDocs.annualLeave(newYear))
-            .set(leaveData);
+        // The new document and the comp off reset are written together
+        await Future.wait([
+          leaves.doc(FirestoreDocs.annualLeave(newYear)).set(leaveData),
+          compOffReset,
+        ]);
 
-        renewedCount++;
+        return true;
+      }
+
+      final docs = usersSnapshot.docs;
+      const parallel = 10;
+      for (var i = 0; i < docs.length; i += parallel) {
+        final end = i + parallel > docs.length ? docs.length : i + parallel;
+        final results = await Future.wait(docs.sublist(i, end).map(renewOne));
+        renewedCount += results.where((renewed) => renewed).length;
       }
 
       return renewedCount;
