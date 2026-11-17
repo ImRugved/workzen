@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/monthly_attendance_summary.dart';
 import '../models/user_model.dart';
 import '../services/attendance_summary_service.dart';
+import '../utils/leave_month_utils.dart';
 import '../utils/logger.dart';
 
 /// One line of the attendance history table.
@@ -56,6 +57,11 @@ class AttendanceHistoryProvider with ChangeNotifier {
   List<AttendanceHistoryRow> get allRows => _rows;
 
   int count(String status) => _rows.where((r) => r.day.status == status).length;
+
+  /// Leave days of each month of the period per leave type (PL, SL, CL, UL,
+  /// CO), months with leave only, oldest first.
+  List<MonthLeaveTotals> get monthLeave =>
+      monthlyLeaveTotals(_rows.map((r) => ('', r.date, r.day)));
 
   // Search text matches the date, weekday, status label and the remark
   bool _matchesSearch(AttendanceHistoryRow row, Map<String, String> labels) {
@@ -133,6 +139,21 @@ class AttendanceHistoryProvider with ChangeNotifier {
   void setExporting(bool value) {
     _isExporting = value;
     notifyListeners();
+  }
+
+  // Signature of the leave requests the rows were built from
+  String? _requestsKey;
+
+  /// Called with a signature of the employee's live leave requests (ids and
+  /// statuses). When it changes (HR added, deleted or reset leave, a request
+  /// was decided) the table is rebuilt from the data, so the history, its
+  /// month-wise leave table and its PDF follow without leaving the screen.
+  void followRequests(UserModel user, String key) {
+    final previous = _requestsKey;
+    _requestsKey = key;
+    // The first signature belongs to the load that already started
+    if (previous == null || previous == key) return;
+    load(user, force: true);
   }
 
   Future<void> setRange(UserModel user, DateTime from, DateTime to) {

@@ -40,6 +40,10 @@ class LeaveBalanceModel {
 
   static num _num(dynamic v) => v is num ? v : 0;
 
+  // A balance is never shown as minus: days over the allocation are unpaid
+  // leave, not a negative balance
+  static num _balance(dynamic v) => v is num && v > 0 ? v : 0;
+
   factory LeaveBalanceModel.fromFirestore(Map<String, dynamic> data) {
     Map<String, dynamic>? typeOf(String key) {
       final v = data[key];
@@ -53,13 +57,13 @@ class LeaveBalanceModel {
 
     final plTotal = _num(pl?['allocated']);
     final plUsed = _num(pl?['used']);
-    final plBalance = _num(pl?['balance']);
+    final plBalance = _balance(pl?['balance']);
     final slTotal = _num(sl?['allocated']);
     final slUsed = _num(sl?['used']);
-    final slBalance = _num(sl?['balance']);
+    final slBalance = _balance(sl?['balance']);
     final clTotal = _num(cl?['allocated']);
     final clUsed = _num(cl?['used']);
-    final clBalance = _num(cl?['balance']);
+    final clBalance = _balance(cl?['balance']);
 
     return LeaveBalanceModel(
       ulUsed: _num(ul?['used']),
@@ -80,7 +84,7 @@ class LeaveBalanceModel {
           ? data['totalUsed'] as num
           : plUsed + slUsed + clUsed,
       totalBalance: data['totalBalance'] is num
-          ? data['totalBalance'] as num
+          ? _balance(data['totalBalance'])
           : plBalance + slBalance + clBalance,
     );
   }

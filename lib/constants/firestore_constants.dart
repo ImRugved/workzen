@@ -87,12 +87,13 @@
 //                                               // "ul" = unpaid leave: no allocation or balance. Approving or
 //                                               // adding it only adds its days to unpaidLeaves.used in
 //                                               // leaves/annual_{year}; PL, SL, CL and comp off never change)
-//   // type comp_off: "additionalData": { "days": 1 | 0.5, "compOffDate": "2026-10-19T00:00:00.000",
+//   // type comp_off: "additionalData": { "days": 1 | 0.5,
 //   //   "fromTime": "10:00", "toTime": "14:00" }   (fromTime/toTime only for a half day).
-//   //   "date" is the day worked, "compOffDate" the day off asked for in return (after "date").
-//   //   Approving it earns and uses "days" in leaves/comp_off (balance unchanged) and the
-//   //   calendar shows "Comp off" on compOffDate. Older requests without compOffDate only
-//   //   add "days" to the balance.
+//   //   "date" is the day worked (a holiday or weekly off). Approving it adds "days" to the
+//   //   earned and the balance of leaves/comp_off; the employee then takes it as leave
+//   //   (leaveType "co") on any date. Older requests that also hold "compOffDate" (the day
+//   //   off asked for in return) earn and use "days" at once, balance unchanged, and the
+//   //   calendar shows "Comp off" on compOffDate.
 // }
 // An employee creates it as "pending" and cannot change status; only an admin or a
 // sub admin with the leave_requests permission decides it (see firestore.rules).

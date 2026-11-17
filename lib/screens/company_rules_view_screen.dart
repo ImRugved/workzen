@@ -17,8 +17,7 @@ class CompanyRulesViewScreen extends StatefulWidget {
   const CompanyRulesViewScreen({super.key});
 
   @override
-  State<CompanyRulesViewScreen> createState() =>
-      _CompanyRulesViewScreenState();
+  State<CompanyRulesViewScreen> createState() => _CompanyRulesViewScreenState();
 }
 
 class _CompanyRulesViewScreenState extends State<CompanyRulesViewScreen> {
@@ -93,13 +92,13 @@ class _CompanyCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'SEENIT',
-                        style: getTextTheme().titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: ConstColors.textColor,
-                        ),
-                      ),
+                      // Text(
+                      //   'SEENIT',
+                      //   style: getTextTheme().titleLarge?.copyWith(
+                      //     fontWeight: FontWeight.bold,
+                      //     color: ConstColors.textColor,
+                      //   ),
+                      // ),
                       if (office != null) ...[
                         SizedBox(height: 2.h),
                         Text(

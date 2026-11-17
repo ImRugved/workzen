@@ -74,6 +74,8 @@ class ConstColors {
   static const Color calendarPresent = Color(0xFFB4FFAA);
   static const Color calendarAbsent = Color(0xFFFF4F4F);
   static const Color calendarLeave = Color(0xFF436FFD);
+  // Unpaid leave: a leave day, shown apart from the paid leave
+  static const Color calendarUnpaidLeave = Color(0xFF8E24AA);
   static const Color calendarHalfDay = Color(0xFFFF8CE6);
   static const Color calendarLate = Color(0xFFB388FF);
   static const Color calendarCompOff = Color(0xFF26A69A);

@@ -20,7 +20,8 @@ class LeaveTypeBalance {
       allocated: _num(json['allocated']),
       carryForward: _num(json['carryForward']),
       used: _num(json['used']),
-      balance: _num(json['balance']),
+      // Never shown as minus: days over the allocation are unpaid leave
+      balance: _num(json['balance']) < 0 ? 0 : _num(json['balance']),
     );
   }
 }

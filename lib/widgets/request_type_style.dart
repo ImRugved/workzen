@@ -41,7 +41,7 @@ class RequestTypeStyle {
         return const RequestTypeStyle(
           'UL',
           'Unpaid Leave',
-          ConstColors.errorRed,
+          ConstColors.calendarUnpaidLeave,
         );
       default:
         return RequestTypeStyle(

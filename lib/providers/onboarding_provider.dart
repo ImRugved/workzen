@@ -658,10 +658,13 @@ class OnboardingProvider extends ChangeNotifier {
     }
   }
 
-  /// Get user's current year leave allocation
-  Future<Map<String, dynamic>?> getUserLeaveAllocation(String userId) async {
+  /// Get user's leave allocation of [year] (this year when not given)
+  Future<Map<String, dynamic>?> getUserLeaveAllocation(
+    String userId, {
+    int? year,
+  }) async {
     try {
-      final currentYear = DateTime.now().year;
+      final currentYear = year ?? DateTime.now().year;
       final leaveDoc = await _firestore
           .collection(FirestoreCollections.users)
           .doc(userId)

@@ -6,7 +6,8 @@ import '../../models/request_model.dart';
 import '../../providers/request_filter_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/request_card.dart';
+import '../../widgets/month_grouped_requests.dart';
+import '../../widgets/request_extra_filters.dart';
 import '../../constants/const_textstyle.dart';
 import '../../constants/permissions.dart';
 import '../../constants/constant_dropdown.dart';
@@ -109,6 +110,11 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
           .where((request) => request.status == statusConstant)
           .toList();
     }
+
+    // Filter by month and employee
+    filteredRequests = filteredRequests
+        .where(filter.matchesMonthAndEmployee)
+        .toList();
 
     // Filter by search query (employee name)
     if (filter.searchQuery.isNotEmpty) {
@@ -281,28 +287,6 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
                         allRequests,
                       );
 
-                      if (filteredRequests.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.search_off,
-                                size: 80.r,
-                                color: ConstColors.borderColor,
-                              ),
-                              SizedBox(height: 16.h),
-                              Text(
-                                'No requests match your filters',
-                                style: getTextTheme().titleMedium?.copyWith(
-                                  color: ConstColors.textColorLight,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-
                       // Admins and sub admins with the "approve leave
                       // requests" permission can approve or reject
                       // Each pending card is swiped: right approves, left
@@ -310,17 +294,51 @@ class _LeaveRequestsScreenState extends State<LeaveRequestsScreen> {
                       final canApproveReject = context
                           .read<AuthProvider>()
                           .can(Permissions.leaveRequests);
-                      return ListView.builder(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 10.w,
-                          vertical: 8.h,
-                        ),
-                        itemCount: filteredRequests.length,
-                        itemBuilder: (context, index) => RequestCard(
-                          request: filteredRequests[index],
-                          isAdmin: true,
-                          canApproveReject: canApproveReject,
-                        ),
+
+                      // The month and employee filters stay on screen even
+                      // when nothing matches, so they can be changed back
+                      return Column(
+                        children: [
+                          RequestExtraFilters(
+                            requests: allRequests,
+                            filter: filter,
+                            showEmployee: true,
+                          ),
+                          Expanded(
+                            child: filteredRequests.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.search_off,
+                                          size: 80.r,
+                                          color: ConstColors.borderColor,
+                                        ),
+                                        SizedBox(height: 16.h),
+                                        Text(
+                                          'No requests match your filters',
+                                          style: getTextTheme().titleMedium
+                                              ?.copyWith(
+                                                color:
+                                                    ConstColors.textColorLight,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                // Under a header for each month
+                                : MonthGroupedRequestList(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 10.w,
+                                      vertical: 8.h,
+                                    ),
+                                    requests: filteredRequests,
+                                    isAdmin: true,
+                                    canApproveReject: canApproveReject,
+                                  ),
+                          ),
+                        ],
                       );
                     },
                   ),

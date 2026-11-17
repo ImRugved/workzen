@@ -86,6 +86,13 @@ class LeaveBalanceCard extends StatelessWidget {
                     for (final type in types)
                       if (type.balance > 0)
                         AppDonutSegment(type.balance.toDouble(), type.color),
+                    // Unpaid days taken, so the chart still shows leave when
+                    // every paid day is used (the centre counts days left only)
+                    if (model.ulUsed > 0)
+                      AppDonutSegment(
+                        model.ulUsed.toDouble(),
+                        ConstColors.calendarUnpaidLeave,
+                      ),
                   ],
                   center: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -170,7 +177,7 @@ class LeaveBalanceCard extends StatelessWidget {
   // The same tinted row for unpaid leave, with the days taken instead of a
   // balance / total (it has no allocation).
   Widget _unpaidPill(num taken) {
-    const color = ConstColors.errorRed;
+    const color = ConstColors.calendarUnpaidLeave;
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 5.h),
       decoration: BoxDecoration(

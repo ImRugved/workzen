@@ -57,7 +57,6 @@ class _CompOffRequestFormState extends State<CompOffRequestForm> {
       form.workedDate,
       form.isHalfDay,
       _reasonController.text.trim(),
-      compOffDate: form.compOffDate,
       fromTime: form.fromTime,
       toTime: form.toTime,
     );
@@ -113,7 +112,9 @@ class _CompOffRequestFormState extends State<CompOffRequestForm> {
                 Expanded(
                   child: Text(
                     'Worked on a holiday or weekly off? Request comp off for that day. '
-                    'Once approved, "Comp Off" with your balance appears in the leave type list.',
+                    'Once approved, the days are added to your comp off balance and '
+                    '"Comp Off" with the days left appears in the leave type list, '
+                    'so you can take it as leave on any date.',
                     style: getTextTheme().bodySmall?.copyWith(
                       color: ConstColors.textColor,
                     ),
@@ -138,26 +139,6 @@ class _CompOffRequestFormState extends State<CompOffRequestForm> {
                 ).subtract(const Duration(days: 90)),
                 lastDate: now,
                 onChanged: context.read<CompOffFormProvider>().setWorkedDate,
-              );
-            },
-          ),
-          SizedBox(height: 16.h),
-
-          _label('Comp Off Date (day you want off)'),
-          // The day off asked for in return: after the day worked, up to a year ahead
-          Selector<CompOffFormProvider, (DateTime, DateTime)>(
-            selector: (_, p) => (p.workedDate, p.compOffDate),
-            builder: (context, dates, _) {
-              final firstDay = dates.$1.add(const Duration(days: 1));
-              return ConstantDatePicker(
-                value: dates.$2,
-                firstDate: DateTime(
-                  firstDay.year,
-                  firstDay.month,
-                  firstDay.day,
-                ),
-                lastDate: DateTime.now().add(const Duration(days: 365)),
-                onChanged: context.read<CompOffFormProvider>().setCompOffDate,
               );
             },
           ),

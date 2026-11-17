@@ -186,6 +186,15 @@ class RequestCard extends StatelessWidget {
                   color: style.color,
                 ),
               ),
+              // Leave HR recorded for days already taken
+              if (request.addedByHr)
+                Text(
+                  'Added by HR (past leave)',
+                  style: getTextTheme().labelSmall?.copyWith(
+                    color: ConstColors.primaryDeep,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
               if (isAdmin)
                 Text(
                   request.userName,

@@ -4,7 +4,8 @@ import 'package:provider/provider.dart';
 import '../../models/request_model.dart';
 import '../../providers/my_data_provider.dart';
 import '../../providers/request_filter_provider.dart';
-import '../../widgets/request_card.dart';
+import '../../widgets/month_grouped_requests.dart';
+import '../../widgets/request_extra_filters.dart';
 import '../../app_constants.dart';
 import '../../constants/apploading_indicator.dart';
 import '../../constants/const_textstyle.dart';
@@ -106,7 +107,10 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
             request.status.toLowerCase().contains(searchQuery);
       }
 
-      return matchesLeaveType && matchesStatus && matchesSearch;
+      return matchesLeaveType &&
+          matchesStatus &&
+          matchesSearch &&
+          filter.matchesMonthAndEmployee(request);
     }).toList();
   }
 
@@ -279,49 +283,60 @@ class _LeaveHistoryScreenState extends State<LeaveHistoryScreen> {
                         allRequests,
                       );
 
-                      if (filteredRequests.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.filter_alt_off,
-                                size: 80.r,
-                                color: ConstColors.darkGrey,
-                              ),
-                              SizedBox(height: 16.h),
-                              Text(
-                                'No leaves match your filters',
-                                style: getTextTheme().titleLarge?.copyWith(
-                                  color: ConstColors.textColorLight,
-                                ),
-                              ),
-                              SizedBox(height: 8.h),
-                              Text(
-                                'Try adjusting your search or filters',
-                                style: getTextTheme().bodyMedium?.copyWith(
-                                  color: ConstColors.textColorLight,
-                                ),
-                              ),
-                            ],
+                      // The month filter stays on screen even when nothing
+                      // matches, so it can be changed back
+                      return Column(
+                        children: [
+                          RequestExtraFilters(
+                            requests: allRequests,
+                            filter: filter,
                           ),
-                        );
-                      }
-
-                      return RefreshIndicator(
-                        onRefresh: () async {
-                          _initializeStream();
-                        },
-                        child: ListView.builder(
-                          padding: AppSpacing.screen,
-                          itemCount: filteredRequests.length,
-                          itemBuilder: (context, index) {
-                            // Same card as the admin sees, for leave and comp off
-                            return RequestCard(
-                              request: filteredRequests[index],
-                            );
-                          },
-                        ),
+                          Expanded(
+                            child: filteredRequests.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.filter_alt_off,
+                                          size: 80.r,
+                                          color: ConstColors.darkGrey,
+                                        ),
+                                        SizedBox(height: 16.h),
+                                        Text(
+                                          'No leaves match your filters',
+                                          style: getTextTheme().titleLarge
+                                              ?.copyWith(
+                                                color:
+                                                    ConstColors.textColorLight,
+                                              ),
+                                        ),
+                                        SizedBox(height: 8.h),
+                                        Text(
+                                          'Try adjusting your search or filters',
+                                          style: getTextTheme().bodyMedium
+                                              ?.copyWith(
+                                                color:
+                                                    ConstColors.textColorLight,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : RefreshIndicator(
+                                    onRefresh: () async {
+                                      _initializeStream();
+                                    },
+                                    // Same card as the admin sees, for leave
+                                    // and comp off, under a header for each
+                                    // month
+                                    child: MonthGroupedRequestList(
+                                      padding: AppSpacing.screen,
+                                      requests: filteredRequests,
+                                    ),
+                                  ),
+                          ),
+                        ],
                       );
                     },
                   ),

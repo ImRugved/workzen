@@ -317,6 +317,9 @@ class _AttendanceCalendarCardState extends State<AttendanceCalendarCard> {
               shape: BoxShape.circle,
               color: status == CalendarDayStatus.none
                   ? Colors.transparent
+                  // Unpaid leave has its own colour
+                  : provider.isUnpaidLeave(day)
+                  ? ConstColors.calendarUnpaidLeave
                   : _colorFor(status),
               border: isToday
                   ? Border.all(color: ConstColors.primaryDeep, width: 2)
@@ -342,6 +345,7 @@ class _AttendanceCalendarCardState extends State<AttendanceCalendarCard> {
       ('Present', ConstColors.calendarPresent),
       ('Absent', ConstColors.calendarAbsent),
       ('Leave', ConstColors.calendarLeave),
+      ('Unpaid Leave', ConstColors.calendarUnpaidLeave),
       ('Comp Off', ConstColors.calendarCompOff),
       ('Late', ConstColors.calendarLate),
       ('Half Day', ConstColors.calendarHalfDay),

@@ -42,6 +42,8 @@ class CalendarProvider with ChangeNotifier {
 
   final Map<int, CalendarDayStatus> _statuses = {};
   final Map<int, String> _labels = {};
+  // Leave code (pl, sl, cl, ul, co) of the days that are leave
+  final Map<int, String> _leaveTypes = {};
   AttendanceModel? _today;
 
   // Months already fetched for the current user, keyed "yyyy-MM"
@@ -63,6 +65,10 @@ class CalendarProvider with ChangeNotifier {
 
   /// Short description of the day for the tap message, or null.
   String? labelFor(int day) => _labels[day];
+
+  /// True when the day is a leave day taken as unpaid leave.
+  bool isUnpaidLeave(int day) =>
+      statusFor(day) == CalendarDayStatus.leave && _leaveTypes[day] == 'ul';
 
   AttendanceModel? attendanceFor(int day) => _attendance[day];
 
@@ -273,6 +279,7 @@ class CalendarProvider with ChangeNotifier {
   void _buildStatuses(UserModel user) {
     _statuses.clear();
     _labels.clear();
+    _leaveTypes.clear();
 
     // Holidays of the displayed month, by day
     final holidays = <int, HolidayModel>{
@@ -293,6 +300,8 @@ class CalendarProvider with ChangeNotifier {
     results.forEach((day, result) {
       _statuses[day] = result.status;
       if (result.label.isNotEmpty) _labels[day] = result.label;
+      final code = result.leaveType?.toLowerCase();
+      if (code != null) _leaveTypes[day] = code;
     });
   }
 }

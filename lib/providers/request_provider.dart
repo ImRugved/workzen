@@ -390,16 +390,10 @@ class RequestProvider with ChangeNotifier {
     DateTime workedDate,
     bool isHalfDay,
     String reason, {
-    required DateTime compOffDate,
     TimeOfDay? fromTime,
     TimeOfDay? toTime,
   }) async {
     final day = DateTime(workedDate.year, workedDate.month, workedDate.day);
-    final offDay = DateTime(
-      compOffDate.year,
-      compOffDate.month,
-      compOffDate.day,
-    );
 
     try {
       // One request per worked day (a rejected one may be filed again)
@@ -439,15 +433,15 @@ class RequestProvider with ChangeNotifier {
         reason: reason,
         appliedOn: DateTime.now(),
         additionalData: {
+          // On approval these days are added to the comp off balance; the
+          // employee takes them later as leave (type CO) on any date
           'days': isHalfDay ? 0.5 : 1,
-          // The day off asked for in return (shown on the calendar once approved)
-          'compOffDate': offDay.toIso8601String(),
           if (isHalfDay && fromTime != null) 'fromTime': hhmm(fromTime),
           if (isHalfDay && toTime != null) 'toTime': hhmm(toTime),
         },
       ),
       AppConstants.compOffRequestNotification,
-      "${user.name} has applied for ${isHalfDay ? 'half day' : 'full day'} comp off (worked ${_formatDate(day)}, off on ${_formatDate(offDay)})",
+      "${user.name} has applied for ${isHalfDay ? 'half day' : 'full day'} comp off (worked ${_formatDate(day)})",
     );
 
     return success
@@ -852,9 +846,25 @@ class RequestProvider with ChangeNotifier {
         }
       }
 
+      // Days over what is left of PL / SL / CL are saved as unpaid leave, so a
+      // balance never goes below 0
+      final balances = <int, Map<String, num>>{
+        for (var i = 0; i < leaveYears.length; i++)
+          if (allocations[i].exists)
+            leaveYears[i]: {
+              for (final field in const [
+                'privilegeLeaves',
+                'sickLeaves',
+                'casualLeaves',
+              ])
+                field: _leftOf(allocations[i].data()?[field]),
+            },
+      };
+      final finalEntries = _splitOverBalance(entries, balances, notes);
+
       final now = DateTime.now();
       final requests = [
-        for (final entry in entries)
+        for (final entry in finalEntries)
           _requestFromEntry(entry, userId, userName, now),
       ];
 
@@ -914,6 +924,366 @@ class RequestProvider with ChangeNotifier {
       return const PastRequestsResult.failure(
         'Could not save the records. Please try again.',
       );
+    }
+  }
+
+  // The days left in a leave type map of a leave document (never below 0)
+  num _leftOf(dynamic typeMap) {
+    if (typeMap is! Map) return 0;
+    final balance = typeMap['balance'];
+    return balance is num && balance > 0 ? balance : 0;
+  }
+
+  /// Splits the records that take more PL / SL / CL than is left. The days that
+  /// fit stay as they are; the days over become Unpaid Leave records, so the
+  /// balance stops at 0 instead of going below it. A range is split by days
+  /// (the first days are paid, the rest unpaid) and a half day left over is the
+  /// first half paid and the second half unpaid. [balances] is the days left per
+  /// year and leave field; a year without a document is left as it is. [notes]
+  /// gets a line for each type that was moved to unpaid.
+  List<PastRequestEntry> _splitOverBalance(
+    List<PastRequestEntry> entries,
+    Map<int, Map<String, num>> balances,
+    List<String> notes,
+  ) {
+    final result = <PastRequestEntry>[];
+    final moved = <String, double>{}; // leave name -> days moved to unpaid
+    const uuid = Uuid();
+
+    PastRequestEntry piece(
+      PastRequestEntry from, {
+      required PastRequestKind kind,
+      required DateTime start,
+      required DateTime end,
+      bool halfDay = false,
+      String? half,
+      bool keepId = false,
+    }) => PastRequestEntry(
+      id: keepId ? from.id : uuid.v4(),
+      kind: kind,
+      isHalfDay: halfDay,
+      half: halfDay ? half : null,
+      from: start,
+      to: end,
+      reason: from.reason,
+    );
+
+    // Oldest first, so the earlier leave uses the balance
+    final ordered = [...entries]..sort((a, b) => a.from.compareTo(b.from));
+    for (final entry in ordered) {
+      final code = entry.kind.leaveCode;
+      final isBalanceLeave =
+          entry.kind == PastRequestKind.pl ||
+          entry.kind == PastRequestKind.sl ||
+          entry.kind == PastRequestKind.cl;
+      final yearBalances = balances[entry.from.year];
+      if (!isBalanceLeave || code == null || yearBalances == null) {
+        result.add(entry);
+        continue;
+      }
+
+      final field = _getLeaveTypeFieldName(code);
+      final left = yearBalances[field] ?? 0;
+      final days = entry.days;
+
+      if (days <= left) {
+        yearBalances[field] = left - days;
+        result.add(entry);
+        continue;
+      }
+
+      // Nothing (or not all) of it fits
+      var over = days;
+      if (left <= 0) {
+        // The whole record is unpaid
+        result.add(
+          piece(
+            entry,
+            kind: PastRequestKind.ul,
+            start: entry.from,
+            end: entry.to,
+            halfDay: entry.isHalfDay,
+            half: entry.half,
+            keepId: true,
+          ),
+        );
+      } else {
+        // A full-day range with some balance: whole days first, then a half
+        // day when 0.5 is left, then the rest unpaid
+        final paidFull = left.floor();
+        final hasHalf = left - paidFull >= 0.5;
+        var next = entry.from;
+        if (paidFull > 0) {
+          final end = entry.from.add(Duration(days: paidFull - 1));
+          result.add(
+            piece(entry, kind: entry.kind, start: entry.from, end: end, keepId: true),
+          );
+          next = end.add(const Duration(days: 1));
+        }
+        if (hasHalf) {
+          result.add(
+            piece(
+              entry,
+              kind: entry.kind,
+              start: next,
+              end: next,
+              halfDay: true,
+              half: PastRequestEntry.firstHalf,
+              keepId: paidFull == 0,
+            ),
+          );
+          result.add(
+            piece(
+              entry,
+              kind: PastRequestKind.ul,
+              start: next,
+              end: next,
+              halfDay: true,
+              half: PastRequestEntry.secondHalf,
+            ),
+          );
+          next = next.add(const Duration(days: 1));
+        }
+        if (!next.isAfter(entry.to)) {
+          result.add(
+            piece(entry, kind: PastRequestKind.ul, start: next, end: entry.to),
+          );
+        }
+        over = days - left;
+      }
+      yearBalances[field] = 0;
+      moved[entry.kind.sectionTitle] =
+          (moved[entry.kind.sectionTitle] ?? 0) + over;
+    }
+
+    moved.forEach((name, days) {
+      final count = days % 1 == 0 ? days.toInt().toString() : days.toString();
+      notes.add(
+        '$count day(s) of $name were over the balance and saved as Unpaid Leave',
+      );
+    });
+    return result;
+  }
+
+  /// Deletes an approved leave, WFH or comp off record of an employee (HR
+  /// removing a record added by mistake) and takes its days back out of the
+  /// numbers it changed: used and balance of PL / SL / CL, the unpaid days
+  /// taken, or the comp off credit. The employee's months are rebuilt so the
+  /// attendance history and the exports follow. Returns false when nothing was
+  /// deleted.
+  Future<bool> deleteLeaveRecord(RequestModel request) async {
+    try {
+      if (request.status != AppConstants.statusApproved) return false;
+
+      final userRef = _firestore
+          .collection(FirestoreCollections.users)
+          .doc(request.userId);
+      final batch = _firestore.batch();
+
+      if (request.isCompOffRequest) {
+        // Worked on a day off: the credit it gave is taken back
+        final days = request.compOffDays;
+        final takenAtOnce = request.compOffDate != null;
+        batch.set(_compOffRef(request.userId), {
+          'earned': FieldValue.increment(-days),
+          if (takenAtOnce)
+            'used': FieldValue.increment(-days)
+          else
+            'balance': FieldValue.increment(-days),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } else if (request.isLeaveRequest) {
+        final code = request.leaveType?.toLowerCase();
+        final days = request.requestedDays;
+        final year = request.fromDate!.year;
+        final leaveRef = userRef
+            .collection(FirestoreSubCollections.leaves)
+            .doc(FirestoreDocs.annualLeave(year));
+
+        if (code == AppConstants.leaveTypeCO) {
+          // Added by HR, the credit was earned and used together; a request
+          // the employee made only used it
+          final addedByHr = request.additionalData?['addedByHr'] == true;
+          batch.set(_compOffRef(request.userId), {
+            if (addedByHr) 'earned': FieldValue.increment(-days),
+            'used': FieldValue.increment(-days),
+            if (!addedByHr) 'balance': FieldValue.increment(days),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        } else if (code == AppConstants.leaveTypeUL) {
+          if ((await leaveRef.get()).exists) {
+            batch.update(leaveRef, {
+              'unpaidLeaves.used': FieldValue.increment(-days),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          }
+        } else if (code != null) {
+          // The same numbers an approval moves, moved back
+          final field = _getLeaveTypeFieldName(code);
+          if ((await leaveRef.get()).exists) {
+            batch.update(leaveRef, {
+              '$field.used': FieldValue.increment(-days),
+              '$field.balance': FieldValue.increment(days),
+              'totalUsed': FieldValue.increment(-days),
+              'totalBalance': FieldValue.increment(days),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          }
+        }
+      }
+
+      batch.delete(
+        userRef
+            .collection(FirestoreSubCollections.requests)
+            .doc(request.id),
+      );
+      await batch.commit();
+
+      // The months the record covered are rebuilt without it
+      final from = request.isCompOffRequest
+          ? request.compOffDate
+          : request.fromDate;
+      final to = request.isCompOffRequest ? request.compOffDate : request.toDate;
+      if (from != null && to != null) {
+        unawaited(() async {
+          try {
+            await AttendanceSummaryService().rebuildMonthsBetween(
+              request.userId,
+              from,
+              to,
+            );
+          } catch (e) {
+            logDebug('Could not update attendance summary: $e');
+          }
+        }());
+      }
+      return true;
+    } catch (e) {
+      logDebug('Error deleting leave record: $e');
+      return false;
+    }
+  }
+
+  /// Clears all the leave data of one employee, back to a clean start: every
+  /// leave and comp off request is deleted, the used days of PL / SL / CL, the
+  /// unpaid days taken and the comp off credit are set to 0, and each balance
+  /// goes back to what was allocated (plus PL carry forward). The yearly
+  /// allocation itself is kept (it can be edited on the Leave Balances card).
+  /// The employee's months are rebuilt so the attendance history and the
+  /// exports follow. Returns false when it failed.
+  Future<bool> resetLeaveData(String userId) async {
+    try {
+      final userRef = _firestore
+          .collection(FirestoreCollections.users)
+          .doc(userId);
+
+      // The requests and the leave documents do not depend on each other
+      final reads = await Future.wait([
+        userRef.collection(FirestoreSubCollections.requests).get(),
+        userRef.collection(FirestoreSubCollections.leaves).get(),
+      ]);
+      final requestDocs = reads[0].docs;
+      final leaveDocs = reads[1].docs;
+
+      // Leave and comp off requests of any status; WFH stays
+      final toDelete = <RequestModel>[];
+      final refs = <DocumentReference<Map<String, dynamic>>>[];
+      for (final doc in requestDocs) {
+        final request = RequestModel.fromJson(doc.data());
+        if (request.isLeaveRequest || request.isCompOffRequest) {
+          toDelete.add(request);
+          refs.add(doc.reference);
+        }
+      }
+
+      // Every write of the reset, applied in batches
+      final writes = <void Function(WriteBatch)>[];
+      for (final ref in refs) {
+        writes.add((batch) => batch.delete(ref));
+      }
+
+      for (final doc in leaveDocs) {
+        final data = doc.data();
+        if (doc.id == FirestoreDocs.compOffBalance) {
+          writes.add(
+            (batch) => batch.set(doc.reference, {
+              'earned': 0,
+              'used': 0,
+              'balance': 0,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true)),
+          );
+          continue;
+        }
+        if (!doc.id.startsWith('annual_')) continue;
+
+        // Used back to 0, balance back to what was allocated
+        final update = <String, dynamic>{
+          'unpaidLeaves.used': 0,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        num totalAllocated = 0;
+        num totalBalance = 0;
+        for (final key in ['privilegeLeaves', 'sickLeaves', 'casualLeaves']) {
+          final map = data[key];
+          if (map is! Map) continue;
+          num read(String name) => map[name] is num ? map[name] as num : 0;
+          final balance = read('allocated') + read('carryForward');
+          update['$key.used'] = 0;
+          update['$key.balance'] = balance;
+          totalAllocated += balance;
+          totalBalance += balance;
+        }
+        update['totalAllocated'] = totalAllocated;
+        update['totalUsed'] = 0;
+        update['totalBalance'] = totalBalance;
+        writes.add((batch) => batch.update(doc.reference, update));
+      }
+
+      for (var i = 0; i < writes.length; i += 400) {
+        final batch = _firestore.batch();
+        for (final write in writes.sublist(
+          i,
+          i + 400 > writes.length ? writes.length : i + 400,
+        )) {
+          write(batch);
+        }
+        await batch.commit();
+      }
+
+      // Every month the deleted requests covered is rebuilt without them
+      final months = <DateTime>{};
+      for (final request in toDelete) {
+        final from = request.isCompOffRequest
+            ? request.compOffDate
+            : request.fromDate;
+        final to = request.isCompOffRequest
+            ? request.compOffDate
+            : request.toDate;
+        if (from == null || to == null) continue;
+        var month = DateTime(from.year, from.month);
+        final last = DateTime(to.year, to.month);
+        while (!month.isAfter(last)) {
+          months.add(month);
+          month = DateTime(month.year, month.month + 1);
+        }
+      }
+      if (months.isNotEmpty) {
+        unawaited(() async {
+          try {
+            await AttendanceSummaryService().rebuildMonthsForUser(
+              userId,
+              months.toList(),
+            );
+          } catch (e) {
+            logDebug('Could not update attendance summary: $e');
+          }
+        }());
+      }
+      return true;
+    } catch (e) {
+      logDebug('Error resetting leave data: $e');
+      return false;
     }
   }
 
@@ -1299,14 +1669,21 @@ class RequestProvider with ChangeNotifier {
         final currentUsed = (leaveTypeData['used'] ?? 0) as num;
         final currentBalance = (leaveTypeData['balance'] ?? 0) as num;
 
-        final newUsed = currentUsed + daysToDeduct;
-        final newBalance = currentBalance - daysToDeduct;
+        // The balance never goes below 0: days over what is left are counted
+        // as unpaid leave. (Applying already stops a request above the balance,
+        // so this only guards approvals that pile up.)
+        final left = currentBalance > 0 ? currentBalance : 0;
+        final paidDays = daysToDeduct <= left ? daysToDeduct : left;
+        final unpaidDays = daysToDeduct - paidDays;
 
-        if (newBalance < 0) {
+        final newUsed = currentUsed + paidDays;
+        final newBalance = currentBalance - paidDays;
+
+        if (unpaidDays > 0) {
           logDebug(
-            'Warning: Insufficient leave balance for user ${request.userId}',
+            '$unpaidDays day(s) over the balance of user ${request.userId} '
+            'counted as unpaid leave',
           );
-          // Continue anyway as admin has already approved
         }
 
         // Update the specific leave type and totals
@@ -1314,8 +1691,10 @@ class RequestProvider with ChangeNotifier {
           '$leaveTypeField.used': newUsed,
           '$leaveTypeField.balance': newBalance,
           // Not truncated, so a half day (0.5) is counted
-          'totalUsed': FieldValue.increment(daysToDeduct),
-          'totalBalance': FieldValue.increment(-daysToDeduct),
+          'totalUsed': FieldValue.increment(paidDays),
+          'totalBalance': FieldValue.increment(-paidDays),
+          if (unpaidDays > 0)
+            'unpaidLeaves.used': FieldValue.increment(unpaidDays),
           'updatedAt': FieldValue.serverTimestamp(),
         });
 

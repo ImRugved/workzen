@@ -16,8 +16,11 @@ import '../../constants/app_theme.dart';
 import '../../constants/constant_date_time_picker.dart';
 import '../../constants/constant_dropdown.dart';
 import '../../constants/constant_snackbar.dart';
+import '../../models/monthly_attendance_summary.dart';
 import '../../providers/attendance_history_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/my_data_provider.dart';
+import '../../utils/leave_month_utils.dart';
 import '../../utils/logger.dart';
 
 // status key -> label, in the order shown by the filter chips
@@ -32,6 +35,23 @@ const Map<String, String> _statusLabels = {
   'holiday': 'Holiday',
   'weekend': 'Weekly Off',
 };
+
+// The status of a day as shown in the table: a leave names its type, "Leave
+// (PL)", and so does a half day taken as leave
+String _dayStatusText(DaySummary day) {
+  final base = _statusLabels[day.status] ?? day.status;
+  final code = day.leaveType;
+  if (code != null && (day.status == 'leave' || day.status == 'halfDay')) {
+    return '$base (${code.toUpperCase()})';
+  }
+  return base;
+}
+
+// Unpaid leave has its own colour, apart from the paid leave
+Color _dayColor(DaySummary day) =>
+    day.status == 'leave' && day.leaveType == 'ul'
+    ? ConstColors.calendarUnpaidLeave
+    : _statusColor(day.status);
 
 Color _statusColor(String status) {
   switch (status) {
@@ -78,8 +98,35 @@ class AttendanceHistoryScreen extends StatelessWidget {
         if (user != null) provider.load(user);
         return provider;
       },
-      child: const _HistoryView(),
+      child: const _FollowLeaveChanges(child: _HistoryView()),
     );
+  }
+}
+
+/// Rebuilds the history when the employee's leave requests change in Firestore
+/// (leave added, deleted or reset by HR, a request decided), so the table, the
+/// month-wise leave table and the PDF always match the records.
+class _FollowLeaveChanges extends StatelessWidget {
+  final Widget child;
+
+  const _FollowLeaveChanges({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final key = context.select<MyDataProvider, String>(
+      (my) => my.requests
+          .where((r) => r.isLeaveRequest || r.isCompOffRequest)
+          .map((r) => '${r.id}:${r.status}')
+          .join(','),
+    );
+    final user = context.read<AuthProvider>().userModel;
+    final provider = context.read<AttendanceHistoryProvider>();
+    if (user != null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => provider.followRequests(user, key),
+      );
+    }
+    return child;
   }
 }
 
@@ -174,7 +221,7 @@ class _HistoryView extends StatelessWidget {
                     (r) => [
                       dateFmt.format(r.date),
                       DateFormat('EEE').format(r.date),
-                      _statusLabels[r.day.status] ?? r.day.status,
+                      _dayStatusText(r.day),
                       _time(r.day.shownPunchIn),
                       _time(r.day.shownPunchOut),
                       _hours(r.day.shownBreak),
@@ -186,6 +233,39 @@ class _HistoryView extends StatelessWidget {
                   .toList(),
             ),
             pw.SizedBox(height: 18),
+            // Leave month by month, when there is any in the period
+            if (provider.monthLeave.isNotEmpty) ...[
+              pw.Text(
+                'Leave month wise',
+                style: pw.TextStyle(
+                  fontSize: 13,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 6),
+              pw.TableHelper.fromTextArray(
+                headerDecoration: const pw.BoxDecoration(
+                  color: PdfColors.blue300,
+                ),
+                headerStyle: pw.TextStyle(
+                  color: PdfColors.white,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+                cellStyle: const pw.TextStyle(fontSize: 10),
+                cellAlignments: {0: pw.Alignment.centerLeft},
+                headers: ['Month', 'PL', 'SL', 'CL', 'UL', 'Comp Off', 'Total'],
+                data: [
+                  for (final t in provider.monthLeave)
+                    [
+                      t.monthTitle,
+                      for (final code in monthLeaveCodes)
+                        MonthLeaveTotals.cell(t.of(code)),
+                      MonthLeaveTotals.cell(t.total),
+                    ],
+                ],
+              ),
+              pw.SizedBox(height: 18),
+            ],
             // The summary covers the whole period, whatever the status filter
             // or search shows in the table above
             pw.Text(
@@ -486,9 +566,12 @@ class _HistoryBody extends StatelessWidget {
         }
 
         return SingleChildScrollView(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
               sortColumnIndex: 0,
               sortAscending: provider.sortAscending,
               columnSpacing: 24.w,
@@ -511,7 +594,11 @@ class _HistoryBody extends StatelessWidget {
                 const DataColumn(label: Text('Remarks')),
               ],
               rows: rows.map(_buildDataRow).toList(),
-            ),
+                ),
+              ),
+              // Leave of each month of the period
+              _MonthLeaveCard(totals: provider.monthLeave),
+            ],
           ),
         );
       },
@@ -519,7 +606,7 @@ class _HistoryBody extends StatelessWidget {
   }
 
   DataRow _buildDataRow(AttendanceHistoryRow row) {
-    final color = _statusColor(row.day.status);
+    final color = _dayColor(row.day);
 
     return DataRow(
       cells: [
@@ -534,7 +621,7 @@ class _HistoryBody extends StatelessWidget {
               borderRadius: BorderRadius.circular(12.r),
             ),
             child: Text(
-              _statusLabels[row.day.status] ?? row.day.status,
+              _dayStatusText(row.day),
               style: getTextTheme().labelSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -556,6 +643,74 @@ class _HistoryBody extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Leave of each month of the period: days of PL, SL, CL, UL and Comp Off. It
+/// stays out of the way (nothing is drawn) when there was no leave.
+class _MonthLeaveCard extends StatelessWidget {
+  final List<MonthLeaveTotals> totals;
+
+  const _MonthLeaveCard({required this.totals});
+
+  @override
+  Widget build(BuildContext context) {
+    if (totals.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(12.w, 16.h, 12.w, 24.h),
+      child: NeuCard(
+        padding: EdgeInsets.all(12.r),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Leave month wise',
+              style: getTextTheme().titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 20.w,
+                headingRowColor: WidgetStatePropertyAll(
+                  ConstColors.primary.withValues(alpha: 0.08),
+                ),
+                columns: const [
+                  DataColumn(label: Text('Month')),
+                  DataColumn(label: Text('PL')),
+                  DataColumn(label: Text('SL')),
+                  DataColumn(label: Text('CL')),
+                  DataColumn(label: Text('UL')),
+                  DataColumn(label: Text('Comp Off')),
+                  DataColumn(label: Text('Total')),
+                ],
+                rows: [
+                  for (final t in totals)
+                    DataRow(
+                      cells: [
+                        DataCell(Text(t.monthTitle)),
+                        for (final code in monthLeaveCodes)
+                          DataCell(Text(MonthLeaveTotals.cell(t.of(code)))),
+                        DataCell(
+                          Text(
+                            MonthLeaveTotals.cell(t.total),
+                            style: getTextTheme().bodyMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

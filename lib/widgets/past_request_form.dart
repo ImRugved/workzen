@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../constants/constant_button.dart';
@@ -14,6 +15,8 @@ class _FormDraft with ChangeNotifier {
   PastRequestKind kind;
   bool isHalfDay;
   String half;
+  // First day of the month the leave is in; the dates are picked inside it
+  DateTime? month;
   DateTime? from;
   // Null means the same day as [from]
   DateTime? to;
@@ -23,10 +26,21 @@ class _FormDraft with ChangeNotifier {
     required this.kind,
     required this.isHalfDay,
     required this.half,
+    this.month,
     this.from,
     this.to,
     this.compOffDate,
   });
+
+  void setMonth(DateTime value) {
+    month = value;
+    // Dates of another month no longer fit
+    bool outside(DateTime? d) =>
+        d != null && (d.year != value.year || d.month != value.month);
+    if (outside(from)) from = null;
+    if (outside(to)) to = null;
+    notifyListeners();
+  }
 
   void setKind(PastRequestKind value) {
     kind = value;
@@ -96,6 +110,9 @@ class _PastRequestFormState extends State<PastRequestForm> {
       kind: initial?.kind ?? PastRequestKind.cl,
       isHalfDay: initial?.isHalfDay ?? false,
       half: initial?.half ?? PastRequestEntry.firstHalf,
+      month: initial == null
+          ? null
+          : DateTime(initial.from.year, initial.from.month),
       from: initial?.from,
       to: initial == null || initial.isSingleDay ? null : initial.to,
       compOffDate: initial?.compOffDate,
@@ -112,6 +129,10 @@ class _PastRequestFormState extends State<PastRequestForm> {
 
   void _submit() {
     final from = _draft.from;
+    if (_draft.month == null && _draft.kind != PastRequestKind.compOff) {
+      ConstantSnackbar.showError(title: 'Select the month');
+      return;
+    }
     if (from == null) {
       ConstantSnackbar.showError(
         title: _draft.kind == PastRequestKind.compOff
@@ -198,6 +219,21 @@ class _PastRequestFormState extends State<PastRequestForm> {
                 },
               ),
             ],
+            if (draft.kind != PastRequestKind.compOff) ...[
+              SizedBox(height: 12.h),
+              // The leave is added month by month: pick the month, then the
+              // days inside it
+              ConstantDropdown<DateTime>(
+                label: 'Month',
+                hint: 'Select month',
+                value: draft.month,
+                items: _months(),
+                itemLabel: (month) => DateFormat('MMMM yyyy').format(month),
+                onChanged: (month) {
+                  if (month != null) draft.setMonth(month);
+                },
+              ),
+            ],
             SizedBox(height: 12.h),
             ..._dateFields(draft, lastDate),
             SizedBox(height: 12.h),
@@ -222,8 +258,32 @@ class _PastRequestFormState extends State<PastRequestForm> {
     );
   }
 
+  // The months HR can pick: from the joining month to this month, newest first
+  List<DateTime> _months() {
+    final now = DateTime.now();
+    final first = DateTime(widget.firstDate.year, widget.firstDate.month);
+    final months = <DateTime>[];
+    var month = DateTime(now.year, now.month);
+    while (!month.isBefore(first)) {
+      months.add(month);
+      month = DateTime(month.year, month.month - 1);
+    }
+    return months;
+  }
+
   // The date fields that fit the type and the full or half day
-  List<Widget> _dateFields(_FormDraft draft, DateTime lastDate) {
+  List<Widget> _dateFields(_FormDraft draft, DateTime anyLastDate) {
+    // Leave dates stay inside the month that was picked
+    final month = draft.month;
+    final monthStart = month ?? widget.firstDate;
+    final firstDate = monthStart.isBefore(widget.firstDate)
+        ? widget.firstDate
+        : monthStart;
+    final lastDate = month == null
+        ? anyLastDate
+        : DateTime(month.year, month.month + 1, 0);
+    final datesEnabled = month != null;
+
     // Comp off: the day worked and the day off taken in return
     if (draft.kind == PastRequestKind.compOff) {
       return [
@@ -255,8 +315,9 @@ class _PastRequestFormState extends State<PastRequestForm> {
               child: ConstantDatePicker(
                 label: 'Date',
                 value: draft.from,
-                firstDate: widget.firstDate,
+                firstDate: firstDate,
                 lastDate: lastDate,
+                isEnabled: datesEnabled,
                 onChanged: draft.setFrom,
               ),
             ),
@@ -292,8 +353,9 @@ class _PastRequestFormState extends State<PastRequestForm> {
             child: ConstantDatePicker(
               label: 'From date',
               value: from,
-              firstDate: widget.firstDate,
+              firstDate: firstDate,
               lastDate: lastDate,
+              isEnabled: datesEnabled,
               onChanged: draft.setFrom,
             ),
           ),
@@ -303,9 +365,9 @@ class _PastRequestFormState extends State<PastRequestForm> {
               label: 'To date',
               value: draft.to ?? from,
               hint: 'Select date',
-              firstDate: widget.firstDate,
+              firstDate: firstDate,
               lastDate: lastDate,
-              isEnabled: from != null,
+              isEnabled: datesEnabled && from != null,
               onChanged: draft.setTo,
             ),
           ),

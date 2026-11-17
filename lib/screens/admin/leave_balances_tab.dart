@@ -4,15 +4,22 @@ import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../constants/app_theme.dart';
 import '../../constants/const_textstyle.dart';
+import '../../constants/constant_button.dart';
 import '../../constants/constant_colors.dart';
+import '../../constants/constant_dropdown.dart';
 import '../../constants/constant_snackbar.dart';
+import '../../models/comp_off_balance_model.dart';
 import '../../models/employee_model.dart';
 import '../../models/leave_balance_model.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../providers/employee_management_provider.dart';
+import '../../constants/permissions.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/onboarding_provider.dart';
+import '../../providers/request_provider.dart';
 import '../../providers/value_provider.dart';
 import '../../widgets/app_dialog_card.dart';
+import '../../widgets/leave_records_sheet.dart';
 
 /// The Leave Balances tab of Manage Employee Leaves: one card per onboarded
 /// employee with the leave left; tap a card to see PL, SL and CL with their
@@ -37,6 +44,18 @@ class _LeaveBalancesTabState extends State<LeaveBalancesTab> {
     super.dispose();
   }
 
+  // An admin does everything. A sub admin edits the days with the "approve leave
+  // requests" or the "onboarding" permission (what the leave documents allow);
+  // deleting records and resetting needs "approve leave requests".
+  bool _canEdit(BuildContext context) {
+    final auth = context.read<AuthProvider>();
+    return auth.can(Permissions.leaveRequests) ||
+        auth.can(Permissions.onboarding);
+  }
+
+  bool _canManageRecords(BuildContext context) =>
+      context.read<AuthProvider>().can(Permissions.leaveRequests);
+
   Future<void> _reload(BuildContext context) {
     return context.read<DashboardProvider>().loadDashboardData(
       context.read<EmployeeManagementProvider>(),
@@ -51,6 +70,31 @@ class _LeaveBalancesTabState extends State<LeaveBalancesTab> {
       child: SafeArea(
         child: Column(
           children: [
+            // The year whose leave is shown and edited
+            Padding(
+              padding: EdgeInsets.fromLTRB(10.w, 12.h, 10.w, 0),
+              child: Selector<DashboardProvider, int>(
+                selector: (_, dash) => dash.selectedYear,
+                builder: (context, year, _) {
+                  final thisYear = DateTime.now().year;
+                  return ConstantDropdown<int>(
+                    label: 'Year',
+                    isDense: true,
+                    value: year,
+                    items: [for (var y = thisYear; y > thisYear - 5; y--) y],
+                    itemLabel: (y) => '$y',
+                    onChanged: (y) {
+                      if (y == null) return;
+                      context.read<DashboardProvider>().setYear(
+                        y,
+                        context.read<EmployeeManagementProvider>(),
+                        context.read<OnboardingProvider>(),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
             // Search by employee name
             Padding(
               padding: EdgeInsets.fromLTRB(10.w, 12.h, 10.w, 0),
@@ -253,7 +297,15 @@ class _LeaveBalancesTabState extends State<LeaveBalancesTab> {
               ),
               SizedBox(height: 10.h),
               // Unpaid leave: no days allocated, so it shows the days taken
-              _unpaidRow(leave.ulUsed),
+              _unpaidRow(context, leave.ulUsed, emp.id, dashProvider),
+              SizedBox(height: 10.h),
+              // Comp off credit: earned, used and what is left
+              _compOffRow(
+                context,
+                emp.id,
+                dashProvider.compOff[emp.id] ?? const CompOffBalanceModel(),
+                dashProvider,
+              ),
               SizedBox(height: 12.h),
               // Summary bar
               Container(
@@ -271,6 +323,50 @@ class _LeaveBalancesTabState extends State<LeaveBalancesTab> {
                   ],
                 ),
               ),
+              if (_canManageRecords(context)) ...[
+              SizedBox(height: 10.h),
+              // The leave records of the employee, month by month, to delete
+              // one added by mistake
+              Row(
+                children: [
+                  Expanded(
+                    child: ConstantButton(
+                      text: 'Leave records',
+                      isOutlined: true,
+                      icon: Icon(Icons.history, size: 18.r),
+                      height: 40.h,
+                      horizontalInnerPadding: 6.w,
+                      onPressed: () => LeaveRecordsSheet.show(
+                        context,
+                        employeeId: emp.id,
+                        employeeName: emp.name,
+                        onChanged: () => dashProvider.loadDashboardData(
+                          context.read<EmployeeManagementProvider>(),
+                          context.read<OnboardingProvider>(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: ConstantButton(
+                      text: 'Reset to 0',
+                      isOutlined: true,
+                      backgroundColor: ConstColors.errorRed,
+                      icon: Icon(Icons.restart_alt, size: 18.r),
+                      height: 40.h,
+                      horizontalInnerPadding: 6.w,
+                      onPressed: () => _resetLeaveData(
+                        context,
+                        emp.id,
+                        emp.name,
+                        dashProvider,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              ],
             ],
             if (isExpanded && leave == null) ...[
               SizedBox(height: 12.h),
@@ -337,12 +433,14 @@ class _LeaveBalancesTabState extends State<LeaveBalancesTab> {
                   ),
                 ),
                 SizedBox(width: 4.w),
+                if (_canEdit(context))
                 InkWell(
                   onTap: () => _editAllocation(
                     context,
                     employeeId,
                     leaveType,
                     total.toInt(),
+                    used,
                     dashProvider,
                   ),
                   borderRadius: BorderRadius.circular(8.r),
@@ -374,8 +472,14 @@ class _LeaveBalancesTabState extends State<LeaveBalancesTab> {
   }
 
   // Unpaid Leave (UL): days taken so far this year. There is no allocation, so
-  // no progress bar and no pencil; it is not part of the summary below.
-  Widget _unpaidRow(num taken) {
+  // no progress bar; the pencil corrects the days taken. It is not part of the
+  // summary below.
+  Widget _unpaidRow(
+    BuildContext context,
+    num taken,
+    String employeeId,
+    DashboardProvider dashProvider,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -385,7 +489,7 @@ class _LeaveBalancesTabState extends State<LeaveBalancesTab> {
               width: 8.r,
               height: 8.r,
               decoration: const BoxDecoration(
-                color: ConstColors.errorRed,
+                color: ConstColors.calendarUnpaidLeave,
                 shape: BoxShape.circle,
               ),
             ),
@@ -399,11 +503,105 @@ class _LeaveBalancesTabState extends State<LeaveBalancesTab> {
             ),
           ],
         ),
-        Text(
-          '${leaveCount(taken)} ${taken == 1 ? 'day' : 'days'} taken',
-          style: getTextTheme().bodySmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: ConstColors.textColor,
+        Row(
+          children: [
+            Text(
+              '${leaveCount(taken)} ${taken == 1 ? 'day' : 'days'} taken',
+              style: getTextTheme().bodySmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: ConstColors.textColor,
+              ),
+            ),
+            SizedBox(width: 4.w),
+            if (_canEdit(context))
+            InkWell(
+              onTap: () =>
+                  _editAllocation(context, employeeId, 'ul', 0, taken, dashProvider),
+              borderRadius: BorderRadius.circular(8.r),
+              child: Padding(
+                padding: EdgeInsets.all(6.r),
+                child: Icon(
+                  Icons.edit_outlined,
+                  size: 18.r,
+                  color: ConstColors.primaryDeep,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // Comp off credit: days left, with the days earned and used; the pencil
+  // corrects the earned and used days. Not part of the summary below.
+  Widget _compOffRow(
+    BuildContext context,
+    String employeeId,
+    CompOffBalanceModel comp,
+    DashboardProvider dashProvider,
+  ) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 8.r,
+              height: 8.r,
+              decoration: const BoxDecoration(
+                color: ConstColors.calendarCompOff,
+                shape: BoxShape.circle,
+              ),
+            ),
+            SizedBox(width: 6.w),
+            Text(
+              'Comp Off (CO)',
+              style: getTextTheme().bodySmall?.copyWith(
+                fontWeight: FontWeight.w500,
+                color: ConstColors.textColor,
+              ),
+            ),
+          ],
+        ),
+        Flexible(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Flexible(
+                child: Text(
+                  '${leaveCount(comp.balance)} left '
+                  '(${leaveCount(comp.earned)} earned, '
+                  '${leaveCount(comp.used)} used)',
+                  style: getTextTheme().bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: ConstColors.textColor,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              SizedBox(width: 4.w),
+              if (_canEdit(context))
+              InkWell(
+                onTap: () => _editAllocation(
+                  context,
+                  employeeId,
+                  'co',
+                  comp.earned,
+                  comp.used,
+                  dashProvider,
+                ),
+                borderRadius: BorderRadius.circular(8.r),
+                child: Padding(
+                  padding: EdgeInsets.all(6.r),
+                  child: Icon(
+                    Icons.edit_outlined,
+                    size: 18.r,
+                    color: ConstColors.primaryDeep,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -430,35 +628,110 @@ class _LeaveBalancesTabState extends State<LeaveBalancesTab> {
     );
   }
 
-  // Change the days allocated of one leave type
+  // Clear all the leave data of an employee after a confirmation: requests
+  // deleted, used and unpaid days at 0, balances back to the allocation
+  Future<void> _resetLeaveData(
+    BuildContext context,
+    String employeeId,
+    String employeeName,
+    DashboardProvider dashProvider,
+  ) async {
+    final requests = context.read<RequestProvider>();
+    final empProvider = context.read<EmployeeManagementProvider>();
+    final onboardingProvider = context.read<OnboardingProvider>();
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AppDialogCard(
+        icon: Icons.restart_alt,
+        iconColor: ConstColors.errorRed,
+        title: 'Reset leave data?',
+        message:
+            'All leave and comp off records of $employeeName are deleted, used '
+            'and unpaid days go to 0 and the comp off credit goes to 0. Leave '
+            'balances go back to the allocated days. The attendance history '
+            'and exports are updated. This cannot be undone.',
+        confirmLabel: 'Reset',
+        confirmColor: ConstColors.errorRed,
+        onCancel: () => Navigator.of(dialogContext).pop(false),
+        onConfirm: () => Navigator.of(dialogContext).pop(true),
+      ),
+    );
+    if (confirm != true) return;
+
+    final done = await requests.resetLeaveData(employeeId);
+    if (done) {
+      ConstantSnackbar.showSuccess(title: 'Leave data of $employeeName reset');
+      await dashProvider.loadDashboardData(empProvider, onboardingProvider);
+    } else {
+      ConstantSnackbar.showError(title: 'Could not reset the leave data');
+    }
+  }
+
+  // Correct the days allocated and the days used of one leave type (only the
+  // days taken for unpaid leave). The balance and totals follow.
   Future<void> _editAllocation(
     BuildContext context,
     String employeeId,
     String leaveType,
-    int currentTotal,
+    num currentTotal,
+    num currentUsed,
     DashboardProvider dashProvider,
   ) async {
-    final label = leaveType == 'pl'
-        ? 'Privilege Leave'
-        : leaveType == 'sl'
-        ? 'Sick Leave'
-        : 'Casual Leave';
+    final label = switch (leaveType) {
+      'pl' => 'Privilege Leave',
+      'sl' => 'Sick Leave',
+      'cl' => 'Casual Leave',
+      'co' => 'Comp Off',
+      _ => 'Unpaid Leave',
+    };
     final empProvider = context.read<EmployeeManagementProvider>();
     final onboardingProvider = context.read<OnboardingProvider>();
 
-    final newTotal = await showDialog<int>(
-      context: context,
-      builder: (_) => _AllocationDialog(label: label, current: currentTotal),
-    );
-    if (newTotal == null) return;
-
-    await dashProvider.updateLeaveAllocation(
+    // What the saved leave records add up to, shown in the dialog: History, the
+    // calendar and the exports follow the records, not this number
+    final recorded = await dashProvider.recordedLeaveDays(
       employeeId,
       leaveType,
-      newTotal,
-      empProvider,
-      onboardingProvider,
+      year: leaveType == 'co' ? null : dashProvider.selectedYear,
     );
+    if (!context.mounted) return;
+
+    final result = await showDialog<({num allocated, num used})>(
+      context: context,
+      builder: (_) => _AllocationDialog(
+        label: label,
+        allocated: currentTotal,
+        used: currentUsed,
+        hasAllocation: leaveType != 'ul',
+        isCompOff: leaveType == 'co',
+        recordedDays: recorded,
+      ),
+    );
+    if (result == null) return;
+
+    // Comp off is kept apart from the yearly leave documents
+    final saved = leaveType == 'co'
+        ? await dashProvider.updateCompOff(
+            employeeId,
+            earned: result.allocated,
+            used: result.used,
+            empProvider: empProvider,
+            onboardingProvider: onboardingProvider,
+          )
+        : await dashProvider.updateLeaveAllocation(
+            employeeId,
+            leaveType,
+            allocated: result.allocated.toInt(),
+            used: result.used,
+            empProvider: empProvider,
+            onboardingProvider: onboardingProvider,
+          );
+    if (saved) {
+      ConstantSnackbar.showSuccess(title: '$label updated');
+    } else {
+      ConstantSnackbar.showError(title: 'Could not update $label');
+    }
   }
 
   Widget _shimmer() {
@@ -532,22 +805,43 @@ class _LeaveBalancesTabState extends State<LeaveBalancesTab> {
 // Asks for the new number of days; owns its text controller
 class _AllocationDialog extends StatefulWidget {
   final String label;
-  final int current;
+  final num allocated;
+  final num used;
 
-  const _AllocationDialog({required this.label, required this.current});
+  /// False for unpaid leave: only the days taken can be changed.
+  final bool hasAllocation;
+
+  /// Comp off: the first field is the days earned (not allocated) and half
+  /// days are allowed in it.
+  final bool isCompOff;
+
+  /// Days the employee's saved leave records add up to, or null when unknown.
+  final num? recordedDays;
+
+  const _AllocationDialog({
+    required this.label,
+    required this.allocated,
+    required this.used,
+    required this.hasAllocation,
+    this.isCompOff = false,
+    this.recordedDays,
+  });
 
   @override
   State<_AllocationDialog> createState() => _AllocationDialogState();
 }
 
 class _AllocationDialogState extends State<_AllocationDialog> {
-  late final TextEditingController _controller = TextEditingController(
-    text: widget.current.toString(),
+  late final TextEditingController _allocatedController =
+      TextEditingController(text: leaveCount(widget.allocated));
+  late final TextEditingController _usedController = TextEditingController(
+    text: leaveCount(widget.used),
   );
 
   @override
   void dispose() {
-    _controller.dispose();
+    _allocatedController.dispose();
+    _usedController.dispose();
     super.dispose();
   }
 
@@ -556,22 +850,94 @@ class _AllocationDialogState extends State<_AllocationDialog> {
     return AppDialogCard(
       icon: Icons.edit_outlined,
       title: 'Edit ${widget.label}',
-      message: 'Set the total days allocated',
+      message: widget.hasAllocation
+          ? 'Correct the days ${widget.isCompOff ? 'earned' : 'allocated'} and '
+                'used. The balance is worked out from them.'
+          : 'Correct the days taken',
       confirmLabel: 'Save',
       onCancel: () => Navigator.of(context).pop(),
       onConfirm: () {
-        final value = int.tryParse(_controller.text.trim());
-        if (value == null || value < 0) {
+        final text = _allocatedController.text.trim();
+        // Leave is allocated in whole days; comp off can be earned in halves
+        final num? allocated = !widget.hasAllocation
+            ? widget.allocated
+            : widget.isCompOff
+            ? num.tryParse(text)
+            : int.tryParse(text);
+        final used = num.tryParse(_usedController.text.trim());
+        if (allocated == null || allocated < 0 || used == null || used < 0) {
           ConstantSnackbar.showError(title: 'Enter a valid number of days');
           return;
         }
-        Navigator.of(context).pop(value);
+        // Half days are the smallest step
+        if (used * 2 != (used * 2).roundToDouble() ||
+            allocated * 2 != (allocated * 2).roundToDouble()) {
+          ConstantSnackbar.showError(title: 'Days go in steps of 0.5');
+          return;
+        }
+        if (widget.hasAllocation && used > allocated) {
+          ConstantSnackbar.showError(
+            title:
+                'Used days can not be more than the days '
+                '${widget.isCompOff ? 'earned' : 'allocated'}',
+          );
+          return;
+        }
+        Navigator.of(context).pop((allocated: allocated, used: used));
       },
-      child: TextField(
-        controller: _controller,
-        keyboardType: TextInputType.number,
-        autofocus: true,
-        decoration: const InputDecoration(labelText: 'Total days'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.hasAllocation) ...[
+            TextField(
+              controller: _allocatedController,
+              keyboardType: widget.isCompOff
+                  ? const TextInputType.numberWithOptions(decimal: true)
+                  : TextInputType.number,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: widget.isCompOff ? 'Earned days' : 'Allocated days',
+              ),
+            ),
+            SizedBox(height: 12.h),
+          ],
+          TextField(
+            controller: _usedController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: widget.hasAllocation ? 'Used days' : 'Days taken',
+            ),
+          ),
+          // History, the calendar and the exports follow the saved leave
+          // records. Warn when this number would no longer match them.
+          if (widget.recordedDays != null)
+            ListenableBuilder(
+              listenable: _usedController,
+              builder: (context, _) {
+                final recorded = widget.recordedDays!;
+                final entered = num.tryParse(_usedController.text.trim());
+                final differs = entered != null && entered != recorded;
+                return Padding(
+                  padding: EdgeInsets.only(top: 10.h),
+                  child: Text(
+                    differs
+                        ? 'Saved leave records show ${leaveCount(recorded)} '
+                              '${recorded == 1 ? 'day' : 'days'}. History, '
+                              'calendar and exports follow the records, so they '
+                              'will not match this number. To change them, '
+                              'delete or add a record in Leave records.'
+                        : 'Saved leave records show ${leaveCount(recorded)} '
+                              '${recorded == 1 ? 'day' : 'days'}.',
+                    style: getTextTheme().labelSmall?.copyWith(
+                      color: differs
+                          ? ConstColors.inProgressOrange
+                          : ConstColors.textColorLight,
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
       ),
     );
   }

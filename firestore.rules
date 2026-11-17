@@ -98,6 +98,13 @@ service cloud.firestore {
           request.resource.data.userId == userId &&
           request.resource.data.status == 'approved' &&
           request.resource.data.adminRemark == 'Added by HR';
+
+        // Manage Employee Leaves: a sub admin with "approve leave requests" may
+        // delete a leave or comp off record added by mistake, or clear all of
+        // an employee's leave data (the app takes the days back out of the
+        // balance)
+        allow delete: if hasPerm('leave_requests') &&
+          resource.data.type in ['leave', 'comp_off'];
       }
 
       // Leaves subcollection - leave balances (read-only for users)

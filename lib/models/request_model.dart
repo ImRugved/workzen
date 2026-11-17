@@ -217,6 +217,10 @@ class RequestModel {
     return leaveType?.toLowerCase() == filter.toLowerCase();
   }
 
+  /// True for a record HR added for days the employee already took (past
+  /// leave), saved approved at once.
+  bool get addedByHr => additionalData?['addedByHr'] == true;
+
   /// Leave type of a leave request ('pl', 'sl', 'cl', 'ul', 'co'), or null.
   String? get leaveType => additionalData?['leaveType'] as String?;
 

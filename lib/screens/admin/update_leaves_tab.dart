@@ -17,6 +17,7 @@ import '../../providers/onboarding_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../providers/update_employee_leave_provider.dart';
 import '../../widgets/app_dialog_card.dart';
+import '../../widgets/month_leave_form.dart';
 import '../../widgets/past_request_form.dart';
 
 /// The Update Leaves tab of Manage Employee Leaves. HR records leave an
@@ -67,7 +68,7 @@ class _UpdateLeavesTabState extends State<UpdateLeavesTab>
       case PastRequestKind.cl:
         return ConstColors.inProgressOrange;
       case PastRequestKind.ul:
-        return ConstColors.errorRed;
+        return ConstColors.calendarUnpaidLeave;
       case PastRequestKind.co:
       case PastRequestKind.compOff:
         return ConstColors.calendarCompOff;
@@ -197,10 +198,13 @@ class _UpdateLeavesTabState extends State<UpdateLeavesTab>
                 padding: AppSpacing.screen,
                 children: [
                   Text(
-                    'Add the leave an employee already took. Saved records are '
-                    'approved at once and show for the employee and in leave '
-                    'requests. The leave left today does not change: the '
-                    'days are added to used and to the total.',
+                    'Add the leave an employee already took, month by month: '
+                    'pick the employee, the month and the type, tap the days '
+                    '(each can be a full day or a half) and press Add. Change '
+                    'the type or month to add more, then press Update. Saved '
+                    'records are approved at once and show for the employee '
+                    'and in leave requests. The days are added to used and '
+                    'taken off the balance.',
                     style: getTextTheme().bodySmall?.copyWith(
                       color: ConstColors.textColorLight,
                     ),
@@ -274,6 +278,39 @@ class _UpdateLeavesTabState extends State<UpdateLeavesTab>
   // leave from earlier years can be added
   DateTime _firstDate(UpdateEmployeeLeaveProvider page) => DateTime(2000);
 
+  // The months HR can pick start at the joining month; without a joining date
+  // five years back
+  DateTime _joiningDate(UpdateEmployeeLeaveProvider page) {
+    final employee = page.employee!;
+    return employee.joiningDate ??
+        employee.createdAt ??
+        DateTime(DateTime.now().year - 5);
+  }
+
+  // Days left of PL, SL and CL of an employee in a year, from the leave
+  // document; null when that year has no document
+  Future<Map<PastRequestKind, num>?> _loadBalances(
+    String employeeId,
+    int year,
+  ) async {
+    final data = await context
+        .read<OnboardingProvider>()
+        .getUserLeaveAllocation(employeeId, year: year);
+    if (data == null) return null;
+
+    num left(String field) {
+      final map = data[field];
+      final balance = map is Map ? map['balance'] : null;
+      return balance is num && balance > 0 ? balance : 0;
+    }
+
+    return {
+      PastRequestKind.pl: left('privilegeLeaves'),
+      PastRequestKind.sl: left('sickLeaves'),
+      PastRequestKind.cl: left('casualLeaves'),
+    };
+  }
+
   Widget _addCard(UpdateEmployeeLeaveProvider page) {
     return NeuCard(
       child: Padding(
@@ -289,12 +326,15 @@ class _UpdateLeavesTabState extends State<UpdateLeavesTab>
               ),
             ),
             SizedBox(height: 12.h),
-            // A new key after each add, so the form starts empty again
-            PastRequestForm(
-              key: ValueKey('${page.employee!.id}-${page.formVersion}'),
-              submitLabel: 'Add',
-              firstDate: _firstDate(page),
-              onSubmit: page.addEntry,
+            // Month by month: pick the month and type, tap the days, Add. A
+            // new key per employee, so another employee starts empty.
+            MonthLeaveForm(
+              key: ValueKey(page.employee!.id),
+              firstDate: _joiningDate(page),
+              existing: page.entries,
+              onAdd: page.addEntries,
+              // PL, SL and CL are offered only while days are left
+              loadBalances: (year) => _loadBalances(page.employee!.id, year),
             ),
           ],
         ),

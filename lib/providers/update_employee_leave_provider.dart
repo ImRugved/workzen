@@ -41,6 +41,14 @@ class UpdateEmployeeLeaveProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Adds the records of a month-wise pick at once. The form is not reset: the
+  /// month and type stay so more days can be added.
+  void addEntries(List<PastRequestEntry> entries) {
+    if (entries.isEmpty) return;
+    _entries.addAll(entries);
+    notifyListeners();
+  }
+
   void updateEntry(PastRequestEntry entry) {
     final index = _entries.indexWhere((e) => e.id == entry.id);
     if (index == -1) return;

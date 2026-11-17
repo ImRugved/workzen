@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 /// for a half day the time worked. Scoped to the form.
 class CompOffFormProvider with ChangeNotifier {
   DateTime _workedDate = DateTime.now();
-  // The day off asked for in return; defaults to the day after the day worked
-  DateTime _compOffDate = DateTime.now().add(const Duration(days: 1));
   bool _isHalfDay = false;
   TimeOfDay? _fromTime;
   TimeOfDay? _toTime;
@@ -17,19 +15,8 @@ class CompOffFormProvider with ChangeNotifier {
   TimeOfDay? get toTime => _toTime;
   bool get isSubmitting => _isSubmitting;
 
-  DateTime get compOffDate => _compOffDate;
-
   void setWorkedDate(DateTime date) {
     _workedDate = date;
-    // The day off has to come after the day worked
-    if (!_compOffDate.isAfter(date)) {
-      _compOffDate = date.add(const Duration(days: 1));
-    }
-    notifyListeners();
-  }
-
-  void setCompOffDate(DateTime date) {
-    _compOffDate = date;
     notifyListeners();
   }
 

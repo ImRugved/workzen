@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../models/monthly_attendance_summary.dart';
+import '../utils/leave_month_utils.dart';
 import 'attendance_report_service.dart';
 
 /// Writes an [AttendanceReport] to a PDF or an Excel file in the temporary
@@ -144,10 +145,36 @@ class AttendanceExportService {
     ];
   }
 
+  // Leave of each month: one row per employee and month that has leave, with
+  // the days of PL, SL, CL, UL and Comp Off. A half day counts 0.5.
+  static List<MonthLeaveTotals> _monthLeave(AttendanceReport r) =>
+      monthlyLeaveTotals(
+        r.rows.map((row) => (row.employee.name, row.date, row.day)),
+      );
+
+  static List<String> _monthLeaveHeaders(bool withEmployee) => [
+    'Month',
+    if (withEmployee) 'Employee',
+    'PL',
+    'SL',
+    'CL',
+    'UL',
+    'Comp Off',
+    'Total',
+  ];
+
+  static List<String> _monthLeaveRow(MonthLeaveTotals t, bool withEmployee) => [
+    t.monthTitle,
+    if (withEmployee) t.employee,
+    for (final code in monthLeaveCodes) MonthLeaveTotals.cell(t.of(code)),
+    MonthLeaveTotals.cell(t.total),
+  ];
+
   // --- PDF ---
 
   Future<File> toPdf(AttendanceReport report) async {
     final withEmployee = !report.isSingleEmployee;
+    final monthLeave = _monthLeave(report);
     final pdf = pw.Document();
 
     pw.Widget table({
@@ -219,6 +246,24 @@ class AttendanceExportService {
           ),
           pw.SizedBox(height: 18),
 
+          // Leave month by month, when there is any in the period
+          if (monthLeave.isNotEmpty) ...[
+            pw.Text(
+              'Leave month wise',
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 6),
+            table(
+              headers: _monthLeaveHeaders(withEmployee),
+              data: [
+                for (final t in monthLeave) _monthLeaveRow(t, withEmployee),
+              ],
+              fontSize: 8,
+              leftAligned: withEmployee ? const [0, 1] : const [0],
+            ),
+            pw.SizedBox(height: 18),
+          ],
+
           pw.Text(
             'Attendance',
             style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
@@ -289,7 +334,24 @@ class AttendanceExportService {
     }
     summary.setColumnWidth(0, 24);
 
-    // Sheet 2: day by day
+    // Leave month by month, when there is any in the period
+    final monthLeave = _monthLeave(report);
+    if (monthLeave.isNotEmpty) {
+      final leaveSheet = excel['Leave Month Wise'];
+      writeRow(
+        leaveSheet,
+        0,
+        _monthLeaveHeaders(withEmployee),
+        style: headerStyle,
+      );
+      for (var i = 0; i < monthLeave.length; i++) {
+        writeRow(leaveSheet, i + 1, _monthLeaveRow(monthLeave[i], withEmployee));
+      }
+      leaveSheet.setColumnWidth(0, 18);
+      if (withEmployee) leaveSheet.setColumnWidth(1, 24);
+    }
+
+    // Sheet 3: day by day
     final detail = excel['Attendance'];
     writeRow(detail, 0, _detailHeaders(withEmployee), style: headerStyle);
     for (var i = 0; i < report.rows.length; i++) {
